@@ -22,15 +22,29 @@ class Agent:
         self.llm = llm
         self.llm_think = llm.with_structured_output(ThinkResult)
 
+    def _format_history(self, history: List[dict]) -> str:
+        """Render conversation history in a compact, structured log for the model."""
+        if not history:
+            return "(no conversation yet)"
+
+        entries: List[str] = []
+        for idx, utterance in enumerate(history, start=1):
+            turn = utterance.get("turn", idx)
+            speaker = utterance.get("speaker", "Unknown")
+            text = utterance.get("text", "").strip()
+            entries.append(f"{idx:02d} | T{turn:02d} | {speaker}: {text}")
+
+        return "\n".join(entries)
+
     def think(self, state: GameState) -> ThinkResult:
         
-        history_txt = "\n".join([f"{u['speaker']}: {u['text']}" for u in state["history"]]) or "(no conversation yet)"
+        history_txt = self._format_history(state["history"])
         other_agents = [name for name in state.get("thoughts", {}).keys() if name != self.name]
         others_str = ", ".join(other_agents) if other_agents else "others"
         turn_info = f"[Turn {state['turn'] + 1} of 10]"
         
         # Debug: show history length
-        print(f"      [{self.name} sees {len(state['history'])} messages in history]")
+        # print(f"      [{self.name} sees {len(state['history'])} messages in history]")
         
         msgs = [
             SystemMessage(content=f"""You are {self.name} at Huxley's Demise. Huxley has been murdered. Found out who did it!
@@ -62,7 +76,7 @@ Rate your urgency (0-9): 9=must speak NOW, 0=can wait. Respond: thought, action 
 
     def speak(self, state: GameState, response_constraint: Optional[str]) -> str:
         # Full conversation history - agents remember everything
-        history_txt = "\n".join([f"{u['speaker']}: {u['text']}" for u in state["history"]]) or "(no conversation yet)"
+        history_txt = self._format_history(state["history"])
         constraint = f"\n YOU MUST RESPOND TO: {response_constraint}\n" if response_constraint else ""
         other_agents = [name for name in state.get("thoughts", {}).keys() if name != self.name]
         others_str = ", ".join(other_agents) if other_agents else "everyone"
@@ -99,7 +113,7 @@ Rate your urgency (0-9): 9=must speak NOW, 0=can wait. Respond: thought, action 
 
     def accuse(self, state: GameState, all_agents: List[str]) -> AccusationResult:
         """Final accusation - who does this agent think is the murderer?"""
-        history_txt = "\n".join([f"{u['speaker']}: {u['text']}" for u in state["history"]]) or "(no conversation)"
+        history_txt = self._format_history(state["history"])
         other_agents = [name for name in all_agents if name != self.name]
         others_str = ", ".join(other_agents)
         

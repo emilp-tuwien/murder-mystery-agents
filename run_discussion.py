@@ -14,6 +14,36 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _banner(title: str, char: str = "=") -> None:
+    width = max(60, len(title) + 12)
+    line = char * width
+    print("\n" + line)
+    print(title.center(width))
+    print(line)
+
+
+def _section(title: str) -> None:
+    width = max(50, len(title) + 10)
+    line = "-" * width
+    print("\n" + line)
+    print(title.upper())
+    print(line)
+
+
+def _format_history(history: List[Dict[str, str]]) -> str:
+    if not history:
+        return "(no conversation)"
+
+    rows = [f"IDX | TURN | SPEAKER             | TEXT",
+            f"----+------+---------------------+--------------------------------------------------"]
+    for idx, u in enumerate(history, start=1):
+        turn = u.get("turn", idx)
+        speaker = u.get("speaker", "Unknown")[:21]
+        text = u.get("text", "").strip()
+        rows.append(f"{idx:03d} | T{turn:02d} | {speaker:<21} | {text}")
+    return "\n".join(rows)
+
+
 if __name__ == "__main__":
     choice = input("Select LLM (g=GPT-4o-mini, l=Llama3.2): ").strip().lower()
     
@@ -51,16 +81,16 @@ if __name__ == "__main__":
         "new_utterance": None,
         "done": False,
     }
+    _banner("MURDER MYSTERY DISCUSSION")
     print("Starting discussion...\n")
 
     final = app.invoke(init, {"recursion_limit": 500})
 
-    print("\n" + "="*60)
-    print("DISCUSSION COMPLETE - TIME TO VOTE!")
-    print("="*60)
+    _banner("DISCUSSION COMPLETE - TIME TO VOTE")
     
     # Accusation phase
-    print("\n🔍 Each player must now accuse someone of being the murderer...\n")
+    _section("Accusation phase")
+    print("Each player must now accuse someone of being the murderer.\n")
     
     agent_names = list(agents.keys())
     accusations = {}
@@ -73,16 +103,12 @@ if __name__ == "__main__":
         votes[result.accused] = votes.get(result.accused, 0) + 1
         print(f"accuses {result.accused}")
     
-    print("\n" + "="*60)
-    print("FINAL ACCUSATIONS")
-    print("="*60)
+    _section("Final accusations")
     for name, result in accusations.items():
         print(f"\n{name} accuses {result.accused}:")
         print(f"  Reasoning: {result.reasoning}")
     
-    print("\n" + "="*60)
-    print("VOTE TALLY")
-    print("="*60)
+    _section("Vote tally")
     sorted_votes = sorted(votes.items(), key=lambda x: x[1], reverse=True)
     for name, count in sorted_votes:
         bar = "█" * count
@@ -92,13 +118,12 @@ if __name__ == "__main__":
     max_votes = sorted_votes[0][1]
     winners = [name for name, count in sorted_votes if count == max_votes]
     
-    print("\n" + "="*60)
+    _banner("GROUP VERDICT")
     if len(winners) == 1:
         print(f"🚨 THE GROUP HAS DECIDED: {winners[0]} IS THE MURDERER! 🚨")
     else:
         print(f"⚠️ TIE! The group suspects: {', '.join(winners)}")
-    print("="*60)
+    print("=" * 60)
 
-    print("\n=== Full Transcript ===")
-    for u in final["history"]:
-        print(f"[Turn {u['turn']}] {u['speaker']}: {u['text']}")
+    _section("Full transcript")
+    print(_format_history(final["history"]))
