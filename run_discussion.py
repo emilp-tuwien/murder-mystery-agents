@@ -11,7 +11,7 @@ from game_master import GameMaster
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
-import ollama
+import subprocess
 import json
 load_dotenv()
 
@@ -49,12 +49,35 @@ def _format_history(history: List[Dict[str, str]]) -> str:
 def _get_available_ollama_models() -> List[str]:
     """Get list of available Ollama models on the system."""
     try:
-        models = ollama.list()
-        # Extract model names from the response
-        model_names = [model['name'] for model in models['models']]
-        return sorted(model_names)
-    except Exception as e:
+        result = subprocess.run(
+            ['ollama', 'list'],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        
+        # Parse the output - skip header line and extract model names
+        lines = result.stdout.strip().split('\n')
+        if len(lines) <= 1:
+            return []
+        
+        models = []
+        for line in lines[1:]:  # Skip header
+            parts = line.split()
+            if parts:
+                # Model name is the first column
+                model_name = parts[0]
+                models.append(model_name)
+        
+        return sorted(models)
+    except subprocess.CalledProcessError as e:
         print(f"Warning: Could not fetch Ollama models: {e}")
+        return []
+    except FileNotFoundError:
+        print("Warning: 'ollama' command not found. Please install Ollama.")
+        return []
+    except Exception as e:
+        print(f"Warning: Error fetching Ollama models: {e}")
         return []
 
 
