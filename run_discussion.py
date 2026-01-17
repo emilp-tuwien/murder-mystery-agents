@@ -11,6 +11,8 @@ from game_master import GameMaster
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
+import ollama
+import json
 load_dotenv()
 
 
@@ -44,15 +46,61 @@ def _format_history(history: List[Dict[str, str]]) -> str:
     return "\n".join(rows)
 
 
+def _get_available_ollama_models() -> List[str]:
+    """Get list of available Ollama models on the system."""
+    try:
+        models = ollama.list()
+        # Extract model names from the response
+        model_names = [model['name'] for model in models['models']]
+        return sorted(model_names)
+    except Exception as e:
+        print(f"Warning: Could not fetch Ollama models: {e}")
+        return []
+
+
+def _select_ollama_model() -> Optional[str]:
+    """Let user select from available Ollama models."""
+    models = _get_available_ollama_models()
+    
+    if not models:
+        print("No Ollama models found. Please install models using 'ollama pull <model_name>'")
+        return None
+    
+    print("\nAvailable Ollama models:")
+    for idx, model in enumerate(models, start=1):
+        print(f"  {idx}. {model}")
+    
+    while True:
+        try:
+            choice = input(f"\nSelect model (1-{len(models)}): ").strip()
+            idx = int(choice) - 1
+            if 0 <= idx < len(models):
+                return models[idx]
+            else:
+                print(f"Please enter a number between 1 and {len(models)}")
+        except ValueError:
+            print("Please enter a valid number")
+        except KeyboardInterrupt:
+            print("\nSelection cancelled")
+            return None
+
+
 if __name__ == "__main__":
-    choice = input("Select LLM (g=GPT-4o-mini, l=Llama3.2): ").strip().lower()
+    choice = input("Select LLM (g=GPT-4o-mini, o=Ollama): ").strip().lower()
     
     if choice == "g":
         llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
         print("Using GPT-4o-mini")
+    elif choice == "o":
+        selected_model = _select_ollama_model()
+        if selected_model is None:
+            print("No model selected. Exiting.")
+            sys.exit(1)
+        llm = ChatOllama(model=selected_model, temperature=0.7)
+        print(f"Using {selected_model}")
     else:
-        llm = ChatOllama(model="llama3.2", temperature=0.7)
-        print("Using Llama 3.2")
+        print("Invalid choice. Exiting.")
+        sys.exit(1)
 
     roles_dir = Path(__file__).parent / "agents" / "roles"
     descriptions = load_character_descriptions(roles_dir)
