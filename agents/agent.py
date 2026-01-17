@@ -43,6 +43,11 @@ class Agent:
         others_str = ", ".join(other_agents) if other_agents else "others"
         turn_info = f"[Turn {state['turn'] + 1} of 200]"
         
+        last_speaker_text = ""
+        if state.get("history"):
+            last_msg = state["history"][-1]
+            last_speaker_text = f"\n\nLAST MESSAGE: {last_msg['speaker']}: {last_msg['text']}"
+        
         # Debug: show history length
         # print(f"      [{self.name} sees {len(state['history'])} messages in history]")
         
@@ -63,10 +68,18 @@ Present: {others_str} (they hear everything)
 
 {self.persona}"""),
             HumanMessage(content=f"""FULL CONVERSATION SO FAR:
-{history_txt}
+{history_txt}{last_speaker_text}
 
-You MUST participate or you'll be accused! What do you want to say or ask?
-Rate your urgency (0-9): 9=must speak NOW, 0=can wait. Respond: thought, action (speak/listen), importance."""),
+IMPORTANCE SCORING RULES:
+- action="listen" + you have nothing relevant to add → importance should be LOW (0-3)
+- action="listen" + you're confused/need to think → importance should be LOW (0-2)
+- action="speak" + you have crucial evidence/accusation → importance HIGH (7-9)
+- action="speak" + you want to ask a question → importance MEDIUM (4-6)
+- action="speak" + you're just commenting → importance LOW-MEDIUM (3-5)
+- If last message doesn't concern you and you have no new info → importance VERY LOW (0-2)
+
+You MUST participate eventually, but don't inflate your importance if you're just listening!
+What do you want to do? Respond: thought, action (speak/listen), importance."""),
         ]
         try:
             return self.llm_think.invoke(msgs)

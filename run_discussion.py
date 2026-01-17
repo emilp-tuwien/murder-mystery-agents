@@ -108,6 +108,25 @@ def _select_ollama_model() -> Optional[str]:
             return None
 
 
+def _select_number_of_rounds() -> int:
+    """Let user specify the number of discussion rounds."""
+    while True:
+        try:
+            rounds = input("\nHow many discussion rounds? (default: 200): ").strip()
+            if not rounds:
+                return 200
+            num_rounds = int(rounds)
+            if num_rounds > 0:
+                return num_rounds
+            else:
+                print("Please enter a positive number")
+        except ValueError:
+            print("Please enter a valid number")
+        except KeyboardInterrupt:
+            print("\nUsing default (200 rounds)")
+            return 200
+
+
 if __name__ == "__main__":
     choice = input("Select LLM (g=GPT-4o-mini, o=Ollama): ").strip().lower()
     
@@ -125,6 +144,9 @@ if __name__ == "__main__":
         print("Invalid choice. Exiting.")
         sys.exit(1)
 
+    max_turns = _select_number_of_rounds()
+    print(f"Discussion will run for {max_turns} turns.")
+
     roles_dir = Path(__file__).parent / "agents" / "roles"
     descriptions = load_character_descriptions(roles_dir)
     
@@ -133,14 +155,15 @@ if __name__ == "__main__":
         name: Agent(name, descriptions[name], llm)
         for name in selected_characters
     }
-    print(f"Loaded agents: {list(agents.keys())}")
+    print(f"Loaded agents: {list(agents.keys())} ({len(agents)} agents)")
+    print(f"Discussion rounds: {max_turns}")
 
     # Initialize Game Master
     game_master = GameMaster(llm, list(agents.keys()))
     print("Game Master initialized.")
 
-    app = build_graph(agents, game_master, max_turns=200)
-    print("Discussion graph built (200 turns).")
+    app = build_graph(agents, game_master, max_turns=max_turns)
+    print(f"Discussion graph built ({max_turns} turns).")
 
     init: GameState = {
         "turn": 0,
