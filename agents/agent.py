@@ -41,7 +41,7 @@ class Agent:
         history_txt = self._format_history(state["history"])
         other_agents = [name for name in state.get("thoughts", {}).keys() if name != self.name]
         others_str = ", ".join(other_agents) if other_agents else "others"
-        turn_info = f"[Turn {state['turn'] + 1} of 10]"
+        turn_info = f"[Turn {state['turn'] + 1} of 200]"
         
         # Debug: show history length
         # print(f"      [{self.name} sees {len(state['history'])} messages in history]")
@@ -80,7 +80,7 @@ Rate your urgency (0-9): 9=must speak NOW, 0=can wait. Respond: thought, action 
         constraint = f"\n YOU MUST RESPOND TO: {response_constraint}\n" if response_constraint else ""
         other_agents = [name for name in state.get("thoughts", {}).keys() if name != self.name]
         others_str = ", ".join(other_agents) if other_agents else "everyone"
-        turn_info = f"[Turn {state['turn'] + 1} of 10]"
+        turn_info = f"[Turn {state['turn'] + 1} of 200]"
         msgs = [
             SystemMessage(content=f"""You are {self.name} at Huxley's Demise. Huxley has been murdered. Found out who did it!
 

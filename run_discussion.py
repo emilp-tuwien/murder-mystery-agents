@@ -68,8 +68,8 @@ if __name__ == "__main__":
     game_master = GameMaster(llm, list(agents.keys()))
     print("Game Master initialized.")
 
-    app = build_graph(agents, game_master, max_turns=10)
-    print("Discussion graph built (10 turns).")
+    app = build_graph(agents, game_master, max_turns=200)
+    print("Discussion graph built (200 turns).")
 
     init: GameState = {
         "turn": 0,
