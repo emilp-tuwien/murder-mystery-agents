@@ -131,7 +131,25 @@ if __name__ == "__main__":
     choice = input("Select LLM (g=GPT-4o-mini, o=Ollama): ").strip().lower()
     
     if choice == "g":
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
+        import os
+        # Check if API key is already set in environment
+        api_key = os.environ.get("OPENAI_API_KEY", "")
+        
+        if not api_key:
+            print("\nNo OpenAI API key found in environment.")
+            api_key = input("Paste your OpenAI API key: ").strip()
+            if not api_key:
+                print("No API key provided. Exiting.")
+                sys.exit(1)
+        else:
+            use_existing = input(f"\nFound existing API key (ends with ...{api_key[-4:]}). Use it? (y/n): ").strip().lower()
+            if use_existing != "y":
+                api_key = input("Paste your OpenAI API key: ").strip()
+                if not api_key:
+                    print("No API key provided. Exiting.")
+                    sys.exit(1)
+        
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7, api_key=api_key)
         print("Using GPT-4o-mini")
     elif choice == "o":
         selected_model = _select_ollama_model()
