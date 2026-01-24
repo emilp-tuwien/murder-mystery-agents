@@ -87,11 +87,15 @@ class Agent:
         if phase == "introduction" and current_round == 1:
             phase_instruction = """
 CURRENT PHASE: INTRODUCTIONS (Round 1)
-Your goal right now is to introduce yourself to the group. Share who you are, why you're here, 
-and your connection to the victim/location. Be friendly but mysterious."""
+Before the investigation begins, everyone must introduce themselves to the group.
+Share: Who you are, why you came to Killingsworth Farm today, and how you knew Elizabeth.
+Be honest about your identity but you may keep your secrets for now."""
+            murder_context = """ ELIZABETH KILLINGSWORTH IS DEAD!
+She has just been found dead at Killingsworth Farm. The circumstances are unclear but foul play is suspected.
+No one can leave until this is resolved. One of you may be the killer."""
         else:
             phase_instruction = f"""
-CURRENT PHASE: INVESTIGATION (Round {current_round})
+CURRENT PHASE: INVESTIGATION (Round {current_round}/6)
 CRITICAL WARNING: If you stay silent or don't actively investigate, others will suspect YOU are the murderer! 
 The quietest person is always the most suspicious.
 
@@ -99,13 +103,13 @@ YOUR GOALS:
 1. SURVIVE: Ask questions, share clues, and make accusations - or BE ACCUSED yourself
 2. FIND THE KILLER: Question everyone, look for inconsistencies, demand alibis
 3. PERSONAL: Achieve your character objectives"""
+            murder_context = """ ELIZABETH KILLINGSWORTH WAS MURDERED! 
+She is DEAD. One of you present is the KILLER. You must find out who did it."""
         
         msgs = [
-            SystemMessage(content=f"""You are {self.name} at Killingsworth Farm in California wine country.
+            SystemMessage(content=f"""{murder_context}
 
-TRAGIC NEWS: Elizabeth Killingsworth has been found MURDERED!
-
-You and the others present are all suspects. One of you is the killer. You must discuss and figure out WHO KILLED ELIZABETH.
+You are {self.name} at Killingsworth Farm in California wine country.
 
 {turn_info} - Round {current_round}/6
 
@@ -147,10 +151,16 @@ What do you want to do? Respond: thought, action (speak/listen), importance.""")
         # Phase-specific instructions
         if phase == "introduction" and current_round == 1:
             phase_rules = """
-CURRENT PHASE: INTRODUCTIONS
-- Introduce yourself: who you are, why you're here, your connection to this place
-- Be personable but keep some mystery
-- Listen to others' introductions"""
+CURRENT PHASE: INTRODUCTIONS (Round 1)
+You must now introduce yourself to the group. Tell everyone:
+- Who you are and what you do
+- Why you came to Killingsworth Farm today  
+- How you knew Elizabeth (if at all)
+
+Be honest about your identity. You may keep your darker secrets for now."""
+            murder_context = """⚠️ ELIZABETH KILLINGSWORTH IS DEAD! ⚠️
+She has just been found dead at Killingsworth Farm. The circumstances are unclear but foul play is suspected.
+No one can leave until this is resolved. One of you may be the killer."""
         else:
             phase_rules = f"""
 CURRENT PHASE: INVESTIGATION (Round {current_round}/6)
@@ -165,13 +175,13 @@ STRATEGIES:
 - Share clues and suspicions with the group
 - Demand alibis - everyone hears the answer
 - Make accusations publicly"""
+            murder_context = """⚠️ ELIZABETH KILLINGSWORTH WAS MURDERED! ⚠️
+She is DEAD. One of you present is the KILLER. You must find out who did it."""
 
         msgs = [
-            SystemMessage(content=f"""You are {self.name} at Killingsworth Farm in California wine country.
+            SystemMessage(content=f"""{murder_context}
 
-TRAGIC NEWS: Elizabeth Killingsworth has been found MURDERED! Her body was discovered with a corkscrew stabbed in her neck.
-
-You and the others present are all suspects. One of you is the killer. You must discuss and figure out WHO KILLED ELIZABETH.
+You are {self.name} at Killingsworth Farm in California wine country.
 
 {turn_info} - Round {current_round}/6
 

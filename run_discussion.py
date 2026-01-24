@@ -186,14 +186,22 @@ if __name__ == "__main__":
     initial_context = game_master.provide_initial_context()
     print(initial_context)
 
+    # Create initial context message that will be in history for all agents
+    murder_announcement = """ANNOUNCEMENT: Elizabeth Killingsworth has been found DEAD.""" 
     init: GameState = {
         "turn": 0,
         "current_round": 1,
         "conversations_in_round": 0,
         "conversations_per_round": conversations_per_round,
-        "history": [],
+        "history": [
+            {
+                "turn": 0,
+                "speaker": "Game Master",
+                "text": murder_announcement
+            }
+        ],
         "thoughts": {},
-        "last_speaker": None,
+        "last_speaker": "Game Master",
         "pending_obligation": None,
         "next_speaker": None,
         "new_utterance": None,
