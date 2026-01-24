@@ -1,4 +1,5 @@
 from typing import Optional, Literal, Any, List
+from pathlib import Path
 from pydantic import BaseModel, Field
 from langchain_core.messages import SystemMessage, HumanMessage
 from schemas.state import GameState
@@ -16,11 +17,43 @@ class AccusationResult(BaseModel):
 
 
 class Agent:
-    def __init__(self, name: str, persona: str, llm: Any):
+    def __init__(self, name: str, persona: str, llm: Any, roles_dir: Path, is_murderer: bool = False):
         self.name = name
-        self.persona = persona
+        self.base_persona = persona
+        self.persona = persona  # Will be updated with round info
         self.llm = llm
         self.llm_think = llm.with_structured_output(ThinkResult)
+        self.roles_dir = roles_dir
+        self.is_murderer = is_murderer
+        self.current_round = 0
+        self.accumulated_knowledge = ""  # Knowledge accumulated across rounds
+        self.confession = ""  # Loaded after accusation phase
+    
+    def update_round(self, round_num: int):
+        """Update agent's knowledge with new round information."""
+        from utils.agent_helper import load_round_description
+        
+        if round_num == self.current_round:
+            return  # Already on this round
+        
+        self.current_round = round_num
+        round_desc = load_round_description(self.roles_dir, self.name, round_num)
+        
+        if round_desc:
+            self.accumulated_knowledge += f"\n\n=== ROUND {round_num} INFORMATION ===\n{round_desc}"
+            
+            # Update persona with accumulated knowledge
+            self.persona = f"{self.base_persona}\n\n{self.accumulated_knowledge}"
+            
+            # If murderer, add reminder that they know they did it
+            if self.is_murderer:
+                self.persona += "\n\n[SECRET: You are the murderer. You know you killed the victim. Your goal is to avoid being discovered while appearing cooperative.]"
+    
+    def load_confession(self):
+        """Load the character's confession text."""
+        from utils.agent_helper import load_confession
+        self.confession = load_confession(self.roles_dir, self.name)
+        return self.confession
 
     def _format_history(self, history: List[dict]) -> str:
         """Render conversation history in a compact, structured log for the model."""
@@ -41,28 +74,38 @@ class Agent:
         history_txt = self._format_history(state["history"])
         other_agents = [name for name in state.get("thoughts", {}).keys() if name != self.name]
         others_str = ", ".join(other_agents) if other_agents else "others"
-        turn_info = f"[Turn {state['turn'] + 1} of 200]"
+        turn_info = f"[Turn {state['turn'] + 1}]"
+        current_round = state.get("current_round", 1)
+        phase = state.get("phase", "introduction")
         
         last_speaker_text = ""
         if state.get("history"):
             last_msg = state["history"][-1]
             last_speaker_text = f"\n\nLAST MESSAGE: {last_msg['speaker']}: {last_msg['text']}"
         
-        # Debug: show history length
-        # print(f"      [{self.name} sees {len(state['history'])} messages in history]")
-        
-        msgs = [
-            SystemMessage(content=f"""You are {self.name} at Huxley's Demise. Huxley has been murdered. Found out who did it!
-
-{turn_info}
-
+        # Phase-specific prompts
+        if phase == "introduction" and current_round == 1:
+            phase_instruction = """
+CURRENT PHASE: INTRODUCTIONS (Round 1)
+Your goal right now is to introduce yourself to the group. Share who you are, why you're here, 
+and your connection to the victim/location. Be friendly but mysterious."""
+        else:
+            phase_instruction = f"""
+CURRENT PHASE: INVESTIGATION (Round {current_round})
 CRITICAL WARNING: If you stay silent or don't actively investigate, others will suspect YOU are the murderer! 
 The quietest person is always the most suspicious.
 
 YOUR GOALS:
 1. SURVIVE: Ask questions, share clues, and make accusations - or BE ACCUSED yourself
 2. FIND THE KILLER: Question everyone, look for inconsistencies, demand alibis
-3. PERSONAL: Achieve your character objectives
+3. PERSONAL: Achieve your character objectives"""
+        
+        msgs = [
+            SystemMessage(content=f"""You are {self.name} at Huxley's Demise. Huxley has been murdered. Found out who did it!
+
+{turn_info} - Round {current_round}/6
+
+{phase_instruction}
 
 Present: {others_str} (they hear everything)
 
@@ -93,30 +136,44 @@ What do you want to do? Respond: thought, action (speak/listen), importance.""")
         constraint = f"\n YOU MUST RESPOND TO: {response_constraint}\n" if response_constraint else ""
         other_agents = [name for name in state.get("thoughts", {}).keys() if name != self.name]
         others_str = ", ".join(other_agents) if other_agents else "everyone"
-        turn_info = f"[Turn {state['turn'] + 1} of 200]"
+        turn_info = f"[Turn {state['turn'] + 1}]"
+        current_round = state.get("current_round", 1)
+        phase = state.get("phase", "introduction")
+        
+        # Phase-specific instructions
+        if phase == "introduction" and current_round == 1:
+            phase_rules = """
+CURRENT PHASE: INTRODUCTIONS
+- Introduce yourself: who you are, why you're here, your connection to this place
+- Be personable but keep some mystery
+- Listen to others' introductions"""
+        else:
+            phase_rules = f"""
+CURRENT PHASE: INVESTIGATION (Round {current_round}/6)
+IMPORTANT RULES:
+- This is a GROUP conversation - {others_str} hear EVERYTHING you say
+- You CANNOT speak privately with anyone - no secret conversations allowed
+- Everything must be said publicly to the whole group
+- Silence = Suspicion. Stay quiet and YOU become the prime suspect!
+
+STRATEGIES:
+- Ask direct questions to specific people BY NAME (they must answer publicly)
+- Share clues and suspicions with the group
+- Demand alibis - everyone hears the answer
+- Make accusations publicly"""
+
         msgs = [
             SystemMessage(content=f"""You are {self.name} at Huxley's Demise. Huxley has been murdered. Found out who did it!
 
+{turn_info} - Round {current_round}/6
 
-        {turn_info}
+{phase_rules}
 
-                    IMPORTANT RULES:
-                    - This is a GROUP conversation - {others_str} hear EVERYTHING you say
-                    - You CANNOT speak privately with anyone - no secret conversations allowed
-                    - Everything must be said publicly to the whole group
-                    - Silence = Suspicion. Stay quiet and YOU become the prime suspect!
-
-                    STRATEGIES:
-                    - Ask direct questions to specific people BY NAME (they must answer publicly)
-                    - Share clues and suspicions with the group
-                    - Demand alibis - everyone hears the answer
-                    - Make accusations publicly
-
-                    {self.persona}"""),
-                                HumanMessage(content=f"""FULL CONVERSATION SO FAR:
-                    {history_txt}{constraint}
-                    Your response (1-2 sentences, speak to the GROUP, no private conversations):\n"""),
-                ]
+{self.persona}"""),
+            HumanMessage(content=f"""FULL CONVERSATION SO FAR:
+{history_txt}{constraint}
+Your response (1-2 sentences, speak to the GROUP, no private conversations):\n"""),
+        ]
         try:
             result = self.llm.invoke(msgs)
             return result.content if result and result.content else f"{self.name}: (thinks carefully)"
@@ -125,8 +182,9 @@ What do you want to do? Respond: thought, action (speak/listen), importance.""")
             return f"{self.name}: (I need to think about this)"
 
     def accuse(self, state: GameState, all_agents: List[str]) -> AccusationResult:
-        """Final accusation - who does this agent think is the murderer?"""
+        """Final accusation - who does this agent think is the murderer? Cannot accuse self."""
         history_txt = self._format_history(state["history"])
+        # Filter out self from possible accusation targets
         other_agents = [name for name in all_agents if name != self.name]
         others_str = ", ".join(other_agents)
         
@@ -135,17 +193,19 @@ What do you want to do? Respond: thought, action (speak/listen), importance.""")
         msgs = [
             SystemMessage(content=f"""You are {self.name}. The murder mystery discussion is OVER.
 
-                You MUST now accuse ONE person of being the murderer. You cannot accuse yourself.
-                Choose from: {others_str}
+You MUST now accuse ONE person of being the murderer. 
+IMPORTANT: You CANNOT accuse yourself - you must choose someone else.
+Choose from: {others_str}
 
-                Based on everything you heard, who is the most suspicious? Who had motive, opportunity, or gave inconsistent answers?
+Based on everything you heard, who is the most suspicious? Who had motive, opportunity, or gave inconsistent answers?
 
-                {self.persona}"""),
-                            HumanMessage(content=f"""Full conversation transcript:
-                {history_txt}
+{self.persona}"""),
+            HumanMessage(content=f"""Full conversation transcript:
+{history_txt}
 
-                Who do you accuse of being the murderer? You MUST choose exactly one person from: {others_str}
-                Provide your reasoning and your final accusation."""),
+Who do you accuse of being the murderer? You MUST choose exactly one person from: {others_str}
+Remember: You cannot accuse yourself!
+Provide your reasoning and your final accusation."""),
         ]
         try:
             result = llm_accuse.invoke(msgs)

@@ -15,6 +15,9 @@ class PendingObligation(TypedDict):
 
 class GameState(TypedDict):
     turn: int
+    current_round: int  # Current game round (1-6)
+    conversations_in_round: int  # Count of conversations in current round
+    conversations_per_round: int  # Default 20, configurable by game master
     history: Annotated[List[Utterance], operator.add]  # Use reducer to accumulate history
     pending_obligation: Optional[PendingObligation]
 
@@ -24,3 +27,6 @@ class GameState(TypedDict):
     next_speaker: Optional[str]
     new_utterance: Optional[Utterance]
     done: bool
+    
+    # Phase tracking
+    phase: str  # "introduction", "discussion", "accusation", "confession"

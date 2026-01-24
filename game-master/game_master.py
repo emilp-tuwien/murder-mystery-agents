@@ -14,11 +14,13 @@ class SpeakerDecision(BaseModel):
 
 
 class GameMaster:
-    def __init__(self, llm: Any, agent_names: List[str]):
+    def __init__(self, llm: Any, agent_names: List[str], conversations_per_round: int = 20):
         self.llm = llm
         self.agent_names = agent_names
         self.llm_decide = llm.with_structured_output(SpeakerDecision)
         self.persona = self._load_persona()
+        self.conversations_per_round = conversations_per_round
+        self.max_rounds = 6  # Total number of rounds in the game
     
     def _load_persona(self) -> str:
         """Load game master description from PDF"""
@@ -41,6 +43,33 @@ class GameMaster:
 Your role is to facilitate the discussion and ensure the investigation progresses.
 You decide who speaks next based on the conversation flow."""
 
+    def should_advance_round(self, conversations_in_round: int, current_round: int) -> bool:
+        """
+        Determine if the game should advance to the next round.
+        By default, advances after conversations_per_round conversations.
+        """
+        if current_round >= self.max_rounds:
+            return False  # Already at max round
+        return conversations_in_round >= self.conversations_per_round
+    
+    def get_phase_for_round(self, round_num: int) -> str:
+        """
+        Determine the game phase based on current round.
+        Round 1: Introduction phase
+        Rounds 2-5: Discussion/Investigation phase
+        Round 6+: Should trigger accusation phase
+        """
+        if round_num == 1:
+            return "introduction"
+        elif round_num <= 5:
+            return "discussion"
+        else:
+            return "accusation"
+    
+    def is_game_complete(self, current_round: int, conversations_in_round: int) -> bool:
+        """Check if the game should end (after round 5 completes)."""
+        return current_round >= 6 or (current_round == 5 and conversations_in_round >= self.conversations_per_round)
+
     def decide_next_speaker(self, state: dict, thoughts: dict) -> SpeakerDecision:
         """
         Evaluate the last message and all agent thoughts to decide who speaks next.
@@ -51,6 +80,8 @@ You decide who speaks next based on the conversation flow."""
         """
         history = state.get("history", [])
         last_utterance = history[-1] if history else None
+        current_round = state.get("current_round", 1)
+        phase = state.get("phase", "introduction")
         
         # Build context about what each agent wants to say
         agent_thoughts_txt = "\n".join([
@@ -68,10 +99,22 @@ You decide who speaks next based on the conversation flow."""
         available = [n for n in self.agent_names if n != last_speaker] if last_speaker else self.agent_names
         available_str = ", ".join(available)
         
+        # Phase-specific instructions
+        if phase == "introduction":
+            phase_instruction = """
+CURRENT PHASE: INTRODUCTIONS (Round 1)
+Priority: Let each player introduce themselves. Prefer players who haven't spoken yet.
+Ensure everyone gets a chance to introduce themselves before moving to investigation."""
+        else:
+            phase_instruction = f"""
+CURRENT PHASE: INVESTIGATION (Round {current_round}/6)
+Priority: Advance the murder investigation. Look for direct questions, accusations, or important revelations."""
+        
         msgs = [
             SystemMessage(content=f"""{self.persona}
 
 PLAYERS IN THE GAME: {', '.join(self.agent_names)}
+{phase_instruction}
 
 YOUR TASK: Decide who should speak next.
 
@@ -120,3 +163,71 @@ Choose ONE player from: {available_str}"""),
                 response_constraint=None,
                 is_direct_address=False
             )
+
+    def provide_initial_context(self) -> str:
+        """Provide game context to all players at the start."""
+        context_intro = f"""
+╔═══════════════════════════════════════════════════════════════╗
+║          WELCOME TO THE MURDER MYSTERY INVESTIGATION          ║
+╚═══════════════════════════════════════════════════════════════╝
+
+Players: {', '.join(self.agent_names)}
+
+══════════════════════════════════════════════════════════════════
+
+GAME STRUCTURE:
+- Round 1: Introductions - Players introduce themselves
+- Rounds 2-5: Investigation - Players discuss, question, and investigate
+- After Round 5: Accusation - Each player accuses someone
+- Final: Confessions - Everyone reveals their secrets
+
+Each round has approximately {self.conversations_per_round} conversations.
+
+══════════════════════════════════════════════════════════════════
+
+GAME CONTEXT:
+
+{self.persona}
+
+══════════════════════════════════════════════════════════════════
+
+RULES:
+1. Everyone can speak and must participate to avoid suspicion
+2. You can ask questions, share clues, and make accusations
+3. All conversations are PUBLIC - no private discussions allowed
+4. Players CANNOT accuse themselves
+5. The group must identify the murderer through discussion
+6. After round 5, everyone votes on who they suspect
+
+══════════════════════════════════════════════════════════════════
+
+NOW BEGINNING ROUND 1: INTRODUCTIONS...
+
+"""
+        return context_intro
+    
+    def announce_round_change(self, new_round: int) -> str:
+        """Generate announcement for round change."""
+        if new_round == 2:
+            return f"""
+╔═══════════════════════════════════════════════════════════════╗
+║                    ROUND {new_round}: INVESTIGATION BEGINS                ║
+╚═══════════════════════════════════════════════════════════════╝
+New information has come to light! Players have received additional clues.
+The investigation phase begins now. Question everyone, look for lies!
+"""
+        elif new_round <= 5:
+            return f"""
+╔═══════════════════════════════════════════════════════════════╗
+║                         ROUND {new_round}                              ║
+╚═══════════════════════════════════════════════════════════════╝
+New evidence has been discovered! Players have received new information.
+Continue your investigation. The truth is getting closer...
+"""
+        else:
+            return f"""
+╔═══════════════════════════════════════════════════════════════╗
+║              FINAL ROUND - ACCUSATION TIME                    ║
+╚═══════════════════════════════════════════════════════════════╝
+The investigation is complete. Time to make your final accusations!
+"""
