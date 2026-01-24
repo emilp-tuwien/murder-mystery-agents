@@ -81,6 +81,49 @@ You decide who speaks next based on the conversation flow."""
         """Check if the game should end (after round 5 completes)."""
         return current_round >= 6 or (current_round == 5 and conversations_in_round >= self.conversations_per_round)
 
+    def _detect_direct_address(self, text: str, available_agents: list) -> str | None:
+        """
+        Detect if someone was directly addressed by name in the text.
+        Returns the name of the addressed agent, or None if no one was directly addressed.
+        """
+        text_lower = text.lower()
+        
+        for agent_name in available_agents:
+            name_lower = agent_name.lower()
+            first_name = name_lower.split()[0] if ' ' in name_lower else name_lower
+            
+            # Check for direct address patterns
+            patterns = [
+                f"{name_lower},",           # "Enrique Graves,"
+                f"{first_name},",           # "Enrique,"
+                f"{name_lower}?",           # "Enrique Graves?"
+                f"{first_name}?",           # "Enrique?"
+                f"ask {name_lower}",        # "ask Enrique Graves"
+                f"ask {first_name}",        # "ask Enrique"
+                f"{name_lower} can you",    # "Enrique can you"
+                f"{first_name} can you",    # "Enrique can you"
+                f"{name_lower}, can you",   # "Enrique, can you"
+                f"{first_name}, can you",   # "Enrique, can you"
+                f"{name_lower} what",       # "Enrique what"
+                f"{first_name} what",       # "Enrique what"
+                f"{name_lower}, what",      # "Enrique, what"
+                f"{first_name}, what",      # "Enrique, what"
+                f"{name_lower} where",      # "Enrique where"
+                f"{first_name} where",      # "Enrique where"
+                f"{name_lower} why",        # "Enrique why"
+                f"{first_name} why",        # "Enrique why"
+                f"{name_lower} tell us",    # "Enrique tell us"
+                f"{first_name} tell us",    # "Enrique tell us"
+                f"to {name_lower}",         # "to Enrique"
+                f"to {first_name}",         # "to Enrique"
+            ]
+            
+            for pattern in patterns:
+                if pattern in text_lower:
+                    return agent_name
+        
+        return None
+
     def decide_next_speaker(self, state: dict, thoughts: dict) -> SpeakerDecision:
         """
         Evaluate the last message and all agent thoughts to decide who speaks next.
