@@ -196,11 +196,21 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any]):
             new_round = 2
             new_phase = game_master.get_phase_for_round(new_round)
             
-            print(game_master.announce_round_change(new_round))
+            announcement = game_master.announce_round_change(new_round)
+            print(announcement)
+            
+            # Extract clue from announcement if present
+            clue = None
+            if "NEW CLUE:" in announcement:
+                clue_start = announcement.find(" NEW CLUE:")
+                clue_end = announcement.find("\n", clue_start + 50) if "\n" in announcement[clue_start + 50:] else len(announcement)
+                clue = announcement[clue_start:clue_end].replace(" NEW CLUE:", "").strip()
             
             print(f"\n   Updating agent knowledge for Round {new_round}...")
             for name, agent in agents.items():
                 agent.update_round(new_round)
+                if clue:
+                    agent.add_clue_to_memory(clue)
             print(f"   All agents updated with Round {new_round} information")
             
             return {
@@ -216,11 +226,21 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any]):
         new_round = current_round + 1
         new_phase = game_master.get_phase_for_round(new_round)
         
-        print(game_master.announce_round_change(new_round))
+        announcement = game_master.announce_round_change(new_round)
+        print(announcement)
+        
+        # Extract clue from announcement if present
+        clue = None
+        if "🔍 NEW CLUE:" in announcement:
+            clue_start = announcement.find(" NEW CLUE:")
+            clue_end = announcement.find("\n", clue_start + 50) if "\n" in announcement[clue_start + 50:] else len(announcement)
+            clue = announcement[clue_start:clue_end].replace(" NEW CLUE:", "").strip()
         
         print(f"\n   Updating agent knowledge for Round {new_round}...")
         for name, agent in agents.items():
             agent.update_round(new_round)
+            if clue:
+                agent.add_clue_to_memory(clue)
         print(f"   All agents updated with Round {new_round} information")
         
         return {

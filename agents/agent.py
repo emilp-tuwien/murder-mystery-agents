@@ -58,6 +58,35 @@ class Agent:
         self.current_round = 0
         self.accumulated_knowledge = ""  # Knowledge accumulated across rounds
         self.confession = ""  # Loaded after accusation phase
+        
+        # Initialize layered memory system
+        from memory.agent_memory import AgentMemory
+        self.memory = AgentMemory(agent_name=name, short_term_window=10)
+    
+    def update_memory(self, state: dict):
+        """Update all memory layers from current game state."""
+        history = state.get("history", [])
+        
+        # Update short-term memory with recent window
+        self.memory.update_from_history(history)
+        
+        # Process the latest message if any
+        if history:
+            last_msg = history[-1]
+            turn = state.get("turn", len(history))
+            self.memory.process_new_message(last_msg, turn)
+    
+    def add_clue_to_memory(self, clue: str):
+        """Add a game master clue to long-term memory."""
+        self.memory.long_term.add_clue(clue)
+    
+    def add_fact_to_memory(self, fact: str):
+        """Add an important fact to long-term memory."""
+        self.memory.long_term.add_fact(fact)
+    
+    def update_suspicion(self, target: str, delta: int, reason: str):
+        """Update suspicion level for a person in knowledge graph."""
+        self.memory.knowledge_graph.update_suspicion(target, delta, reason)
     
     def update_round(self, round_num: int):
         """Update agent's knowledge with new round information."""
@@ -100,6 +129,8 @@ class Agent:
         return "\n".join(entries)
 
     def think(self, state: GameState) -> ThinkResult:
+        # Update memory layers before thinking
+        self.update_memory(state)
         
         history_txt = self._format_history(state["history"])
         other_agents = [name for name in state.get("thoughts", {}).keys() if name != self.name]
@@ -112,6 +143,9 @@ class Agent:
         if state.get("history"):
             last_msg = state["history"][-1]
             last_speaker_text = f"\n\nLAST MESSAGE: {last_msg['speaker']}: {last_msg['text']}"
+        
+        # Get formatted memory for context
+        memory_context = self.memory.format_all_for_prompt()
         
         # Phase-specific prompts
         if phase == "introduction" and current_round == 1:
@@ -157,7 +191,10 @@ You are {self.name} at Killingsworth Farm in California wine country.
 Present: {others_str} (they hear everything)
 
 {self.persona}"""),
-            HumanMessage(content=f"""FULL CONVERSATION SO FAR:
+            HumanMessage(content=f"""YOUR MEMORY:
+{memory_context}
+
+FULL CONVERSATION SO FAR:
 {history_txt}{last_speaker_text}
 
 IMPORTANCE SCORING:
@@ -195,6 +232,9 @@ What do you want to do? Respond: thought, action (speak/listen), importance.""")
         turn_info = f"[Turn {state['turn'] + 1}]"
         current_round = state.get("current_round", 1)
         phase = state.get("phase", "introduction")
+        
+        # Get memory context (short-term + knowledge graph for speaking)
+        memory_context = self.memory.format_all_for_prompt()
         
         # Phase-specific instructions
         if phase == "introduction" and current_round == 1:
@@ -245,7 +285,10 @@ You are {self.name} at Killingsworth Farm in California wine country.
 {phase_rules}
 
 {self.persona}"""),
-            HumanMessage(content=f"""FULL CONVERSATION SO FAR:
+            HumanMessage(content=f"""YOUR MEMORY:
+{memory_context}
+
+FULL CONVERSATION SO FAR:
 {history_txt}{constraint}
 Your response as {self.name} (1-2 sentences, speak to the GROUP, no private conversations):\n"""),
         ]
@@ -258,12 +301,19 @@ Your response as {self.name} (1-2 sentences, speak to the GROUP, no private conv
 
     def accuse(self, state: GameState, all_agents: List[str]) -> AccusationResult:
         """Final accusation - who does this agent think is the murderer? Cannot accuse self."""
+        # Update memory one final time before accusation
+        self.update_memory(state)
+        
         history_txt = self._format_history(state["history"])
         # Filter out self from possible accusation targets
         other_agents = [name for name in all_agents if name != self.name]
         others_str = ", ".join(other_agents)
         
         llm_accuse = self.llm.with_structured_output(AccusationResult)
+        
+        # Get memory context including suspect ranking
+        memory_context = self.memory.format_all_for_prompt()
+        suspect_ranking = self.memory.get_suspect_ranking()
         
         # Strong identity reminder
         identity_block = f"""══════════════════════════════════════════════════════════════
@@ -286,7 +336,12 @@ Choose from: {others_str}
 Based on everything you heard, who is the most suspicious? Who had motive, opportunity, or gave inconsistent answers?
 
 {self.persona}"""),
-            HumanMessage(content=f"""Full conversation transcript:
+            HumanMessage(content=f"""YOUR MEMORY & ANALYSIS:
+{memory_context}
+
+{suspect_ranking}
+
+Full conversation transcript:
 {history_txt}
 
 Who do you accuse of being the murderer? You MUST choose exactly one person from: {others_str}
