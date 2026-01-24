@@ -43,6 +43,17 @@ class GameMaster:
 Your role is to facilitate the discussion and ensure the investigation progresses.
 You decide who speaks next based on the conversation flow."""
 
+    def _load_clue(self, clue_number: int) -> str:
+        """Load a clue from the clues folder."""
+        clue_path = Path(__file__).parent.parent / "clues" / f"clue{clue_number}.txt"
+        if clue_path.exists():
+            try:
+                return clue_path.read_text().strip()
+            except Exception as e:
+                print(f"Warning: Could not load clue {clue_number}: {e}")
+                return ""
+        return ""
+
     def should_advance_round(self, conversations_in_round: int, current_round: int) -> bool:
         """
         Determine if the game should advance to the next round.
@@ -168,66 +179,110 @@ Choose ONE player from: {available_str}"""),
         """Provide game context to all players at the start."""
         context_intro = f"""
 ╔═══════════════════════════════════════════════════════════════╗
-║          WELCOME TO THE MURDER MYSTERY INVESTIGATION          ║
+║            MURDER AT KILLINGSWORTH FARM                       ║
 ╚═══════════════════════════════════════════════════════════════╝
 
-Players: {', '.join(self.agent_names)}
+TRAGEDY HAS STRUCK!
+
+Elizabeth Killingsworth has been found DEAD in the wine cellar!.
+
+══════════════════════════════════════════════════════════════════
+
+SUSPECTS PRESENT: {', '.join(self.agent_names)}
 
 ══════════════════════════════════════════════════════════════════
 
 GAME STRUCTURE:
-- Round 1: Introductions - Players introduce themselves
-- Rounds 2-5: Investigation - Players discuss, question, and investigate
-- After Round 5: Accusation - Each player accuses someone
+- Round 1: Introductions - Each suspect introduces themselves
+- Rounds 2-5: Investigation - Question each other, find the killer!
+- After Round 5: Accusation - Each person accuses someone
 - Final: Confessions - Everyone reveals their secrets
 
 Each round has approximately {self.conversations_per_round} conversations.
 
 ══════════════════════════════════════════════════════════════════
 
-GAME CONTEXT:
-
-{self.persona}
+YOUR GOAL: Figure out WHO KILLED ELIZABETH KILLINGSWORTH!
 
 ══════════════════════════════════════════════════════════════════
 
 RULES:
-1. Everyone can speak and must participate to avoid suspicion
-2. You can ask questions, share clues, and make accusations
-3. All conversations are PUBLIC - no private discussions allowed
+1. Everyone must participate - silence makes you suspicious!
+2. Ask questions, share clues, and make accusations
+3. All conversations are PUBLIC - no private discussions
 4. Players CANNOT accuse themselves
-5. The group must identify the murderer through discussion
-6. After round 5, everyone votes on who they suspect
+5. After round 5, everyone votes on who they think is the murderer
 
 ══════════════════════════════════════════════════════════════════
 
 NOW BEGINNING ROUND 1: INTRODUCTIONS...
+Let each suspect introduce themselves to the group.
 
 """
         return context_intro
     
     def announce_round_change(self, new_round: int) -> str:
-        """Generate announcement for round change."""
+        """Generate announcement for round change, including clues."""
+        # Load the clue for the previous round (clue 1 after round 1, etc.)
+        clue_number = new_round - 1
+        clue_text = self._load_clue(clue_number) if clue_number >= 1 else ""
+        
+        clue_section = ""
+        if clue_text:
+            clue_section = f"""
+┌─────────────────────────────────────────────────────────────────┐
+│                    🔍 NEW CLUE DISCOVERED! 🔍                   │
+└─────────────────────────────────────────────────────────────────┘
+
+{clue_text}
+
+══════════════════════════════════════════════════════════════════
+"""
+        
         if new_round == 2:
             return f"""
 ╔═══════════════════════════════════════════════════════════════╗
-║                    ROUND {new_round}: INVESTIGATION BEGINS                ║
+║         ROUND {new_round}: THE INVESTIGATION BEGINS                    ║
 ╚═══════════════════════════════════════════════════════════════╝
-New information has come to light! Players have received additional clues.
-The investigation phase begins now. Question everyone, look for lies!
+
+The introductions are complete. Now the real investigation begins!
+{clue_section}
+Remember: Elizabeth Killingsworth was MURDERED.
+One of you is the killer. Question everyone. Look for lies and 
+inconsistencies. Find out who killed Elizabeth!
 """
         elif new_round <= 5:
             return f"""
 ╔═══════════════════════════════════════════════════════════════╗
-║                         ROUND {new_round}                              ║
+║                         ROUND {new_round}                                ║
 ╚═══════════════════════════════════════════════════════════════╝
-New evidence has been discovered! Players have received new information.
-Continue your investigation. The truth is getting closer...
+
+New evidence has emerged!
+{clue_section}
+The truth about Elizabeth's murder is getting closer...
+Continue questioning. The killer is among you!
 """
         else:
+            # Load final clue (clue 5) before accusation
+            final_clue = self._load_clue(5)
+            final_clue_section = ""
+            if final_clue:
+                final_clue_section = f"""
+┌─────────────────────────────────────────────────────────────────┐
+│                    🔍 FINAL CLUE! 🔍                            │
+└─────────────────────────────────────────────────────────────────┘
+
+{final_clue}
+
+══════════════════════════════════════════════════════════════════
+"""
             return f"""
 ╔═══════════════════════════════════════════════════════════════╗
-║              FINAL ROUND - ACCUSATION TIME                    ║
+║         FINAL ROUND - TIME TO ACCUSE                          ║
 ╚═══════════════════════════════════════════════════════════════╝
-The investigation is complete. Time to make your final accusations!
+{final_clue_section}
+The investigation is complete. 
+
+It's time to decide: WHO KILLED ELIZABETH KILLINGSWORTH?
+Each of you must now make your final accusation!
 """

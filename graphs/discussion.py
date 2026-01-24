@@ -4,21 +4,77 @@ from schemas.state import GameState
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# FORMATTING HELPERS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _print_turn_header(turn: int, round_num: int, phase: str):
+    """Print a clean turn header."""
+    print(f"\n┌{'─'*68}┐")
+    print(f"│  TURN {turn+1:<3} │ Round {round_num}/6 │ Phase: {phase.upper():<20}         │")
+    print(f"└{'─'*68}┘")
+
+
+def _print_speaker(speaker: str, text: str):
+    """Print speaker's dialogue in a clean format."""
+    print(f"\n {speaker}:")
+    print(f"  ╭{'─'*64}╮")
+    # Word wrap the text
+    words = text.split()
+    lines = []
+    current_line = ""
+    for word in words:
+        if len(current_line) + len(word) + 1 <= 60:
+            current_line += (" " if current_line else "") + word
+        else:
+            lines.append(current_line)
+            current_line = word
+    if current_line:
+        lines.append(current_line)
+    
+    for line in lines:
+        print(f"  │  {line:<62}│")
+    print(f"  ╰{'─'*64}╯")
+
+
+def _print_thinking_summary(thoughts: Dict):
+    """Print a compact summary of agent thoughts."""
+    if not thoughts:
+        return
+    print(f"\n  Agent Thoughts:")
+    for name, tr in thoughts.items():
+        action = " SPEAK" if tr.action == "speak" else " listen"
+        urgency_bar = "█" * tr.importance + "░" * (9 - tr.importance)
+        print(f"     {name:<20} {action} [{urgency_bar}] {tr.importance}/9")
+
+
+def _print_gm_decision(speaker: str, reason: str = None):
+    """Print game master's decision."""
+    print(f"\n   Game Master selects: {speaker}")
+    if reason:
+        print(f"     └─ {reason[:60]}...")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# GRAPH NODES
+# ═══════════════════════════════════════════════════════════════════════════════
+
 def think_all(state: GameState, agents: Dict[str, any]):
     current_round = state.get("current_round", 1)
     phase = state.get("phase", "introduction")
     
+    _print_turn_header(state["turn"], current_round, phase)
+    
     # In round 1 (introduction), skip thinking - just cycle through agents
     if current_round == 1:
-        print(f"  [Turn {state['turn']}] Round 1 (introductions) - No thinking needed")
-        # Return empty thoughts - game master will handle round 1 differently
+        print(f"\n   Introduction round - agents will introduce themselves in order")
         return {"thoughts": {}}
-    
-    print(f"  [Turn {state['turn']}] Round {current_round} ({phase}) - History: {len(state.get('history', []))} msgs. Agents thinking...")
     
     if not agents:
-        print("    ERROR: No agents available!")
+        print("  ERROR: No agents available!")
         return {"thoughts": {}}
+    
+    print(f"\n  Agents are thinking...")
     
     # Parallelize agent thinking for speed
     thoughts = {}
@@ -32,13 +88,11 @@ def think_all(state: GameState, agents: Dict[str, any]):
             try:
                 thoughts[name] = future.result()
             except Exception as e:
-                print(f"    Error in {name}'s thinking: {e}")
-                # Fallback
+                print(f" Error in {name}'s thinking: {e}")
                 from agents.agent import ThinkResult
                 thoughts[name] = ThinkResult(thought="waiting", action="listen", importance=1)
     
-    for name, tr in thoughts.items():
-        print(f"    {name}({'S' if tr.action == 'speak' else 'L'}:{tr.importance})")
+    _print_thinking_summary(thoughts)
     return {"thoughts": thoughts}
 
 
@@ -61,25 +115,22 @@ def game_master_decide(state: GameState, game_master, agents: Dict[str, any]):
         
         if remaining:
             next_speaker = remaining[0]
-            print(f"    [GM] Round 1 (introductions) - {next_speaker} will introduce themselves ({len(remaining)} remaining)")
+            _print_gm_decision(next_speaker, f"Introduction ({len(remaining)} remaining)")
         else:
-            # Everyone has introduced themselves - this shouldn't happen as round should advance
             next_speaker = agent_names[0]
-            print(f"    [GM] Round 1 complete - all agents have introduced themselves")
         
         return {"next_speaker": next_speaker, "pending_obligation": None}
     
     # Round 2+: Use thinking-based decision
     if not thoughts:
-        print("    [GM] No thoughts available, skipping")
+        print("  No thoughts available, skipping turn")
         return {"next_speaker": None, "pending_obligation": None}
     
     decision = game_master.decide_next_speaker(state, thoughts)
+    _print_gm_decision(decision.next_speaker, decision.reasoning)
     
-    print(f"    [GM] Round {current_round} ({phase}) - Decision: {decision.next_speaker}")
-    print(f"         Reason: {decision.reasoning}")
     if decision.is_direct_address:
-        print(f"         (Direct address - must respond)")
+        print(f"     ⚡ (Direct address - must respond)")
     
     pending = None
     if decision.response_constraint:
@@ -98,7 +149,7 @@ def speak(state: GameState, agents: Dict[str, any]):
     speaker = state.get("next_speaker")
     
     if not speaker or speaker not in agents:
-        print(f"    → No speaker selected")
+        print(f"   No speaker selected")
         return {"new_utterance": None, "last_speaker": state.get("last_speaker")}
     
     pending = state.get("pending_obligation")
@@ -107,31 +158,27 @@ def speak(state: GameState, agents: Dict[str, any]):
     text = agents[speaker].speak(state, response_constraint=constraint)
 
     u = {"turn": state["turn"], "speaker": speaker, "text": text}
-    print(f"    → {speaker}: {text}")
+    _print_speaker(speaker, text)
     return {"new_utterance": u, "last_speaker": speaker}
 
 
 def update_history(state: GameState):
     u = state.get("new_utterance")
     if not u:
-        print(f"    [No new utterance to add]")
-        return {"history": []}  # Empty list - nothing to add
-    
-    print(f"    [Adding to history: {u['speaker']}: {u['text'][:50]}...]")
-    # Return list with single item - reducer will append it
+        return {"history": []}
     return {"history": [u]}
 
 
 def check_round_advance(state: GameState, game_master, agents: Dict[str, any]):
     """Check if we should advance to the next round."""
     current_round = state.get("current_round", 1)
-    conversations_in_round = state.get("conversations_in_round", 0) + 1  # +1 for the conversation just added
+    conversations_in_round = state.get("conversations_in_round", 0) + 1
     
     # Check if game is complete (after round 5)
     if game_master.is_game_complete(current_round, conversations_in_round):
-        print(f"\n{'='*60}")
-        print(f"  GAME COMPLETE - Moving to accusation phase!")
-        print(f"{'='*60}\n")
+        print(f"\n{'═'*70}")
+        print(f"  🏁 INVESTIGATION COMPLETE - Moving to accusation phase!")
+        print(f"{'═'*70}\n")
         return {
             "conversations_in_round": conversations_in_round,
             "done": True,
@@ -141,22 +188,20 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any]):
     # Round 1 special case: End after everyone has introduced themselves
     if current_round == 1:
         history = state.get("history", [])
-        # Count unique speakers (add 1 for the utterance just added)
         speakers_so_far = set(u["speaker"] for u in history)
         if state.get("new_utterance"):
             speakers_so_far.add(state["new_utterance"]["speaker"])
         
-        # If all agents have spoken, advance to round 2
         if len(speakers_so_far) >= len(agents):
             new_round = 2
             new_phase = game_master.get_phase_for_round(new_round)
             
             print(game_master.announce_round_change(new_round))
             
-            # Update all agents with new round information
+            print(f"\n   Updating agent knowledge for Round {new_round}...")
             for name, agent in agents.items():
                 agent.update_round(new_round)
-                print(f"    [Updated {name} with Round {new_round} information]")
+            print(f"   All agents updated with Round {new_round} information")
             
             return {
                 "current_round": new_round,
@@ -173,10 +218,10 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any]):
         
         print(game_master.announce_round_change(new_round))
         
-        # Update all agents with new round information
+        print(f"\n   Updating agent knowledge for Round {new_round}...")
         for name, agent in agents.items():
             agent.update_round(new_round)
-            print(f"    [Updated {name} with Round {new_round} information]")
+        print(f"   All agents updated with Round {new_round} information")
         
         return {
             "current_round": new_round,
@@ -189,12 +234,7 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any]):
 
 def advance_turn(state: GameState, max_turns: int = 5):
     turn = state["turn"] + 1
-    current_round = state.get("current_round", 1)
-    conversations_in_round = state.get("conversations_in_round", 0)
     done = turn >= max_turns or state.get("done", False)
-    
-    print(f"    → Turn {state['turn']} → {turn} | Round {current_round} | Conv in round: {conversations_in_round} | Done: {done}")
-    
     return {"turn": turn, "done": done}
 
 

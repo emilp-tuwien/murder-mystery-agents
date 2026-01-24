@@ -101,7 +101,11 @@ YOUR GOALS:
 3. PERSONAL: Achieve your character objectives"""
         
         msgs = [
-            SystemMessage(content=f"""You are {self.name} at Huxley's Demise. Huxley has been murdered. Found out who did it!
+            SystemMessage(content=f"""You are {self.name} at Killingsworth Farm in California wine country.
+
+TRAGIC NEWS: Elizabeth Killingsworth has been found MURDERED!
+
+You and the others present are all suspects. One of you is the killer. You must discuss and figure out WHO KILLED ELIZABETH.
 
 {turn_info} - Round {current_round}/6
 
@@ -163,7 +167,11 @@ STRATEGIES:
 - Make accusations publicly"""
 
         msgs = [
-            SystemMessage(content=f"""You are {self.name} at Huxley's Demise. Huxley has been murdered. Found out who did it!
+            SystemMessage(content=f"""You are {self.name} at Killingsworth Farm in California wine country.
+
+TRAGIC NEWS: Elizabeth Killingsworth has been found MURDERED! Her body was discovered with a corkscrew stabbed in her neck.
+
+You and the others present are all suspects. One of you is the killer. You must discuss and figure out WHO KILLED ELIZABETH.
 
 {turn_info} - Round {current_round}/6
 
@@ -191,9 +199,11 @@ Your response (1-2 sentences, speak to the GROUP, no private conversations):\n""
         llm_accuse = self.llm.with_structured_output(AccusationResult)
         
         msgs = [
-            SystemMessage(content=f"""You are {self.name}. The murder mystery discussion is OVER.
+            SystemMessage(content=f"""You are {self.name}. The investigation into Elizabeth Killingsworth's murder is OVER.
 
-You MUST now accuse ONE person of being the murderer. 
+Elizabeth was stabbed in the neck with a corkscrew. One of the people present killed her.
+
+You MUST now accuse ONE person of being Elizabeth's murderer. 
 IMPORTANT: You CANNOT accuse yourself - you must choose someone else.
 Choose from: {others_str}
 
