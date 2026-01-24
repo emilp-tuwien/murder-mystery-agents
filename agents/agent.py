@@ -26,7 +26,7 @@ def _retry_with_backoff(func, max_retries: int = 5, base_delay: float = 2.0):
                 else:
                     wait_time = base_delay * (2 ** attempt)  # Exponential backoff
                 
-                print(f"  ⏳ Rate limit hit. Waiting {wait_time:.1f}s before retry ({attempt + 1}/{max_retries})...")
+                print(f"  Rate limit hit. Waiting {wait_time:.1f}s before retry ({attempt + 1}/{max_retries})...")
                 time.sleep(wait_time)
             else:
                 # Not a rate limit error, re-raise
@@ -228,7 +228,7 @@ She is DEAD. One of you present is the KILLER. You must find out who did it."""
 
         # Strong identity reminder
         identity_block = f"""══════════════════════════════════════════════════════════════
-🎭 YOUR IDENTITY: You are **{self.name}**
+YOUR IDENTITY: You are **{self.name}**
    Remember: You ARE {self.name}. You speak AS {self.name}. 
    Never forget who you are or confuse yourself with others.
 ══════════════════════════════════════════════════════════════"""
