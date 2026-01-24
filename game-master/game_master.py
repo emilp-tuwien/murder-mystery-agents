@@ -94,75 +94,88 @@ You decide who speaks next based on the conversation flow."""
         current_round = state.get("current_round", 1)
         phase = state.get("phase", "introduction")
         
-        # Build context about what each agent wants to say
-        agent_thoughts_txt = "\n".join([
-            f"- {name}: wants to {'SPEAK' if tr.action == 'speak' else 'listen'} (urgency: {tr.importance}/9) - thinking: \"{tr.thought}\""
-            for name, tr in thoughts.items()
-        ])
-        
-        # Build conversation history
-        history_txt = "\n".join([
-            f"{u['speaker']}: {u['text']}" for u in history
-        ]) or "(no conversation yet)"
-        
         # Available speakers (exclude last speaker to avoid monopolization)
         last_speaker = state.get("last_speaker")
         available = [n for n in self.agent_names if n != last_speaker] if last_speaker else self.agent_names
-        available_str = ", ".join(available)
         
-        # Phase-specific instructions
-        if phase == "introduction":
-            phase_instruction = """
-CURRENT PHASE: INTRODUCTIONS (Round 1)
-Priority: Let each player introduce themselves. Prefer players who haven't spoken yet.
-Ensure everyone gets a chance to introduce themselves before moving to investigation."""
+        # FIRST: Check for direct address using explicit pattern matching
+        if last_utterance:
+            directly_addressed = self._detect_direct_address(last_utterance["text"], available)
+            if directly_addressed:
+                return SpeakerDecision(
+                    reasoning=f"{directly_addressed} was directly addressed by {last_speaker}",
+                    next_speaker=directly_addressed,
+                    response_constraint=f"Respond to {last_speaker}'s question/statement",
+                    is_direct_address=True
+                )
+        
+        # SECOND: Pick the agent with the highest urgency score (only from available agents)
+        available_thoughts = {name: tr for name, tr in thoughts.items() if name in available}
+        
+        if available_thoughts:
+            # Sort by importance score
+            sorted_by_urgency = sorted(available_thoughts.items(), key=lambda x: x[1].importance, reverse=True)
+            highest_score = sorted_by_urgency[0][1].importance
+            
+            # Get all agents with the highest score
+            top_agents = [name for name, tr in sorted_by_urgency if tr.importance == highest_score]
+            
+            # If only one agent has the highest score, they speak
+            if len(top_agents) == 1:
+                winner = top_agents[0]
+                return SpeakerDecision(
+                    reasoning=f"{winner} has the highest urgency score ({highest_score}/9)",
+                    next_speaker=winner,
+                    response_constraint=None,
+                    is_direct_address=False
+                )
+            
+            # THIRD: If tied, let the Game Master LLM decide among the tied agents
+            available_str = ", ".join(top_agents)
+            agent_thoughts_txt = "\n".join([
+                f"- {name}: thinking: \"{available_thoughts[name].thought}\""
+                for name in top_agents
+            ])
         else:
-            phase_instruction = f"""
-CURRENT PHASE: INVESTIGATION (Round {current_round}/6)
-Priority: Advance the murder investigation. Look for direct questions, accusations, or important revelations."""
+            # Fallback if no thoughts available
+            available_str = ", ".join(available)
+            agent_thoughts_txt = "(no thoughts available)"
+            top_agents = available
+        
+        # Build conversation history for context
+        history_txt = "\n".join([
+            f"{u['speaker']}: {u['text']}" for u in history[-5:]  # Last 5 messages for context
+        ]) or "(no conversation yet)"
         
         msgs = [
             SystemMessage(content=f"""{self.persona}
 
-PLAYERS IN THE GAME: {', '.join(self.agent_names)}
-{phase_instruction}
-
-YOUR TASK: Decide who should speak next.
-
-RULES:
-1. DIRECT ADDRESS: If the last speaker asked someone a question BY NAME or made a direct accusation, that person MUST respond next.
-2. INVESTIGATION FLOW: If no one was directly addressed, choose the player whose thoughts are most likely to advance the murder investigation.
-3. AVOID MONOPOLIZATION: Don't let the same person speak twice in a row. Available speakers: {available_str}
-4. URGENCY MATTERS: Consider each player's urgency score (0-9) but also the VALUE of what they want to say."""),
-            HumanMessage(content=f"""CONVERSATION SO FAR:
+These players have EQUAL urgency scores and are tied: {available_str}
+You must break the tie by choosing who would best advance the murder investigation."""),
+            HumanMessage(content=f"""RECENT CONVERSATION:
 {history_txt}
 
-WHAT EACH PLAYER IS THINKING:
+TIED PLAYERS' THOUGHTS:
 {agent_thoughts_txt}
 
-Last speaker: {last_speaker or 'None'}
-
-Analyze the last message. Was anyone directly addressed or asked a question?
-If yes, they must respond. If no, who would best advance the investigation?
-
-Choose ONE player from: {available_str}"""),
+Choose ONE player from the tied players to speak next: {available_str}"""),
         ]
         
         try:
             result = self.llm_decide.invoke(msgs)
             
-            # Validate the chosen speaker
-            if result.next_speaker not in self.agent_names:
+            # Validate the chosen speaker is in the tied group
+            if result.next_speaker not in top_agents:
                 # Try to find a close match
-                for agent in self.agent_names:
+                for agent in top_agents:
                     if agent.lower() in result.next_speaker.lower() or result.next_speaker.lower() in agent.lower():
                         result.next_speaker = agent
                         break
                 else:
-                    # Default to highest urgency agent
-                    max_urgency = max(thoughts.items(), key=lambda x: x[1].importance)
-                    result.next_speaker = max_urgency[0]
+                    # Default to first tied agent
+                    result.next_speaker = top_agents[0]
             
+            result.reasoning = f"Tie-breaker: {result.reasoning}"
             return result
         except Exception as e:
             print(f"Error in GameMaster decide: {e}")
