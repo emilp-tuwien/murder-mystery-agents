@@ -1,8 +1,38 @@
 from typing import Optional, Literal, Any, List
 from pathlib import Path
+import time
+import re
 from pydantic import BaseModel, Field
 from langchain_core.messages import SystemMessage, HumanMessage
 from schemas.state import GameState
+
+
+def _retry_with_backoff(func, max_retries: int = 5, base_delay: float = 2.0):
+    """
+    Retry a function with exponential backoff on rate limit errors.
+    Extracts wait time from error message if available.
+    """
+    for attempt in range(max_retries):
+        try:
+            return func()
+        except Exception as e:
+            error_str = str(e)
+            # Check if it's a rate limit error
+            if '429' in error_str or 'rate_limit' in error_str.lower():
+                # Try to extract wait time from error message
+                wait_match = re.search(r'try again in ([\d.]+)s', error_str)
+                if wait_match:
+                    wait_time = float(wait_match.group(1)) + 0.5  # Add buffer
+                else:
+                    wait_time = base_delay * (2 ** attempt)  # Exponential backoff
+                
+                print(f"  ⏳ Rate limit hit. Waiting {wait_time:.1f}s before retry ({attempt + 1}/{max_retries})...")
+                time.sleep(wait_time)
+            else:
+                # Not a rate limit error, re-raise
+                raise
+    # If all retries failed, raise the last exception
+    raise Exception(f"Max retries ({max_retries}) exceeded for rate limit")
 
 
 class ThinkResult(BaseModel):
@@ -130,19 +160,28 @@ Present: {others_str} (they hear everything)
             HumanMessage(content=f"""FULL CONVERSATION SO FAR:
 {history_txt}{last_speaker_text}
 
-IMPORTANCE SCORING RULES:
-- action="listen" + you have nothing relevant to add → importance should be LOW (0-3)
-- action="listen" + you're confused/need to think → importance should be LOW (0-2)
-- action="speak" + you have crucial evidence/accusation → importance HIGH (7-9)
-- action="speak" + you want to ask a question → importance MEDIUM (4-6)
-- action="speak" + you're just commenting → importance LOW-MEDIUM (3-5)
-- If last message doesn't concern you and you have no new info → importance VERY LOW (0-2)
+IMPORTANCE SCORING:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SCORE 9: Someone just asked YOU by name OR accused YOU → YOU MUST RESPOND
+SCORE 8: You have EVIDENCE that proves/disproves someone's guilt
+SCORE 7: You caught someone in a LIE or contradiction
+SCORE 6: You have a direct question for a SPECIFIC person
+SCORE 5: You have relevant information to share
+SCORE 4: You want to support or challenge what was just said
+SCORE 3: You're curious but have no new information
+SCORE 2: The conversation doesn't involve you right now
+SCORE 1: You have nothing to add
+SCORE 0: You want to stay silent and observe
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-You MUST participate eventually, but don't inflate your importance if you're just listening!
+CRITICAL: Do NOT cluster around 5-6! Use the FULL range 0-9.
+If you're just commenting → use 3-4
+If no one mentioned you → use 1-2
+
 What do you want to do? Respond: thought, action (speak/listen), importance."""),
         ]
         try:
-            return self.llm_think.invoke(msgs)
+            return _retry_with_backoff(lambda: self.llm_think.invoke(msgs))
         except Exception as e:
             print(f"Error in think for {self.name}: {e}", file=__import__('sys').stderr)
             return ThinkResult(thought="waiting", action="listen", importance=3)
@@ -167,7 +206,7 @@ You must now introduce yourself to the group. Tell everyone:
 - How you knew Elizabeth (if at all)
 
 Be honest about your identity. You may keep your darker secrets for now."""
-            murder_context = """⚠️ ELIZABETH KILLINGSWORTH IS DEAD! ⚠️
+            murder_context = """ELIZABETH KILLINGSWORTH IS DEAD!
 She has just been found dead at Killingsworth Farm. The circumstances are unclear but foul play is suspected.
 No one can leave until this is resolved. One of you may be the killer."""
         else:
@@ -184,7 +223,7 @@ STRATEGIES:
 - Share clues and suspicions with the group
 - Demand alibis - everyone hears the answer
 - Make accusations publicly"""
-            murder_context = """⚠️ ELIZABETH KILLINGSWORTH WAS MURDERED! ⚠️
+            murder_context = """ELIZABETH KILLINGSWORTH WAS MURDERED! 
 She is DEAD. One of you present is the KILLER. You must find out who did it."""
 
         # Strong identity reminder
@@ -211,7 +250,7 @@ You are {self.name} at Killingsworth Farm in California wine country.
 Your response as {self.name} (1-2 sentences, speak to the GROUP, no private conversations):\n"""),
         ]
         try:
-            result = self.llm.invoke(msgs)
+            result = _retry_with_backoff(lambda: self.llm.invoke(msgs))
             return result.content if result and result.content else f"{self.name}: (thinks carefully)"
         except Exception as e:
             print(f"Error in speak for {self.name}: {e}", file=__import__('sys').stderr)
@@ -255,7 +294,7 @@ Remember: You cannot accuse yourself!
 Provide your reasoning and your final accusation."""),
         ]
         try:
-            result = llm_accuse.invoke(msgs)
+            result = _retry_with_backoff(lambda: llm_accuse.invoke(msgs))
             # Validate the accused is a valid agent
             if result.accused not in other_agents:
                 # Try to find a close match
