@@ -106,8 +106,17 @@ YOUR GOALS:
             murder_context = """ ELIZABETH KILLINGSWORTH WAS MURDERED! 
 She is DEAD. One of you present is the KILLER. You must find out who did it."""
         
+        # Strong identity reminder
+        identity_block = f"""══════════════════════════════════════════════════════════════
+YOUR IDENTITY: You are **{self.name}**
+   Remember: You ARE {self.name}. You speak AS {self.name}. 
+   Never forget who you are or confuse yourself with others.
+══════════════════════════════════════════════════════════════"""
+        
         msgs = [
-            SystemMessage(content=f"""{murder_context}
+            SystemMessage(content=f"""{identity_block}
+
+{murder_context}
 
 You are {self.name} at Killingsworth Farm in California wine country.
 
@@ -178,8 +187,17 @@ STRATEGIES:
             murder_context = """⚠️ ELIZABETH KILLINGSWORTH WAS MURDERED! ⚠️
 She is DEAD. One of you present is the KILLER. You must find out who did it."""
 
+        # Strong identity reminder
+        identity_block = f"""══════════════════════════════════════════════════════════════
+🎭 YOUR IDENTITY: You are **{self.name}**
+   Remember: You ARE {self.name}. You speak AS {self.name}. 
+   Never forget who you are or confuse yourself with others.
+══════════════════════════════════════════════════════════════"""
+        
         msgs = [
-            SystemMessage(content=f"""{murder_context}
+            SystemMessage(content=f"""{identity_block}
+
+{murder_context}
 
 You are {self.name} at Killingsworth Farm in California wine country.
 
@@ -190,7 +208,7 @@ You are {self.name} at Killingsworth Farm in California wine country.
 {self.persona}"""),
             HumanMessage(content=f"""FULL CONVERSATION SO FAR:
 {history_txt}{constraint}
-Your response (1-2 sentences, speak to the GROUP, no private conversations):\n"""),
+Your response as {self.name} (1-2 sentences, speak to the GROUP, no private conversations):\n"""),
         ]
         try:
             result = self.llm.invoke(msgs)
@@ -208,13 +226,22 @@ Your response (1-2 sentences, speak to the GROUP, no private conversations):\n""
         
         llm_accuse = self.llm.with_structured_output(AccusationResult)
         
+        # Strong identity reminder
+        identity_block = f"""══════════════════════════════════════════════════════════════
+🎭 YOUR IDENTITY: You are **{self.name}**
+   Remember: You ARE {self.name}. You make your accusation AS {self.name}.
+   Never forget who you are or confuse yourself with others.
+══════════════════════════════════════════════════════════════"""
+        
         msgs = [
-            SystemMessage(content=f"""You are {self.name}. The investigation into Elizabeth Killingsworth's murder is OVER.
+            SystemMessage(content=f"""{identity_block}
+
+You are {self.name}. The investigation into Elizabeth Killingsworth's murder is OVER.
 
 Elizabeth was stabbed in the neck with a corkscrew. One of the people present killed her.
 
 You MUST now accuse ONE person of being Elizabeth's murderer. 
-IMPORTANT: You CANNOT accuse yourself - you must choose someone else.
+IMPORTANT: You CANNOT accuse yourself ({self.name}) - you must choose someone else.
 Choose from: {others_str}
 
 Based on everything you heard, who is the most suspicious? Who had motive, opportunity, or gave inconsistent answers?
