@@ -132,6 +132,7 @@ if __name__ == "__main__":
             }
         ],
         "thoughts": {},
+        "thoughts_history": [],  # Track all agent thoughts for CSV export
         "last_speaker": "Game Master",
         "pending_obligation": None,
         "next_speaker": None,
@@ -218,3 +219,32 @@ if __name__ == "__main__":
 
     _section("Full transcript")
     print(_format_history(final["history"]))
+    
+    # Export agent thoughts to CSV
+    _section("Exporting agent thoughts to CSV")
+    import csv
+    from datetime import datetime
+    
+    thoughts_history = final.get("thoughts_history", [])
+    if thoughts_history:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        csv_filename = f"agent_thoughts_{timestamp}.csv"
+        
+        with open(csv_filename, 'w', newline='') as csvfile:
+            fieldnames = ['turn', 'round', 'agent', 'action', 'importance', 'thought']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            
+            writer.writeheader()
+            for record in thoughts_history:
+                writer.writerow(record)
+        
+        print(f"Agent thoughts exported to: {csv_filename}")
+        print(f"Total records: {len(thoughts_history)}")
+        
+        # Print summary stats
+        speak_count = sum(1 for r in thoughts_history if r['action'] == 'speak')
+        listen_count = sum(1 for r in thoughts_history if r['action'] == 'listen')
+        avg_importance = sum(r['importance'] for r in thoughts_history) / len(thoughts_history) if thoughts_history else 0
+        print(f"Summary: {speak_count} speak decisions, {listen_count} listen decisions, avg importance: {avg_importance:.2f}")
+    else:
+        print("No thought records to export (Round 1 introductions don't have thoughts)")

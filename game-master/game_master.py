@@ -130,7 +130,7 @@ You decide who speaks next based on the conversation flow."""
         
         Priority:
         1. If someone was directly addressed/asked a question → they MUST respond
-        2. Otherwise, pick the agent most likely to advance the investigation
+        2. Otherwise, pick the agent with highest urgency score (excluding last speaker)
         """
         history = state.get("history", [])
         last_utterance = history[-1] if history else None
@@ -166,8 +166,18 @@ You decide who speaks next based on the conversation flow."""
             # If only one agent has the highest score, they speak
             if len(top_agents) == 1:
                 winner = top_agents[0]
+                # Check if someone with higher score was excluded
+                excluded_higher = None
+                if last_speaker and last_speaker in thoughts:
+                    if thoughts[last_speaker].importance > highest_score:
+                        excluded_higher = f" ({last_speaker} had {thoughts[last_speaker].importance}/9 but just spoke)"
+                
+                reasoning = f"{winner} has the highest urgency score ({highest_score}/9) among available agents"
+                if excluded_higher:
+                    reasoning += excluded_higher
+                    
                 return SpeakerDecision(
-                    reasoning=f"{winner} has the highest urgency score ({highest_score}/9)",
+                    reasoning=reasoning,
                     next_speaker=winner,
                     response_constraint=None,
                     is_direct_address=False

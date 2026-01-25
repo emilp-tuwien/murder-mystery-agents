@@ -13,6 +13,14 @@ class PendingObligation(TypedDict):
     from_speaker: str
     from_text: str
 
+class ThoughtRecord(TypedDict):
+    turn: int
+    round: int
+    agent: str
+    action: str  # "speak" or "listen"
+    importance: int
+    thought: str
+
 class GameState(TypedDict):
     turn: int
     current_round: int  # Current game round (1-6)
@@ -23,6 +31,7 @@ class GameState(TypedDict):
 
     # per-agent working buffers
     thoughts: Dict[str, Any]                 # ThinkResult per agent
+    thoughts_history: Annotated[List[ThoughtRecord], operator.add]  # Track all thoughts for CSV export
     last_speaker: Optional[str]
     next_speaker: Optional[str]
     new_utterance: Optional[Utterance]

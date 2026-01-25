@@ -37,7 +37,7 @@ def _print_speaker(speaker: str, text: str):
     print(f"  ╰{'─'*64}╯")
 
 
-def _print_thinking_summary(thoughts: Dict):
+def _print_thinking_summary(thoughts: Dict, last_speaker: str = None):
     """Print a compact summary of agent thoughts."""
     if not thoughts:
         return
@@ -45,14 +45,16 @@ def _print_thinking_summary(thoughts: Dict):
     for name, tr in thoughts.items():
         action = " SPEAK" if tr.action == "speak" else " listen"
         urgency_bar = "█" * tr.importance + "░" * (9 - tr.importance)
-        print(f"     {name:<20} {action} [{urgency_bar}] {tr.importance}/9")
+        excluded = " (just spoke - excluded)" if name == last_speaker else ""
+        print(f"     {name:<20} {action} [{urgency_bar}] {tr.importance}/9{excluded}")
 
 
 def _print_gm_decision(speaker: str, reason: str = None):
     """Print game master's decision."""
     print(f"\n   Game Master selects: {speaker}")
     if reason:
-        print(f"     └─ {reason[:60]}...")
+        # Print full reason, not truncated
+        print(f"     └─ {reason}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -62,17 +64,18 @@ def _print_gm_decision(speaker: str, reason: str = None):
 def think_all(state: GameState, agents: Dict[str, any]):
     current_round = state.get("current_round", 1)
     phase = state.get("phase", "introduction")
+    turn = state.get("turn", 0)
     
-    _print_turn_header(state["turn"], current_round, phase)
+    _print_turn_header(turn, current_round, phase)
     
     # In round 1 (introduction), skip thinking - just cycle through agents
     if current_round == 1:
         print(f"\n   Introduction round - agents will introduce themselves in order")
-        return {"thoughts": {}}
+        return {"thoughts": {}, "thoughts_history": []}
     
     if not agents:
         print("  ERROR: No agents available!")
-        return {"thoughts": {}}
+        return {"thoughts": {}, "thoughts_history": []}
     
     print(f"\n  Agents are thinking...")
     
@@ -92,8 +95,22 @@ def think_all(state: GameState, agents: Dict[str, any]):
                 from agents.agent import ThinkResult
                 thoughts[name] = ThinkResult(thought="waiting", action="listen", importance=1)
     
-    _print_thinking_summary(thoughts)
-    return {"thoughts": thoughts}
+    last_speaker = state.get("last_speaker")
+    _print_thinking_summary(thoughts, last_speaker)
+    
+    # Record thoughts for CSV export
+    thoughts_records = []
+    for name, tr in thoughts.items():
+        thoughts_records.append({
+            "turn": turn,
+            "round": current_round,
+            "agent": name,
+            "action": tr.action,
+            "importance": tr.importance,
+            "thought": tr.thought
+        })
+    
+    return {"thoughts": thoughts, "thoughts_history": thoughts_records}
 
 
 def game_master_decide(state: GameState, game_master, agents: Dict[str, any]):
