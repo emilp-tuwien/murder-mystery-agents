@@ -58,6 +58,7 @@ class Agent:
         self.current_round = 0
         self.accumulated_knowledge = ""  # Knowledge accumulated across rounds
         self.confession = ""  # Loaded after accusation phase
+        self.questions_asked_to: set = set()  # Track who we've asked questions to (can only ask each agent once)
         
         # Initialize layered memory system
         from memory.agent_memory import AgentMemory
@@ -243,6 +244,11 @@ What do you want to do? Respond: thought, action (speak/listen), importance.""")
         # Get memory context (short-term + knowledge graph for speaking)
         memory_context = self.memory.format_all_for_prompt()
         
+        # Build list of agents we can still ask questions to
+        can_ask = [name for name in other_agents if name not in self.questions_asked_to]
+        can_ask_str = ", ".join(can_ask) if can_ask else "NO ONE (you've asked everyone already)"
+        already_asked_str = ", ".join(self.questions_asked_to) if self.questions_asked_to else "no one yet"
+        
         # Phase-specific instructions
         if phase == "introduction" and current_round == 1:
             phase_rules = """
@@ -259,17 +265,36 @@ No one can leave until this is resolved. One of you may be the killer."""
         else:
             phase_rules = f"""
 CURRENT PHASE: INVESTIGATION (Round {current_round}/6)
-IMPORTANT RULES:
-- This is a GROUP conversation - {others_str} hear EVERYTHING you say
-- You CANNOT speak privately with anyone - no secret conversations allowed
-- Everything must be said publicly to the whole group
-- Silence = Suspicion. Stay quiet and YOU become the prime suspect!
 
-STRATEGIES:
-- Ask direct questions to specific people BY NAME (they must answer publicly)
-- Share clues and suspicions with the group
-- Demand alibis - everyone hears the answer
-- Make accusations publicly"""
+══════════════════════════════════════════════════════════════
+STRICT CONVERSATION RULES - YOU MUST FOLLOW THESE:
+══════════════════════════════════════════════════════════════
+
+1. EVERY statement must do ONE of these:
+   a) REVEAL A FACT: Share specific information you know (what you saw, heard, or did)
+   b) ASK A DIRECT QUESTION: Ask a specific person a specific question
+   
+   NOT ALLOWED: Vague statements like "let's establish a timeline" or "I encourage everyone to share"
+   NOT ALLOWED: Procedural suggestions without revealing your own facts first
+   
+2. QUESTION LIMIT: You can only ask each person ONE question total!
+   - You have already asked: {already_asked_str}
+   - You can still ask: {can_ask_str}
+   - Once you ask someone, you cannot ask them again!
+   
+3. FORMAT: Do NOT use quotation marks in your response. Just speak directly.
+
+GOOD EXAMPLES:
+- I saw Elizabeth go to the wine cellar at 3pm (reveals a fact)
+- Michael, where were you at 4pm? (direct question to specific person)
+- The back door was unlocked when I arrived (reveals a fact)
+
+BAD EXAMPLES:
+- Let's all share our whereabouts (no fact revealed, no specific question)
+- I think we should investigate (vague, not contributing)
+- Someone should check the wine cellar (not revealing YOUR knowledge)
+
+This is a GROUP conversation - {others_str} hear EVERYTHING you say."""
             murder_context = """ELIZABETH KILLINGSWORTH WAS MURDERED! 
 She is DEAD. One of you present is the KILLER. You must find out who did it."""
 
@@ -297,14 +322,31 @@ You are {self.name} at Killingsworth Farm in California wine country.
 
 FULL CONVERSATION SO FAR:
 {history_txt}{constraint}
+
+REMEMBER: 
+- You MUST either reveal a specific fact OR ask a direct question to someone
+- Do NOT use quotation marks in your response
+- If asking a question, you can only ask: {can_ask_str}
+
 Your response as {self.name} (1-2 sentences, speak to the GROUP, no private conversations):\n"""),
         ]
         try:
             result = _retry_with_backoff(lambda: self.llm.invoke(msgs))
-            return result.content if result and result.content else f"{self.name}: (thinks carefully)"
+            response = result.content if result and result.content else "(thinks carefully)"
+            
+            # Remove quotation marks from response
+            response = response.replace('"', '').replace('"', '').replace('"', '')
+            
+            # Track if we asked a question to someone
+            for agent_name in other_agents:
+                if agent_name in response and "?" in response:
+                    self.questions_asked_to.add(agent_name)
+                    break
+            
+            return response
         except Exception as e:
             print(f"Error in speak for {self.name}: {e}", file=__import__('sys').stderr)
-            return f"{self.name}: (I need to think about this)"
+            return "(I need to think about this)"
 
     def accuse(self, state: GameState, all_agents: List[str]) -> AccusationResult:
         """Final accusation - who does this agent think is the murderer? Cannot accuse self."""
@@ -324,7 +366,7 @@ Your response as {self.name} (1-2 sentences, speak to the GROUP, no private conv
         
         # Strong identity reminder
         identity_block = f"""══════════════════════════════════════════════════════════════
-🎭 YOUR IDENTITY: You are **{self.name}**
+YOUR IDENTITY: You are **{self.name}**
    Remember: You ARE {self.name}. You make your accusation AS {self.name}.
    Never forget who you are or confuse yourself with others.
 ══════════════════════════════════════════════════════════════"""
@@ -334,7 +376,7 @@ Your response as {self.name} (1-2 sentences, speak to the GROUP, no private conv
 
 You are {self.name}. The investigation into Elizabeth Killingsworth's murder is OVER.
 
-Elizabeth was stabbed in the neck with a corkscrew. One of the people present killed her.
+One of the people present killed her.
 
 You MUST now accuse ONE person of being Elizabeth's murderer. 
 IMPORTANT: You CANNOT accuse yourself ({self.name}) - you must choose someone else.
