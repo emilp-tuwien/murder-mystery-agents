@@ -107,6 +107,13 @@ class Agent:
             # If murderer, add reminder that they know they did it
             if self.is_murderer:
                 self.persona += "\n\n[SECRET: You are the murderer. You know you killed the victim. Your goal is to avoid being discovered while appearing cooperative.]"
+            
+            print(f"   {self.name}: Loaded round {round_num} knowledge (total accumulated: {len(self.accumulated_knowledge)} chars)")
+    
+    def get_knowledge_summary(self) -> str:
+        """Get a summary of the agent's accumulated knowledge for debugging."""
+        rounds_loaded = self.accumulated_knowledge.count("=== ROUND")
+        return f"{self.name}: {rounds_loaded} rounds of knowledge, current_round={self.current_round}"
     
     def load_confession(self):
         """Load the character's confession text."""

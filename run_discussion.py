@@ -7,105 +7,18 @@ from agents.agent import Agent
 import sys
 sys.path.insert(0, str(Path(__file__).parent / "game-master"))
 from game_master import GameMaster
+from utils.formatting import _banner, _section, _format_history
+from utils.ollama_helper import _select_ollama_model, _get_available_ollama_models
 
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 import subprocess
 import json
+
+
 load_dotenv()
 
-
-def _banner(title: str, char: str = "=") -> None:
-    width = max(60, len(title) + 12)
-    line = char * width
-    print("\n" + line)
-    print(title.center(width))
-    print(line)
-
-
-def _section(title: str) -> None:
-    width = max(50, len(title) + 10)
-    line = "-" * width
-    print("\n" + line)
-    print(title.upper())
-    print(line)
-
-
-def _format_history(history: List[Dict[str, str]]) -> str:
-    if not history:
-        return "(no conversation)"
-
-    rows = [f"IDX | TURN | SPEAKER             | TEXT",
-            f"----+------+---------------------+--------------------------------------------------"]
-    for idx, u in enumerate(history, start=1):
-        turn = u.get("turn", idx)
-        speaker = u.get("speaker", "Unknown")[:21]
-        text = u.get("text", "").strip()
-        rows.append(f"{idx:03d} | T{turn:02d} | {speaker:<21} | {text}")
-    return "\n".join(rows)
-
-
-def _get_available_ollama_models() -> List[str]:
-    """Get list of available Ollama models on the system."""
-    try:
-        result = subprocess.run(
-            ['ollama', 'list'],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        
-        # Parse the output - skip header line and extract model names
-        lines = result.stdout.strip().split('\n')
-        if len(lines) <= 1:
-            return []
-        
-        models = []
-        for line in lines[1:]:  # Skip header
-            parts = line.split()
-            if parts:
-                # Model name is the first column
-                model_name = parts[0]
-                models.append(model_name)
-        
-        return sorted(models)
-    except subprocess.CalledProcessError as e:
-        print(f"Warning: Could not fetch Ollama models: {e}")
-        return []
-    except FileNotFoundError:
-        print("Warning: 'ollama' command not found. Please install Ollama.")
-        return []
-    except Exception as e:
-        print(f"Warning: Error fetching Ollama models: {e}")
-        return []
-
-
-def _select_ollama_model() -> Optional[str]:
-    """Let user select from available Ollama models."""
-    models = _get_available_ollama_models()
-    
-    if not models:
-        print("No Ollama models found. Please install models using 'ollama pull <model_name>'")
-        return None
-    
-    print("\nAvailable Ollama models:")
-    for idx, model in enumerate(models, start=1):
-        print(f"  {idx}. {model}")
-    
-    while True:
-        try:
-            choice = input(f"\nSelect model (1-{len(models)}): ").strip()
-            idx = int(choice) - 1
-            if 0 <= idx < len(models):
-                return models[idx]
-            else:
-                print(f"Please enter a number between 1 and {len(models)}")
-        except ValueError:
-            print("Please enter a valid number")
-        except KeyboardInterrupt:
-            print("\nSelection cancelled")
-            return None
 
 
 def _select_conversations_per_round() -> int:
@@ -273,9 +186,9 @@ if __name__ == "__main__":
     
     _banner("GROUP VERDICT")
     if len(winners) == 1:
-        print(f"🚨 THE GROUP HAS DECIDED: {winners[0]} IS THE MURDERER! 🚨")
+        print(f"THE GROUP HAS DECIDED: {winners[0]} IS THE MURDERER! 🚨")
     else:
-        print(f"⚠️ TIE! The group suspects: {', '.join(winners)}")
+        print(f"TIE! The group suspects: {', '.join(winners)}")
     print("=" * 60)
     
     # CONFESSION PHASE - Everyone reads their confession
@@ -295,10 +208,10 @@ if __name__ == "__main__":
     _banner("FINAL VERDICT")
     if murderer_name:
         if murderer_name in winners:
-            print(f"✅ CORRECT! {murderer_name} was indeed the murderer!")
+            print(f"CORRECT! {murderer_name} was indeed the murderer!")
             print("The group successfully solved the mystery!")
         else:
-            print(f"❌ WRONG! The real murderer was {murderer_name}!")
+            print(f"WRONG! The real murderer was {murderer_name}!")
             print("The killer got away with it...")
     else:
         print("(Could not determine the actual murderer from the game files)")

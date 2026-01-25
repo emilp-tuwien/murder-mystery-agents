@@ -57,10 +57,10 @@ def main():
     output_path = visualize_graph(app, "graphs/game_graph.png")
     
     if output_path:
-        print(f"\n✅ Graph visualization saved!")
+        print(f"\n Graph visualization saved!")
         print(f"   Open: {output_path}")
     else:
-        print("\n❌ Failed to generate visualization")
+        print("\n Failed to generate visualization")
         return 1
     
     return 0

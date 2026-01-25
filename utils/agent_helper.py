@@ -5,12 +5,13 @@ from pypdf import PdfReader
 
 def load_character_descriptions(roles_dir: Path) -> Dict[str, str]:
     """
-    Load character descriptions. First tries PDF files in agents/roles/*/description/,
-    then falls back to round 1 description.txt files.
+    Load character names and base descriptions. Returns minimal base persona.
+    Round-specific knowledge is loaded separately via update_round() to allow
+    knowledge accumulation across rounds.
     """
     descriptions = {}
     
-    # First try loading from PDF files (original method)
+    # First try loading from PDF files (original method) - these contain base character info
     for role_dir in roles_dir.glob("*/description"):
         pdf_files = list(role_dir.glob("*.pdf"))
         if not pdf_files:
@@ -26,7 +27,8 @@ def load_character_descriptions(roles_dir: Path) -> Dict[str, str]:
         except Exception as e:
             print(f"Error loading {pdf_path}: {e}")
     
-    # If no PDFs found, load from round 1 description.txt files
+    # If no PDFs found, just return character names with minimal base persona
+    # Round-specific knowledge will be loaded via update_round()
     if not descriptions:
         for role_dir in roles_dir.iterdir():
             if not role_dir.is_dir():
@@ -36,15 +38,13 @@ def load_character_descriptions(roles_dir: Path) -> Dict[str, str]:
             if role_dir.name.startswith("_"):
                 continue
             
-            round1_desc = role_dir / "rounds" / "1" / "description.txt"
-            if round1_desc.exists():
-                try:
-                    text = round1_desc.read_text().strip()
-                    # Convert folder name to character name (e.g., "michael-nightshade" -> "Michael Nightshade")
-                    character_name = role_dir.name.replace("-", " ").title()
-                    descriptions[character_name] = text
-                except Exception as e:
-                    print(f"Error loading {round1_desc}: {e}")
+            # Check if this role has round descriptions
+            rounds_dir = role_dir / "rounds"
+            if rounds_dir.exists() and rounds_dir.is_dir():
+                # Convert folder name to character name (e.g., "michael-nightshade" -> "Michael Nightshade")
+                character_name = role_dir.name.replace("-", " ").title()
+                # Minimal base persona - all knowledge comes from rounds
+                descriptions[character_name] = f"You are {character_name}."
     
     return descriptions
 
