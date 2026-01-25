@@ -174,7 +174,14 @@ The quietest person is always the most suspicious.
 YOUR GOALS:
 1. SURVIVE: Ask questions, share clues, and make accusations - or BE ACCUSED yourself
 2. FIND THE KILLER: Question everyone, look for inconsistencies, demand alibis
-3. PERSONAL: Achieve your character objectives"""
+3. PERSONAL: Achieve your character objectives
+
+NO HALLUCINATION RULE 
+You can ONLY use information from:
+- Your character persona/knowledge (given below)
+- What others have said in the conversation
+- Clues officially revealed by the Game Master
+DO NOT invent facts, events, or details not in your knowledge!"""
             murder_context = """ ELIZABETH KILLINGSWORTH WAS MURDERED! 
 She is DEAD. One of you present is the KILLER. You must find out who did it."""
         
@@ -284,15 +291,23 @@ STRICT CONVERSATION RULES - YOU MUST FOLLOW THESE:
    
 3. FORMAT: Do NOT use quotation marks in your response. Just speak directly.
 
+4. ABSOLUTELY NO HALLUCINATION
+   - You can ONLY state facts from YOUR CHARACTER KNOWLEDGE (shown below in your persona)
+   - You can ONLY reference things said in the CONVERSATION HISTORY
+   - You can ONLY mention clues that were officially revealed
+   - DO NOT invent events, times, locations, or details not in your knowledge
+   - DO NOT make up what you "saw" or "heard" unless it's explicitly in your persona
+   - If you don't know something, say "I don't know" - do NOT fabricate!
+
 GOOD EXAMPLES:
-- I saw Elizabeth go to the wine cellar at 3pm (reveals a fact)
+- I saw Elizabeth go to the wine cellar at 3pm (ONLY if this is in your persona)
 - Michael, where were you at 4pm? (direct question to specific person)
-- The back door was unlocked when I arrived (reveals a fact)
+- The back door was unlocked when I arrived (ONLY if this is in your persona)
 
 BAD EXAMPLES:
+- I heard a scream at 5pm (if NOT in your persona - this is hallucination!)
 - Let's all share our whereabouts (no fact revealed, no specific question)
-- I think we should investigate (vague, not contributing)
-- Someone should check the wine cellar (not revealing YOUR knowledge)
+- I think I saw someone near the barn (if NOT in your persona - don't invent!)
 
 This is a GROUP conversation - {others_str} hear EVERYTHING you say."""
             murder_context = """ELIZABETH KILLINGSWORTH WAS MURDERED! 
@@ -323,8 +338,9 @@ You are {self.name} at Killingsworth Farm in California wine country.
 FULL CONVERSATION SO FAR:
 {history_txt}{constraint}
 
-REMEMBER: 
-- You MUST either reveal a specific fact OR ask a direct question to someone
+CRITICAL REMINDERS: 
+- You MUST either reveal a specific fact from your persona OR ask a direct question
+- ONLY state facts that are written in YOUR PERSONA above - no inventing!
 - Do NOT use quotation marks in your response
 - If asking a question, you can only ask: {can_ask_str}
 
