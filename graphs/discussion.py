@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 def _print_turn_header(turn: int, round_num: int, phase: str):
     """Print a clean turn header."""
     print(f"\n┌{'─'*68}┐")
-    print(f"│  TURN {turn+1:<3} │ Round {round_num}/6 │ Phase: {phase.upper():<20}         │")
+    print(f"│  TURN {turn+1:<3} │ Round {round_num}/6 │ Phase: {phase.upper():<20}                │")
     print(f"└{'─'*68}┘")
 
 
