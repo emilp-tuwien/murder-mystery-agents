@@ -187,7 +187,7 @@ if __name__ == "__main__":
     
     _banner("GROUP VERDICT")
     if len(winners) == 1:
-        print(f"THE GROUP HAS DECIDED: {winners[0]} IS THE MURDERER! 🚨")
+        print(f"THE GROUP HAS DECIDED: {winners[0]} IS THE MURDERER!")
     else:
         print(f"TIE! The group suspects: {', '.join(winners)}")
     print("=" * 60)

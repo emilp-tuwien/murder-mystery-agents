@@ -59,10 +59,30 @@ class Agent:
         self.accumulated_knowledge = ""  # Knowledge accumulated across rounds
         self.confession = ""  # Loaded after accusation phase
         self.questions_asked_to: set = set()  # Track who we've asked questions to (can only ask each agent once)
+        self.facts_revealed: List[str] = []  # Track facts this agent has already revealed
+        self.topics_discussed: set = set()  # Track topics to avoid repetition
         
         # Initialize layered memory system
         from memory.agent_memory import AgentMemory
         self.memory = AgentMemory(agent_name=name, short_term_window=10)
+    
+    def _get_own_statements(self, history: List[dict]) -> List[str]:
+        """Extract this agent's previous statements from conversation history."""
+        return [msg["text"] for msg in history if msg.get("speaker") == self.name]
+    
+    def _summarize_revealed_info(self, history: List[dict]) -> str:
+        """Summarize what this agent has already revealed to avoid repetition."""
+        own_statements = self._get_own_statements(history)
+        if not own_statements:
+            return ""
+        
+        summary_lines = ["YOU HAVE ALREADY SAID (DO NOT REPEAT):"]
+        for i, stmt in enumerate(own_statements[-5:], 1):  # Last 5 statements
+            # Truncate long statements
+            truncated = stmt[:100] + "..." if len(stmt) > 100 else stmt
+            summary_lines.append(f"  {i}. {truncated}")
+        
+        return "\n".join(summary_lines)
     
     def update_memory(self, state: dict):
         """Update all memory layers from current game state."""
@@ -240,7 +260,8 @@ What do you want to do? Respond: thought, action (speak/listen), importance.""")
 
     def speak(self, state: GameState, response_constraint: Optional[str]) -> str:
         # Full conversation history - agents remember everything
-        history_txt = self._format_history(state["history"])
+        history = state.get("history", [])
+        history_txt = self._format_history(history)
         constraint = f"\n YOU MUST RESPOND TO: {response_constraint}\n" if response_constraint else ""
         other_agents = [name for name in state.get("thoughts", {}).keys() if name != self.name]
         others_str = ", ".join(other_agents) if other_agents else "everyone"
@@ -250,6 +271,9 @@ What do you want to do? Respond: thought, action (speak/listen), importance.""")
         
         # Get memory context (short-term + knowledge graph for speaking)
         memory_context = self.memory.format_all_for_prompt()
+        
+        # Get summary of what this agent has already said (to avoid repetition)
+        already_said = self._summarize_revealed_info(history)
         
         # Build list of agents we can still ask questions to
         can_ask = [name for name in other_agents if name not in self.questions_asked_to]
@@ -278,7 +302,7 @@ STRICT CONVERSATION RULES - YOU MUST FOLLOW THESE:
 ══════════════════════════════════════════════════════════════
 
 1. EVERY statement must do ONE of these:
-   a) REVEAL A FACT: Share specific information you know (what you saw, heard, or did)
+   a) REVEAL A NEW FACT: Share specific information you know that you HAVEN'T shared before
    b) ASK A DIRECT QUESTION: Ask a specific person a specific question
    
    NOT ALLOWED: Vague statements like "let's establish a timeline" or "I encourage everyone to share"
@@ -294,20 +318,14 @@ STRICT CONVERSATION RULES - YOU MUST FOLLOW THESE:
 4. ABSOLUTELY NO HALLUCINATION
    - You can ONLY state facts from YOUR CHARACTER KNOWLEDGE (shown below in your persona)
    - You can ONLY reference things said in the CONVERSATION HISTORY
-   - You can ONLY mention clues that were officially revealed
    - DO NOT invent events, times, locations, or details not in your knowledge
-   - DO NOT make up what you "saw" or "heard" unless it's explicitly in your persona
    - If you don't know something, say "I don't know" - do NOT fabricate!
 
-GOOD EXAMPLES:
-- I saw Elizabeth go to the wine cellar at 3pm (ONLY if this is in your persona)
-- Michael, where were you at 4pm? (direct question to specific person)
-- The back door was unlocked when I arrived (ONLY if this is in your persona)
-
-BAD EXAMPLES:
-- I heard a scream at 5pm (if NOT in your persona - this is hallucination!)
-- Let's all share our whereabouts (no fact revealed, no specific question)
-- I think I saw someone near the barn (if NOT in your persona - don't invent!)
+5. NO REPETITION - REVEAL NEW INFORMATION ONLY
+   - Do NOT repeat facts you have already shared (see "YOU HAVE ALREADY SAID" below)
+   - Do NOT rephrase or summarize what you already told the group
+   - Each time you speak, you MUST add NEW information or ask a NEW question
+   - If you have nothing new to add, stay silent (choose "listen" in thinking phase)
 
 This is a GROUP conversation - {others_str} hear EVERYTHING you say."""
             murder_context = """ELIZABETH KILLINGSWORTH WAS MURDERED! 
@@ -335,23 +353,33 @@ You are {self.name} at Killingsworth Farm in California wine country.
             HumanMessage(content=f"""YOUR MEMORY:
 {memory_context}
 
+{already_said}
+
 FULL CONVERSATION SO FAR:
 {history_txt}{constraint}
 
 CRITICAL REMINDERS: 
-- You MUST either reveal a specific fact from your persona OR ask a direct question
+- You MUST reveal NEW information or ask a NEW question - do NOT repeat yourself!
 - ONLY state facts that are written in YOUR PERSONA above - no inventing!
-- Do NOT use quotation marks in your response
+- Do NOT use quotation marks or describe actions in parentheses - ONLY speak!
 - If asking a question, you can only ask: {can_ask_str}
 
-Your response as {self.name} (1-2 sentences, speak to the GROUP, no private conversations):\n"""),
+Your response as {self.name} (1-2 sentences, NEW information only, no repetition):\n"""),
         ]
         try:
             result = _retry_with_backoff(lambda: self.llm.invoke(msgs))
-            response = result.content if result and result.content else "(thinks carefully)"
+            response = result.content if result and result.content else "I have nothing new to add."
             
             # Remove quotation marks from response
             response = response.replace('"', '').replace('"', '').replace('"', '')
+            
+            # Remove action descriptions in parentheses like (looks around) or (sighs nervously)
+            import re
+            response = re.sub(r'\([^)]*\)', '', response).strip()
+            # Also remove brackets
+            response = re.sub(r'\[[^\]]*\]', '', response).strip()
+            # Clean up any double spaces left behind
+            response = re.sub(r'\s+', ' ', response).strip()
             
             # Track if we asked a question to someone
             for agent_name in other_agents:
@@ -362,7 +390,7 @@ Your response as {self.name} (1-2 sentences, speak to the GROUP, no private conv
             return response
         except Exception as e:
             print(f"Error in speak for {self.name}: {e}", file=__import__('sys').stderr)
-            return "(I need to think about this)"
+            return "I need to think about this."
 
     def accuse(self, state: GameState, all_agents: List[str]) -> AccusationResult:
         """Final accusation - who does this agent think is the murderer? Cannot accuse self."""

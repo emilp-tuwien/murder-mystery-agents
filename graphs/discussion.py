@@ -194,7 +194,7 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any]):
     # Check if game is complete (after round 5)
     if game_master.is_game_complete(current_round, conversations_in_round):
         print(f"\n{'═'*70}")
-        print(f"  🏁 INVESTIGATION COMPLETE - Moving to accusation phase!")
+        print(f"  INVESTIGATION COMPLETE - Moving to accusation phase!")
         print(f"{'═'*70}\n")
         return {
             "conversations_in_round": conversations_in_round,
