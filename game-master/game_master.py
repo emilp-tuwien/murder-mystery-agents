@@ -13,6 +13,11 @@ class SpeakerDecision(BaseModel):
     is_direct_address: bool = Field(description="True if someone was directly asked/addressed")
 
 
+class RoundSummary(BaseModel):
+    """Bullet point summary of a round's key events"""
+    bullets: List[str] = Field(description="List of key facts revealed in this round")
+
+
 class GameMaster:
     def __init__(self, llm: Any, agent_names: List[str], conversations_per_round: int = 20):
         self.llm = llm
@@ -53,6 +58,43 @@ You decide who speaks next based on the conversation flow."""
                 print(f"Warning: Could not load clue {clue_number}: {e}")
                 return ""
         return ""
+
+    def summarize_round_history(self, history: List[dict], round_num: int) -> List[str]:
+        """
+        Summarize a round's conversation into bullet points.
+        Called at the end of each round to compress history.
+        """
+        if not history:
+            return []
+        
+        # Format history for the LLM
+        history_txt = "\n".join([
+            f"{msg['speaker']}: {msg['text']}" for msg in history
+        ])
+        
+        llm_summary = self.llm.with_structured_output(RoundSummary)
+        
+        msgs = [
+            SystemMessage(content="""You are summarizing a murder mystery discussion round.
+Extract ONLY the key facts, revelations, accusations, and alibis mentioned.
+Each bullet should be one specific fact (who said what, what was revealed).
+Be concise - max 10 words per bullet. No opinions, just facts."""),
+            HumanMessage(content=f"""Round {round_num} conversation:
+{history_txt}
+
+Create bullet points of key facts revealed (max 15 bullets):"""),
+        ]
+        
+        try:
+            result = llm_summary.invoke(msgs)
+            return result.bullets if result else []
+        except Exception as e:
+            print(f"Warning: Could not summarize round {round_num}: {e}")
+            # Fallback: extract speaker statements as simple bullets
+            bullets = []
+            for msg in history[-10:]:  # Last 10 messages as fallback
+                bullets.append(f"{msg['speaker']}: {msg['text'][:50]}...")
+            return bullets
 
     def should_advance_round(self, conversations_in_round: int, current_round: int) -> bool:
         """

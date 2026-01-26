@@ -179,10 +179,20 @@ def speak(state: GameState, agents: Dict[str, any]):
     return {"new_utterance": u, "last_speaker": speaker}
 
 
-def update_history(state: GameState):
+def update_history(state: GameState, agents: Dict[str, any]):
+    """Update history and feed dialogue to agent memory systems."""
     u = state.get("new_utterance")
     if not u:
         return {"history": []}
+    
+    # Feed dialogue to all agents' memory systems
+    turn_id = u.get("turn", 0)
+    speaker = u.get("speaker", "")
+    text = u.get("text", "")
+    
+    for agent in agents.values():
+        agent.memory.process_dialogue(turn_id, speaker, text)
+    
     return {"history": [u]}
 
 
@@ -190,21 +200,31 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any]):
     """Check if we should advance to the next round."""
     current_round = state.get("current_round", 1)
     conversations_in_round = state.get("conversations_in_round", 0) + 1
+    history = state.get("history", [])
     
     # Check if game is complete (after round 5)
     if game_master.is_game_complete(current_round, conversations_in_round):
         print(f"\n{'═'*70}")
         print(f"  INVESTIGATION COMPLETE - Moving to accusation phase!")
         print(f"{'═'*70}\n")
+        
+        # Summarize final round before accusation
+        if history:
+            print(f"   Summarizing Round {current_round} into bullet points...")
+            bullets = game_master.summarize_round_history(history, current_round)
+            for name, agent in agents.items():
+                agent.add_round_summary(current_round, bullets)
+            print(f"   Summary: {len(bullets)} key facts extracted")
+        
         return {
             "conversations_in_round": conversations_in_round,
             "done": True,
-            "phase": "accusation"
+            "phase": "accusation",
+            "history": []  # Clear history, summaries are in agent memory
         }
     
     # Round 1 special case: End after everyone has introduced themselves
     if current_round == 1:
-        history = state.get("history", [])
         speakers_so_far = set(u["speaker"] for u in history)
         if state.get("new_utterance"):
             speakers_so_far.add(state["new_utterance"]["speaker"])
@@ -212,6 +232,13 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any]):
         if len(speakers_so_far) >= len(agents):
             new_round = 2
             new_phase = game_master.get_phase_for_round(new_round)
+            
+            # Summarize Round 1 into bullet points
+            print(f"\n   Summarizing Round {current_round} into bullet points...")
+            bullets = game_master.summarize_round_history(history, current_round)
+            for name, agent in agents.items():
+                agent.add_round_summary(current_round, bullets)
+            print(f"   Summary: {len(bullets)} key facts extracted")
             
             announcement = game_master.announce_round_change(new_round)
             print(announcement)
@@ -233,7 +260,8 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any]):
             return {
                 "current_round": new_round,
                 "conversations_in_round": 0,
-                "phase": new_phase
+                "phase": new_phase,
+                "history": []  # Clear history, summary is in agent memory
             }
         
         return {"conversations_in_round": conversations_in_round}
@@ -242,6 +270,13 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any]):
     if game_master.should_advance_round(conversations_in_round, current_round):
         new_round = current_round + 1
         new_phase = game_master.get_phase_for_round(new_round)
+        
+        # Summarize current round into bullet points before clearing
+        print(f"\n   Summarizing Round {current_round} into bullet points...")
+        bullets = game_master.summarize_round_history(history, current_round)
+        for name, agent in agents.items():
+            agent.add_round_summary(current_round, bullets)
+        print(f"   Summary: {len(bullets)} key facts extracted")
         
         announcement = game_master.announce_round_change(new_round)
         print(announcement)
@@ -263,7 +298,8 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any]):
         return {
             "current_round": new_round,
             "conversations_in_round": 0,
-            "phase": new_phase
+            "phase": new_phase,
+            "history": []  # Clear history, summary is in agent memory
         }
     
     return {"conversations_in_round": conversations_in_round}
@@ -295,7 +331,7 @@ def build_graph(agents: Dict[str, any], game_master, max_turns: int = 3):
     g.add_node("think_all", lambda s: think_all(s, agents))
     g.add_node("game_master_decide", lambda s: game_master_decide(s, game_master, agents))
     g.add_node("speak", lambda s: speak(s, agents))
-    g.add_node("update_history", update_history)
+    g.add_node("update_history", lambda s: update_history(s, agents))
     g.add_node("check_round_advance", lambda s: check_round_advance(s, game_master, agents))
     g.add_node("advance_turn", lambda s: advance_turn(s, max_turns=max_turns))
 

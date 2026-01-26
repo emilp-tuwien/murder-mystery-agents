@@ -62,9 +62,9 @@ class Agent:
         self.facts_revealed: List[str] = []  # Track facts this agent has already revealed
         self.topics_discussed: set = set()  # Track topics to avoid repetition
         
-        # Initialize layered memory system
-        from memory.agent_memory import AgentMemory
-        self.memory = AgentMemory(agent_name=name, short_term_window=10)
+        # Initialize three-stage memory system
+        from memory.agent_memory import AgentMemory, SharedHistory
+        self.memory = AgentMemory(agent_name=name)
     
     def _get_own_statements(self, history: List[dict]) -> List[str]:
         """Extract this agent's previous statements from conversation history."""
@@ -105,6 +105,10 @@ class Agent:
         """Add an important fact to long-term memory."""
         self.memory.long_term.add_fact(fact)
     
+    def add_round_summary(self, round_num: int, bullets: List[str]):
+        """Store bullet point summary of a round in long-term memory."""
+        self.memory.long_term.add_round_summary(round_num, bullets)
+    
     def update_suspicion(self, target: str, delta: int, reason: str):
         """Update suspicion level for a person in knowledge graph."""
         self.memory.knowledge_graph.update_suspicion(target, delta, reason)
@@ -143,229 +147,101 @@ class Agent:
         return self.confession
 
     def _format_history(self, history: List[dict]) -> str:
-        """Render conversation history in a compact, structured log for the model."""
-        if not history:
-            return "(no conversation yet)"
-
-        entries: List[str] = []
-        for idx, utterance in enumerate(history, start=1):
-            turn = utterance.get("turn", idx)
-            speaker = utterance.get("speaker", "Unknown")
-            text = utterance.get("text", "").strip()
-            entries.append(f"{idx:02d} | T{turn:02d} | {speaker}: {text}")
-
-        return "\n".join(entries)
+        """Use shared history window for prompts (last K_HISTORY turns only)."""
+        return self.memory.shared_history.render_for_prompt()
 
     def think(self, state: GameState) -> ThinkResult:
-        # Update memory layers before thinking
         self.update_memory(state)
         
-        history_txt = self._format_history(state["history"])
-        other_agents = [name for name in state.get("thoughts", {}).keys() if name != self.name]
-        others_str = ", ".join(other_agents) if other_agents else "others"
-        turn_info = f"[Turn {state['turn'] + 1}]"
         current_round = state.get("current_round", 1)
         phase = state.get("phase", "introduction")
         
-        last_speaker_text = ""
-        if state.get("history"):
-            last_msg = state["history"][-1]
-            last_speaker_text = f"\n\nLAST MESSAGE: {last_msg['speaker']}: {last_msg['text']}"
+        # Build memory context using three-stage system
+        memory_context = self.memory.build_prompt_context()
         
-        # Get formatted memory for context
-        memory_context = self.memory.format_all_for_prompt()
-        
-        # Phase-specific prompts
+        # Round 1: Introduction phase
         if phase == "introduction" and current_round == 1:
-            phase_instruction = """
-CURRENT PHASE: INTRODUCTIONS (Round 1)
-Before the investigation begins, everyone must introduce themselves to the group.
-Share: Who you are, why you came to Killingsworth Farm today, and how you knew Elizabeth.
-Be honest about your identity but you may keep your secrets for now."""
-            murder_context = """ ELIZABETH KILLINGSWORTH IS DEAD!
-She has just been found dead at Killingsworth Farm. The circumstances are unclear but foul play is suspected.
-No one can leave until this is resolved. One of you may be the killer."""
+            msgs = [
+                SystemMessage(content=f"""Character Information:
+You are {self.name}.
+{self.persona}
+
+Elizabeth Killingsworth is DEAD. You must introduce yourself."""),
+                HumanMessage(content=f"""{memory_context}
+
+Actions:
+• Speak: Introduce yourself.
+• Listen: Wait for others.
+
+Importance: 0-9 (9=must speak, 0=nothing to add)
+
+Output: thought, action, importance."""),
+            ]
         else:
-            phase_instruction = f"""
-CURRENT PHASE: INVESTIGATION (Round {current_round}/6)
-CRITICAL WARNING: If you stay silent or don't actively investigate, others will suspect YOU are the murderer! 
-The quietest person is always the most suspicious.
+            msgs = [
+                SystemMessage(content=f"""Character Information:
+You are {self.name}.
+{self.persona}
 
-YOUR GOALS:
-1. SURVIVE: Ask questions, share clues, and make accusations - or BE ACCUSED yourself
-2. FIND THE KILLER: Question everyone, look for inconsistencies, demand alibis
-3. PERSONAL: Achieve your character objectives
+Elizabeth was MURDERED. Round {current_round}/6."""),
+                HumanMessage(content=f"""{memory_context}
 
-NO HALLUCINATION RULE 
-You can ONLY use information from:
-- Your character persona/knowledge (given below)
-- What others have said in the conversation
-- Clues officially revealed by the Game Master
-DO NOT invent facts, events, or details not in your knowledge!"""
-            murder_context = """ ELIZABETH KILLINGSWORTH WAS MURDERED! 
-She is DEAD. One of you present is the KILLER. You must find out who did it."""
+Actions:
+• Speak: Ask questions or share info.
+• Listen: Observe.
+
+Importance: 0-9 (9=asked by name, 7-8=have evidence, 5-6=have info, 3-4=commenting, 1-2=nothing)
+
+Output: thought, action, importance."""),
+            ]
         
-        # Strong identity reminder
-        identity_block = f"""══════════════════════════════════════════════════════════════
-YOUR IDENTITY: You are **{self.name}**
-   Remember: You ARE {self.name}. You speak AS {self.name}. 
-   Never forget who you are or confuse yourself with others.
-══════════════════════════════════════════════════════════════"""
-        
-        msgs = [
-            SystemMessage(content=f"""{identity_block}
-
-{murder_context}
-
-You are {self.name} at Killingsworth Farm in California wine country.
-
-{turn_info} - Round {current_round}/6
-
-{phase_instruction}
-
-Present: {others_str} (they hear everything)
-
-{self.persona}"""),
-            HumanMessage(content=f"""YOUR MEMORY:
-{memory_context}
-
-FULL CONVERSATION SO FAR:
-{history_txt}{last_speaker_text}
-
-IMPORTANCE SCORING:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-SCORE 9: Someone just asked YOU by name OR accused YOU → YOU MUST RESPOND
-SCORE 8: You have EVIDENCE that proves/disproves someone's guilt
-SCORE 7: You caught someone in a LIE or contradiction
-SCORE 6: You have a direct question for a SPECIFIC person
-SCORE 5: You have relevant information to share
-SCORE 4: You want to support or challenge what was just said
-SCORE 3: You're curious but have no new information
-SCORE 2: The conversation doesn't involve you right now
-SCORE 1: You have nothing to add
-SCORE 0: You want to stay silent and observe
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-CRITICAL: Do NOT cluster around 5-6! Use the FULL range 0-9.
-If you're just commenting → use 3-4
-If no one mentioned you → use 1-2
-
-What do you want to do? Respond: thought, action (speak/listen), importance."""),
-        ]
         try:
-            return _retry_with_backoff(lambda: self.llm_think.invoke(msgs))
+            result = _retry_with_backoff(lambda: self.llm_think.invoke(msgs))
+            # Store thought in short-term memory
+            self.memory.add_thought(result.thought, result.action, result.importance)
+            return result
         except Exception as e:
             print(f"Error in think for {self.name}: {e}", file=__import__('sys').stderr)
             return ThinkResult(thought="waiting", action="listen", importance=3)
 
     def speak(self, state: GameState, response_constraint: Optional[str]) -> str:
-        # Full conversation history - agents remember everything
-        history = state.get("history", [])
-        history_txt = self._format_history(history)
-        constraint = f"\n YOU MUST RESPOND TO: {response_constraint}\n" if response_constraint else ""
         other_agents = [name for name in state.get("thoughts", {}).keys() if name != self.name]
-        others_str = ", ".join(other_agents) if other_agents else "everyone"
-        turn_info = f"[Turn {state['turn'] + 1}]"
         current_round = state.get("current_round", 1)
         phase = state.get("phase", "introduction")
         
-        # Get memory context (short-term + knowledge graph for speaking)
-        memory_context = self.memory.format_all_for_prompt()
-        
-        # Get summary of what this agent has already said (to avoid repetition)
-        already_said = self._summarize_revealed_info(history)
+        # Build memory context using three-stage system
+        memory_context = self.memory.build_prompt_context()
+        constraint = f"\nRESPOND TO: {response_constraint}" if response_constraint else ""
         
         # Build list of agents we can still ask questions to
         can_ask = [name for name in other_agents if name not in self.questions_asked_to]
-        can_ask_str = ", ".join(can_ask) if can_ask else "NO ONE (you've asked everyone already)"
-        already_asked_str = ", ".join(self.questions_asked_to) if self.questions_asked_to else "no one yet"
+        can_ask_str = ", ".join(can_ask) if can_ask else "NO ONE"
         
-        # Phase-specific instructions
+        # Round 1: Introduction phase
         if phase == "introduction" and current_round == 1:
-            phase_rules = """
-CURRENT PHASE: INTRODUCTIONS (Round 1)
-You must now introduce yourself to the group. Tell everyone:
-- Who you are and what you do
-- Why you came to Killingsworth Farm today  
-- How you knew Elizabeth (if at all)
+            msgs = [
+                SystemMessage(content=f"""Character Information:
+You are {self.name}.
+{self.persona}
 
-Be honest about your identity. You may keep your darker secrets for now."""
-            murder_context = """ELIZABETH KILLINGSWORTH IS DEAD!
-She has just been found dead at Killingsworth Farm. The circumstances are unclear but foul play is suspected.
-No one can leave until this is resolved. One of you may be the killer."""
+Elizabeth is DEAD. Introduce yourself."""),
+                HumanMessage(content=f"""{memory_context}
+
+Introduce yourself (1-2 sentences):"""),
+            ]
         else:
-            phase_rules = f"""
-CURRENT PHASE: INVESTIGATION (Round {current_round}/6)
+            msgs = [
+                SystemMessage(content=f"""Character Information:
+You are {self.name}.
+{self.persona}
 
-══════════════════════════════════════════════════════════════
-STRICT CONVERSATION RULES - YOU MUST FOLLOW THESE:
-══════════════════════════════════════════════════════════════
+Elizabeth was MURDERED. Round {current_round}/6."""),
+                HumanMessage(content=f"""{memory_context}{constraint}
 
-1. EVERY statement must do ONE of these:
-   a) REVEAL A NEW FACT: Share specific information you know that you HAVEN'T shared before
-   b) ASK A DIRECT QUESTION: Ask a specific person a specific question
-   
-   NOT ALLOWED: Vague statements like "let's establish a timeline" or "I encourage everyone to share"
-   NOT ALLOWED: Procedural suggestions without revealing your own facts first
-   
-2. QUESTION LIMIT: You can only ask each person ONE question total!
-   - You have already asked: {already_asked_str}
-   - You can still ask: {can_ask_str}
-   - Once you ask someone, you cannot ask them again!
-   
-3. FORMAT: Do NOT use quotation marks in your response. Just speak directly.
+Rules: Only facts from your knowledge. No repetition. Can ask: {can_ask_str}
 
-4. ABSOLUTELY NO HALLUCINATION
-   - You can ONLY state facts from YOUR CHARACTER KNOWLEDGE (shown below in your persona)
-   - You can ONLY reference things said in the CONVERSATION HISTORY
-   - DO NOT invent events, times, locations, or details not in your knowledge
-   - If you don't know something, say "I don't know" - do NOT fabricate!
-
-5. NO REPETITION - REVEAL NEW INFORMATION ONLY
-   - Do NOT repeat facts you have already shared (see "YOU HAVE ALREADY SAID" below)
-   - Do NOT rephrase or summarize what you already told the group
-   - Each time you speak, you MUST add NEW information or ask a NEW question
-   - If you have nothing new to add, stay silent (choose "listen" in thinking phase)
-
-This is a GROUP conversation - {others_str} hear EVERYTHING you say."""
-            murder_context = """ELIZABETH KILLINGSWORTH WAS MURDERED! 
-She is DEAD. One of you present is the KILLER. You must find out who did it."""
-
-        # Strong identity reminder
-        identity_block = f"""══════════════════════════════════════════════════════════════
-YOUR IDENTITY: You are **{self.name}**
-   Remember: You ARE {self.name}. You speak AS {self.name}. 
-   Never forget who you are or confuse yourself with others.
-══════════════════════════════════════════════════════════════"""
-        
-        msgs = [
-            SystemMessage(content=f"""{identity_block}
-
-{murder_context}
-
-You are {self.name} at Killingsworth Farm in California wine country.
-
-{turn_info} - Round {current_round}/6
-
-{phase_rules}
-
-{self.persona}"""),
-            HumanMessage(content=f"""YOUR MEMORY:
-{memory_context}
-
-{already_said}
-
-FULL CONVERSATION SO FAR:
-{history_txt}{constraint}
-
-CRITICAL REMINDERS: 
-- You MUST reveal NEW information or ask a NEW question - do NOT repeat yourself!
-- ONLY state facts that are written in YOUR PERSONA above - no inventing!
-- Do NOT use quotation marks or describe actions in parentheses - ONLY speak!
-- If asking a question, you can only ask: {can_ask_str}
-
-Your response as {self.name} (1-2 sentences, NEW information only, no repetition):\n"""),
-        ]
+Respond (1-2 sentences):"""),
+            ]
         try:
             result = _retry_with_backoff(lambda: self.llm.invoke(msgs))
             response = result.content if result and result.content else "I have nothing new to add."
@@ -394,64 +270,38 @@ Your response as {self.name} (1-2 sentences, NEW information only, no repetition
 
     def accuse(self, state: GameState, all_agents: List[str]) -> AccusationResult:
         """Final accusation - who does this agent think is the murderer? Cannot accuse self."""
-        # Update memory one final time before accusation
         self.update_memory(state)
         
-        history_txt = self._format_history(state["history"])
-        # Filter out self from possible accusation targets
         other_agents = [name for name in all_agents if name != self.name]
         others_str = ", ".join(other_agents)
         
         llm_accuse = self.llm.with_structured_output(AccusationResult)
-        
-        # Get memory context including suspect ranking
-        memory_context = self.memory.format_all_for_prompt()
+        memory_context = self.memory.build_prompt_context()
         suspect_ranking = self.memory.get_suspect_ranking()
         
-        # Strong identity reminder
-        identity_block = f"""══════════════════════════════════════════════════════════════
-YOUR IDENTITY: You are **{self.name}**
-   Remember: You ARE {self.name}. You make your accusation AS {self.name}.
-   Never forget who you are or confuse yourself with others.
-══════════════════════════════════════════════════════════════"""
-        
         msgs = [
-            SystemMessage(content=f"""{identity_block}
+            SystemMessage(content=f"""Character Information:
+You are {self.name}.
+{self.persona}
 
-You are {self.name}. The investigation into Elizabeth Killingsworth's murder is OVER.
-
-One of the people present killed her.
-
-You MUST now accuse ONE person of being Elizabeth's murderer. 
-IMPORTANT: You CANNOT accuse yourself ({self.name}) - you must choose someone else.
-Choose from: {others_str}
-
-Based on everything you heard, who is the most suspicious? Who had motive, opportunity, or gave inconsistent answers?
-
-{self.persona}"""),
-            HumanMessage(content=f"""YOUR MEMORY & ANALYSIS:
-{memory_context}
+Investigation OVER. Accuse ONE person."""),
+            HumanMessage(content=f"""{memory_context}
 
 {suspect_ranking}
 
-Full conversation transcript:
-{history_txt}
+Choose murderer from: {others_str}
+(Cannot accuse yourself)
 
-Who do you accuse of being the murderer? You MUST choose exactly one person from: {others_str}
-Remember: You cannot accuse yourself!
-Provide your reasoning and your final accusation."""),
+Provide reasoning and accusation."""),
         ]
         try:
             result = _retry_with_backoff(lambda: llm_accuse.invoke(msgs))
-            # Validate the accused is a valid agent
             if result.accused not in other_agents:
-                # Try to find a close match
                 for agent in other_agents:
                     if agent.lower() in result.accused.lower() or result.accused.lower() in agent.lower():
                         result.accused = agent
                         break
                 else:
-                    # Default to first other agent if invalid
                     result.accused = other_agents[0]
             return result
         except Exception as e:

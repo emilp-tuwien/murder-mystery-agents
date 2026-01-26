@@ -86,6 +86,10 @@ if __name__ == "__main__":
     
     selected_characters = list(descriptions.keys())
     
+    # Reset shared history singleton for new game
+    from memory.agent_memory import SharedHistory
+    SharedHistory.reset()
+    
     # Detect murderer and create agents
     agents = {}
     murderer_name = None
