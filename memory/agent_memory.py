@@ -16,8 +16,8 @@ import numpy as np
 # ============================================================================
 # CONFIGURABLE CONSTANTS
 # ============================================================================
-K_HISTORY = 5   # Shared history window size
-K_SHORT = 5     # Short-term thought window size
+K_HISTORY = 40   # Shared history window size
+K_SHORT = 10     # Short-term thought window size
 L_LONG = 5      # Top L facts to retrieve from long-term memory
 
 MAX_LINE_CHARS = 120      # Max chars per line in prompt sections
