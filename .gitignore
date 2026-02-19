@@ -45,3 +45,5 @@ ENV/
 # Project-specific
 notebooks/
 *.log
+.env
+.env
