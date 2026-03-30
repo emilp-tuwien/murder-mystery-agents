@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Murder Mystery Observer</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3f6fb;
+      --panel: rgba(255, 255, 255, 0.98);
+      --surface: #f8fafc;
+      --surface-2: #eef3f9;
+      --text: #172131;
+      --muted: #5f6d82;
+      --subtle: #78869b;
+      --border: rgba(112, 130, 156, 0.18);
+      --shadow: 0 14px 32px rgba(40, 60, 90, 0.12);
+      --table: #dbc2a1;
+      --table-edge: #c29f75;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+      color: var(--text);
+      background: linear-gradient(180deg, #f7fafe 0%, #eef4fb 100%);
+    }
+    .page { max-width: 1600px; margin: 0 auto; padding: 20px; }
+    .hero {
+      display: flex; justify-content: space-between; gap: 18px; align-items: flex-start;
+      margin-bottom: 18px; padding: 18px 20px; background: var(--panel);
+      border: 1px solid var(--border); border-radius: 22px; box-shadow: var(--shadow);
+    }
+    .hero h1 { margin: 0; font-size: clamp(28px, 4vw, 38px); letter-spacing: -0.03em; }
+    .hero p { margin: 8px 0 0; color: var(--muted); line-height: 1.5; max-width: 760px; }
+    .hero-stats { display: grid; grid-template-columns: repeat(2, minmax(140px, 1fr)); gap: 10px; min-width: 320px; }
+    .stat-box { padding: 12px 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); }
+    .stat-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+    .stat-value { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.55fr) 400px; gap: 18px; align-items: start; }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 22px; box-shadow: var(--shadow); }
+    .panel-header { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 16px 18px 0; }
+    .panel-header h2, .panel-header h3 { margin: 0; font-size: 18px; letter-spacing: -0.02em; }
+    .panel-subtitle { margin-top: 6px; color: var(--subtle); font-size: 13px; }
+    .panel-body { padding: 18px; }
+    .badge {
+      padding: 7px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted);
+      font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; background: var(--surface);
+    }
+    .summary-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .summary-card { padding: 14px; border-radius: 18px; background: var(--surface); border: 1px solid var(--border); }
+    .summary-card .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+    .summary-card .value { font-size: 26px; font-weight: 800; line-height: 1; margin-bottom: 6px; letter-spacing: -0.03em; }
+    .summary-card .note { color: var(--subtle); font-size: 13px; line-height: 1.45; }
+    .scene {
+      position: relative; min-height: 860px; border-radius: 24px; background: linear-gradient(180deg, #fbfdff, #f3f7fc);
+      border: 1px solid var(--border); overflow: hidden; padding: 20px;
+    }
+    .scene-topbar {
+      display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 12px;
+    }
+    .scene-guide { color: var(--subtle); font-size: 13px; }
+    .zoom-controls { display: flex; align-items: center; gap: 8px; }
+    .zoom-controls button {
+      border: 1px solid var(--border); background: white; color: var(--text); border-radius: 10px;
+      padding: 8px 12px; font: inherit; cursor: pointer; box-shadow: 0 2px 6px rgba(40,60,90,0.06);
+    }
+    .zoom-controls button:hover { background: #f6f9fd; }
+    .zoom-level { color: var(--muted); font-size: 13px; min-width: 62px; text-align: center; }
+    .table-viewport {
+      overflow: auto; border-radius: 20px; border: 1px solid var(--border); background: #f8fbff; padding: 16px;
+      height: 730px;
+    }
+    .table-scale-origin { transform-origin: top center; width: 100%; display: flex; justify-content: center; }
+    .table-wrap { position: relative; width: 1160px; height: 980px; }
+    .table {
+      position: absolute; left: 50%; top: 54%; transform: translate(-50%, -50%);
+      width: 760px; height: 380px; border-radius: 999px;
+      background: radial-gradient(circle at 40% 35%, rgba(255,255,255,0.2), transparent 28%), linear-gradient(180deg, var(--table-edge), var(--table));
+      border: 8px solid rgba(113, 79, 39, 0.28);
+      box-shadow: inset 0 10px 24px rgba(255,255,255,0.12), inset 0 -18px 24px rgba(90,60,20,0.12), 0 18px 34px rgba(90, 78, 60, 0.18);
+    }
+    .table-center {
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      width: 250px; text-align: center; color: #41301f;
+    }
+    .table-center .title { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; }
+    .table-center .meta { margin-top: 8px; font-size: 13px; color: rgba(65, 48, 31, 0.8); line-height: 1.45; }
+    .seat { position: absolute; width: 220px; transform: translate(-50%, -50%); text-align: center; }
+    .seat.gm { width: 250px; }
+    .seat-card {
+      position: relative; background: rgba(255,255,255,0.98); border: 1px solid var(--border);
+      border-radius: 18px; padding: 12px; box-shadow: var(--shadow);
+    }
+    .seat.active .seat-card { border-color: rgba(70, 110, 170, 0.28); box-shadow: 0 0 0 2px rgba(70,110,170,0.08), var(--shadow); }
+    .seat.gm .seat-card { background: #f6f9fd; }
+    .agent-dot {
+      width: 18px; height: 18px; border-radius: 999px; margin: 0 auto 10px;
+      border: 2px solid rgba(255,255,255,0.8); box-shadow: 0 0 0 6px rgba(23, 33, 49, 0.03);
+    }
+    .agent-name { font-weight: 800; font-size: 14px; letter-spacing: -0.02em; margin-bottom: 4px; }
+    .agent-role { color: var(--subtle); font-size: 12px; margin-bottom: 10px; }
+    .agent-meta-row { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .mini-tag {
+      padding: 5px 8px; border-radius: 999px; background: #f6f9fd;
+      border: 1px solid rgba(112, 130, 156, 0.12); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
+    }
+    .mini-tag.active { color: #244673; border-color: rgba(70,110,170,0.2); background: rgba(143,184,255,0.16); }
+    .mini-tag.speak { color: #7a4a0d; border-color: rgba(213, 154, 59, 0.22); background: rgba(233, 178, 92, 0.18); }
+    .mini-tag.listen { color: #1d6b4c; border-color: rgba(66, 200, 138, 0.22); background: rgba(66, 200, 138, 0.12); }
+    .urgency-line { height: 8px; background: rgba(40, 60, 90, 0.08); border-radius: 999px; overflow: hidden; margin-bottom: 10px; }
+    .urgency-fill { height: 100%; border-radius: inherit; }
+    .agent-thought {
+      color: var(--muted); font-size: 12px; line-height: 1.45; min-height: 52px;
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .speech-layer { position: absolute; inset: 0; pointer-events: none; }
+    .speech-bubble {
+      position: absolute; width: 340px; max-width: 340px; transform: translate(-50%, -50%);
+      background: rgba(255,255,255,0.99); color: var(--text); border-radius: 18px; padding: 14px 16px;
+      box-shadow: 0 12px 24px rgba(0,0,0,0.14); text-align: left; border: 1px solid rgba(112,130,156,0.12);
+    }
+    .speech-bubble::after {
+      content: ''; position: absolute; left: 50%; bottom: -12px; transform: translateX(-50%);
+      border-width: 12px 10px 0 10px; border-style: solid; border-color: rgba(255,255,255,0.99) transparent transparent transparent;
+    }
+    .speech-bubble .speaker { font-size: 12px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 8px; color: #4f6180; }
+    .speech-bubble .text {
+      font-size: 14px; line-height: 1.55; max-height: 220px; overflow: auto; padding-right: 4px;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .speech-bubble.previous { opacity: 0.96; background: #f8fbff; }
+    .speech-bubble.previous::after { border-color: #f8fbff transparent transparent transparent; }
+    .sidebar { display: grid; gap: 18px; }
+    .list-panel { padding: 18px; }
+    .list { display: grid; gap: 10px; max-height: 260px; overflow: auto; padding-right: 4px; }
+    .list-item { padding: 12px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); }
+    .list-item-top { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 8px; }
+    .list-item-title { font-weight: 700; font-size: 13px; }
+    .list-item-meta { color: var(--subtle); font-size: 12px; }
+    .list-item-body { color: var(--muted); font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+    .memory-controls { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+    .memory-controls label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+    .memory-controls select {
+      flex: 1; background: white; color: var(--text); border: 1px solid var(--border);
+      border-radius: 12px; padding: 10px 12px; font: inherit;
+    }
+    .memory-groups { display: grid; gap: 10px; max-height: 380px; overflow: auto; padding-right: 4px; }
+    .memory-group { padding: 12px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); }
+    .memory-group h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+    .memory-group ul { margin: 0; padding-left: 18px; color: var(--muted); }
+    .memory-group li { margin-bottom: 6px; font-size: 13px; line-height: 1.45; }
+    .empty { color: var(--subtle); font-size: 14px; line-height: 1.45; }
+    @media (max-width: 1320px) { .layout { grid-template-columns: 1fr; } .sidebar { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 980px) {
+      .hero { flex-direction: column; }
+      .hero-stats, .summary-strip, .sidebar { grid-template-columns: 1fr 1fr; }
+      .table-viewport { height: 620px; }
+    }
+    @media (max-width: 720px) { .hero-stats, .summary-strip, .sidebar { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <div>
+        <h1>Murder Mystery Observer</h1>
+        <p>
+          A bright, readable room view: the Game Master at the head, six suspects around the table,
+          zoom controls for the scene, and larger speech bubbles so long lines remain readable.
+        </p>
+      </div>
+      <div class="hero-stats">
+        <div class="stat-box"><div class="stat-label">Status</div><div id="statusText" class="stat-value">Loading</div></div>
+        <div class="stat-box"><div class="stat-label">Phase</div><div id="phaseText" class="stat-value">—</div></div>
+        <div class="stat-box"><div class="stat-label">Round</div><div id="roundText" class="stat-value">—</div></div>
+        <div class="stat-box"><div class="stat-label">Turn</div><div id="turnText" class="stat-value">—</div></div>
+      </div>
+    </section>
+
+    <div class="layout">
+      <main>
+        <section class="summary-strip" id="summaryStrip"></section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Room View</h2>
+              <div class="panel-subtitle">The Game Master directs from the head of the table, while the suspects react around the room.</div>
+            </div>
+            <div class="badge" id="speakerBadge">Current speaker —</div>
+          </div>
+          <div class="panel-body">
+            <div class="scene">
+              <div class="scene-topbar">
+                <div class="scene-guide">Use zoom if a speech bubble is large or you want a closer look at one part of the table.</div>
+                <div class="zoom-controls">
+                  <button id="zoomOutBtn" type="button">−</button>
+                  <div class="zoom-level" id="zoomLevel">100%</div>
+                  <button id="zoomInBtn" type="button">+</button>
+                  <button id="zoomResetBtn" type="button">Reset</button>
+                </div>
+              </div>
+              <div class="table-viewport" id="tableViewport">
+                <div class="table-scale-origin" id="tableScaleOrigin">
+                  <div class="table-wrap" id="tableWrap">
+                    <div class="table">
+                      <div class="table-center">
+                        <div class="title">Killingsworth Farm</div>
+                        <div class="meta" id="tableMeta">Investigation in progress</div>
+                      </div>
+                    </div>
+                    <div id="seatLayer"></div>
+                    <div id="speechLayer" class="speech-layer"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="sidebar">
+        <section class="panel list-panel">
+          <div class="panel-header" style="padding:0; margin-bottom:12px;">
+            <div>
+              <h3>Agent Memory</h3>
+              <div class="panel-subtitle">Filter by agent to inspect what they have stored about the case.</div>
+            </div>
+          </div>
+          <div class="memory-controls">
+            <label for="memoryAgentSelect">Agent</label>
+            <select id="memoryAgentSelect"></select>
+          </div>
+          <div class="memory-groups" id="memoryGroups"></div>
+        </section>
+
+        <section class="panel list-panel">
+          <div class="panel-header" style="padding:0; margin-bottom:12px;">
+            <div>
+              <h3>Evidence & Clues</h3>
+              <div class="panel-subtitle">What the room has surfaced so far.</div>
+            </div>
+          </div>
+          <div class="list" id="evidenceList"></div>
+        </section>
+
+        <section class="panel list-panel">
+          <div class="panel-header" style="padding:0; margin-bottom:12px;">
+            <div>
+              <h3>Accusations & Verdict</h3>
+              <div class="panel-subtitle">How the run resolves.</div>
+            </div>
+          </div>
+          <div class="list" id="accusationList"></div>
+        </section>
+
+        <section class="panel list-panel">
+          <div class="panel-header" style="padding:0; margin-bottom:12px;">
+            <div>
+              <h3>Recent Events</h3>
+              <div class="panel-subtitle">Minimal trace of what just happened.</div>
+            </div>
+          </div>
+          <div class="list" id="eventList"></div>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    const FIXED_ORDER = [
+      "Dr Chelsea Barren",
+      "Enrique Graves",
+      "Kathryn Lawless",
+      "Michael Nightshade",
+      "Norman D'Adly",
+      "Vicki D'Adly"
+    ];
+    const ALL_TABLE_ORDER = ["Game Master", ...FIXED_ORDER];
+    const AGENT_META = {
+      "Game Master": { role: 'Director of flow', color: '#8a96a8' },
+      "Dr Chelsea Barren": { role: 'Doctor & author', color: '#cf6f99' },
+      "Enrique Graves": { role: 'Farmhand & student', color: '#6fb772' },
+      "Kathryn Lawless": { role: 'Librarian & confidante', color: '#d0ac58' },
+      "Michael Nightshade": { role: 'Brokerage visitor', color: '#6da8de' },
+      "Norman D'Adly": { role: 'Executive under pressure', color: '#a980e4' },
+      "Vicki D'Adly": { role: 'Estranged sister', color: '#e28163' },
+    };
+    const SEAT_POSITIONS = {
+      "Game Master": { x: 50, y: 6, bubbleX: 50, bubbleY: 18 },
+      "Dr Chelsea Barren": { x: 16, y: 24, bubbleX: 22, bubbleY: 10 },
+      "Enrique Graves": { x: 84, y: 24, bubbleX: 78, bubbleY: 10 },
+      "Kathryn Lawless": { x: 12, y: 58, bubbleX: 18, bubbleY: 44 },
+      "Michael Nightshade": { x: 88, y: 58, bubbleX: 82, bubbleY: 44 },
+      "Norman D'Adly": { x: 34, y: 92, bubbleX: 34, bubbleY: 78 },
+      "Vicki D'Adly": { x: 66, y: 92, bubbleX: 66, bubbleY: 78 },
+    };
+
+    let selectedMemoryAgent = FIXED_ORDER[0];
+    let tableZoom = 1;
+
+    async function refresh() {
+      try {
+        const res = await fetch('/api/state', { cache: 'no-store' });
+        const data = await res.json();
+        render(data);
+      } catch (error) {
+        document.getElementById('statusText').textContent = 'Disconnected';
+      }
+    }
+
+    function render(data) {
+      const snapshot = data.snapshot || {};
+      const events = (data.events || []).map(event => normalizeEvent(event));
+      const thoughts = remapThoughts(snapshot.agent_thoughts || {});
+      const accusations = remapAccusations(snapshot.accusations || {});
+      const history = (snapshot.history || []).map(item => ({ ...item, speaker: normalizeAgentName(item.speaker) }));
+      const currentSpeaker = normalizeAgentName(snapshot.current_speaker);
+      const evidence = collectEvidence(events);
+      const latestTwo = history.slice(-2);
+      const agentMemory = remapMemory(snapshot.agent_memory || {});
+
+      document.getElementById('statusText').textContent = titleCase(snapshot.status || 'idle');
+      document.getElementById('phaseText').textContent = titleCase(snapshot.phase || 'unknown');
+      document.getElementById('roundText').textContent = String(snapshot.round ?? '—');
+      document.getElementById('turnText').textContent = String(snapshot.turn ?? '—');
+      document.getElementById('speakerBadge').textContent = currentSpeaker ? `Current speaker ${currentSpeaker}` : 'Current speaker —';
+      document.getElementById('tableMeta').textContent = `${titleCase(snapshot.phase || 'unknown')} · Round ${snapshot.round ?? '—'} · Turn ${snapshot.turn ?? '—'}`;
+
+      renderSummary(snapshot, currentSpeaker, evidence.length, history.length);
+      renderSeats(thoughts, accusations, currentSpeaker);
+      renderSpeech(latestTwo, events);
+      renderMemoryFilter(agentMemory);
+      renderEvidence(evidence);
+      renderAccusations(accusations, snapshot);
+      renderEvents(events);
+      applyZoom();
+    }
+
+    function renderSummary(snapshot, currentSpeaker, evidenceCount, historyCount) {
+      const items = [
+        { label: 'Phase', value: titleCase(snapshot.phase || 'unknown'), note: 'Which stage of the mystery is active.' },
+        { label: 'Speaker', value: currentSpeaker || '—', note: 'Highlighted directly on the table.' },
+        { label: 'Evidence', value: evidenceCount, note: 'Clue and announcement items surfaced so far.' },
+        { label: 'Transcript', value: historyCount, note: 'Total spoken lines recorded in this run.' },
+      ];
+      document.getElementById('summaryStrip').innerHTML = items.map(item => `
+        <article class="summary-card">
+          <div class="label">${escapeHtml(item.label)}</div>
+          <div class="value">${escapeHtml(String(item.value))}</div>
+          <div class="note">${escapeHtml(item.note)}</div>
+        </article>
+      `).join('');
+    }
+
+    function renderSeats(thoughts, accusations, currentSpeaker) {
+      const container = document.getElementById('seatLayer');
+      container.innerHTML = ALL_TABLE_ORDER.map(name => {
+        const meta = AGENT_META[name];
+        const thought = thoughts[name] || null;
+        const action = name === 'Game Master' ? 'direct' : (thought?.action || 'waiting');
+        const urgency = name === 'Game Master' ? 9 : clamp(Number(thought?.importance ?? 0), 0, 9);
+        const accusation = accusations[name];
+        const pos = SEAT_POSITIONS[name];
+        const isActive = currentSpeaker === name;
+        const gmClass = name === 'Game Master' ? 'gm' : '';
+        return `
+          <div class="seat ${gmClass} ${isActive ? 'active' : ''}" style="left:${pos.x}%; top:${pos.y}%;">
+            <div class="seat-card">
+              <div class="agent-dot" style="background:${meta.color};"></div>
+              <div class="agent-name">${escapeHtml(name)}</div>
+              <div class="agent-role">${escapeHtml(meta.role)}</div>
+              <div class="agent-meta-row">
+                <span class="mini-tag ${isActive ? 'active' : ''}">${isActive ? 'Speaking' : name === 'Game Master' ? 'Redirects flow' : 'Seated'}</span>
+                <span class="mini-tag ${action === 'speak' ? 'speak' : action === 'listen' ? 'listen' : ''}">${escapeHtml(titleCase(action))}</span>
+                <span class="mini-tag">${urgency}/9</span>
+              </div>
+              <div class="urgency-line"><div class="urgency-fill" style="width:${(urgency / 9) * 100}%; background:${meta.color};"></div></div>
+              <div class="agent-thought">${name === 'Game Master' ? 'Chooses who speaks next, redirects direct questions, and advances the round.' : thought?.thought ? escapeHtml(thought.thought) : 'No observer thought state yet.'}</div>
+              ${accusation ? `<div class="agent-thought" style="margin-top:8px; color:#44566f;">Accuses: ${escapeHtml(accusation.accused || '—')}</div>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderSpeech(historyEntries, events) {
+      const container = document.getElementById('speechLayer');
+      const displayEntries = [...historyEntries];
+      const recentSelection = [...events].reverse().find(event => event.type === 'speaker_selected' && event.payload?.speaker === 'Game Master');
+      if (recentSelection && !displayEntries.some(entry => entry.speaker === 'Game Master')) {
+        displayEntries.unshift({ speaker: 'Game Master', text: 'Redirecting the floor and coordinating the next response.' });
+      }
+      const entries = displayEntries.slice(-2);
+      if (!entries.length) {
+        container.innerHTML = '';
+        return;
+      }
+      container.innerHTML = entries.map((entry, index) => {
+        const speaker = normalizeAgentName(entry.speaker);
+        const pos = SEAT_POSITIONS[speaker] || { bubbleX: 50, bubbleY: 50 };
+        const meta = AGENT_META[speaker] || { color: '#8a96a8' };
+        const cls = index === entries.length - 1 ? 'speech-bubble latest' : 'speech-bubble previous';
+        return `
+          <div class="${cls}" style="left:${pos.bubbleX}%; top:${pos.bubbleY}%; border-top:4px solid ${meta.color};">
+            <div class="speaker">${escapeHtml(speaker)}</div>
+            <div class="text">${escapeHtml(entry.text || '')}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderMemoryFilter(agentMemory) {
+      const select = document.getElementById('memoryAgentSelect');
+      const availableAgents = FIXED_ORDER.filter(name => agentMemory[name] || true);
+      if (!availableAgents.includes(selectedMemoryAgent)) selectedMemoryAgent = availableAgents[0] || FIXED_ORDER[0];
+      select.innerHTML = availableAgents.map(name => `<option value="${escapeHtml(name)}" ${name === selectedMemoryAgent ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('');
+      select.onchange = () => { selectedMemoryAgent = select.value; renderMemoryGroups(agentMemory[selectedMemoryAgent] || {}); };
+      renderMemoryGroups(agentMemory[selectedMemoryAgent] || {});
+    }
+
+    function renderMemoryGroups(memory) {
+      const groups = document.getElementById('memoryGroups');
+      const categories = memory.categories || {};
+      const order = ['motive', 'means', 'opportunity', 'contradiction', 'timeline', 'alibi'];
+      const blocks = order.map(category => `
+        <section class="memory-group">
+          <h4>${escapeHtml(titleCase(category))}</h4>
+          ${(categories[category] || []).length ? `<ul>${categories[category].map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : '<div class="empty">Nothing stored yet.</div>'}
+        </section>
+      `);
+      const suspicionBlock = `
+        <section class="memory-group">
+          <h4>Suspicions</h4>
+          ${memory.suspicions?.length ? `<ul>${memory.suspicions.map(item => `<li>${escapeHtml(item.name)} (${escapeHtml(String(item.level))})${item.reasons?.length ? ` — ${escapeHtml(item.reasons[0])}` : ''}</li>`).join('')}</ul>` : '<div class="empty">No ranked suspicions stored yet.</div>'}
+        </section>
+      `;
+      groups.innerHTML = [...blocks, suspicionBlock].join('');
+    }
+
+    function renderEvidence(evidence) {
+      const container = document.getElementById('evidenceList');
+      if (!evidence.length) return container.innerHTML = '<div class="empty">No clues or round announcements surfaced yet.</div>';
+      container.innerHTML = evidence.map(item => `
+        <article class="list-item">
+          <div class="list-item-top"><div class="list-item-title">${escapeHtml(item.kind)}</div><div class="list-item-meta">${escapeHtml(item.meta)}</div></div>
+          <div class="list-item-body">${escapeHtml(item.text)}</div>
+        </article>
+      `).join('');
+    }
+
+    function renderAccusations(accusations, snapshot) {
+      const container = document.getElementById('accusationList');
+      const entries = Object.entries(accusations || {});
+      const cards = [];
+      if (snapshot.verdict) cards.push(`<article class="list-item"><div class="list-item-top"><div class="list-item-title">Final verdict</div><div class="list-item-meta">${escapeHtml(titleCase(snapshot.status || 'unknown'))}</div></div><div class="list-item-body">${escapeHtml(snapshot.verdict)}</div></article>`);
+      entries.forEach(([name, result]) => cards.push(`<article class="list-item"><div class="list-item-top"><div class="list-item-title">${escapeHtml(name)}</div><div class="list-item-meta">Accusation</div></div><div class="list-item-body"><strong>Target:</strong> ${escapeHtml(result?.accused || '—')}\n${escapeHtml(result?.reasoning || 'No reasoning available.')}</div></article>`));
+      container.innerHTML = cards.length ? cards.join('') : '<div class="empty">Accusations appear here once the accusation phase starts.</div>';
+    }
+
+    function renderEvents(events) {
+      const container = document.getElementById('eventList');
+      const recent = [...events].slice(-8).reverse();
+      if (!recent.length) return container.innerHTML = '<div class="empty">No recent events yet.</div>';
+      container.innerHTML = recent.map(event => {
+        const summary = summarizeEvent(event);
+        return `<article class="list-item"><div class="list-item-top"><div class="list-item-title">${escapeHtml(summary.title)}</div><div class="list-item-meta">#${escapeHtml(String(event.index ?? '—'))}</div></div><div class="list-item-body">${escapeHtml(summary.body)}</div></article>`;
+      }).join('');
+    }
+
+    function collectEvidence(events) {
+      const items = [];
+      events.forEach(event => {
+        const payload = event.payload || {};
+        if (event.type === 'round_changed' && payload.announcement) items.push({ kind: 'Round announcement', meta: `Round ${payload.round ?? '—'}`, text: String(payload.announcement) });
+        const announcement = typeof payload.announcement === 'string' ? payload.announcement : '';
+        if (announcement.toLowerCase().includes('clue')) items.push({ kind: 'Clue signal', meta: `Event ${event.index ?? '—'}`, text: announcement });
+      });
+      return items;
+    }
+
+    function summarizeEvent(event) {
+      const payload = event.payload || {};
+      switch (event.type) {
+        case 'turn_started': return { title: 'Turn started', body: `Turn ${payload.turn ?? '—'} · Round ${payload.round ?? '—'} · ${titleCase(payload.phase || 'unknown')}` };
+        case 'speaker_selected': return { title: 'Speaker selected', body: payload.speaker ? `${payload.speaker} selected to speak.` : 'No speaker selected.' };
+        case 'utterance': return { title: 'Utterance', body: `${payload.utterance?.speaker || 'Unknown'} spoke.` };
+        case 'thoughts_generated': return { title: 'Thoughts updated', body: `${Object.keys(payload.thoughts || {}).length} agents updated.` };
+        case 'round_changed': return { title: 'Round changed', body: `Moved to round ${payload.round ?? '—'} (${titleCase(payload.phase || 'unknown')}).` };
+        case 'memory_updated': return { title: 'Memory updated', body: 'Per-agent evidence memory snapshot refreshed.' };
+        case 'accusation': return { title: 'Accusation', body: `${payload.agent || 'Unknown'} accused ${payload.result?.accused || '—'}.` };
+        case 'game_finished': return { title: 'Game finished', body: payload.verdict || 'Run complete.' };
+        default: return { title: titleCase(event.type || 'event'), body: JSON.stringify(payload || {}) };
+      }
+    }
+
+    function applyZoom() {
+      const origin = document.getElementById('tableScaleOrigin');
+      origin.style.transform = `scale(${tableZoom})`;
+      document.getElementById('zoomLevel').textContent = `${Math.round(tableZoom * 100)}%`;
+    }
+
+    function setZoom(newZoom) {
+      tableZoom = Math.max(0.8, Math.min(1.8, newZoom));
+      applyZoom();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('zoomInBtn').addEventListener('click', () => setZoom(tableZoom + 0.1));
+      document.getElementById('zoomOutBtn').addEventListener('click', () => setZoom(tableZoom - 0.1));
+      document.getElementById('zoomResetBtn').addEventListener('click', () => setZoom(1));
+    });
+
+    function normalizeAgentName(name) {
+      if (!name) return name;
+      const value = String(name).trim();
+      const normalizedKey = value.toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ');
+      const aliases = {
+        'dr chelsea barren': 'Dr Chelsea Barren', "dr. chelsea barren": 'Dr Chelsea Barren',
+        "norman d'adly": "Norman D'Adly", "vicki d'adly": "Vicki D'Adly",
+        'enrique graves': 'Enrique Graves', 'kathryn lawless': 'Kathryn Lawless', 'michael nightshade': 'Michael Nightshade', 'game master': 'Game Master',
+      };
+      return aliases[normalizedKey] || value;
+    }
+    function remapThoughts(thoughts) { const normalized = {}; Object.entries(thoughts || {}).forEach(([name, value]) => normalized[normalizeAgentName(name)] = value); return normalized; }
+    function remapAccusations(accusations) { const normalized = {}; Object.entries(accusations || {}).forEach(([name, value]) => normalized[normalizeAgentName(name)] = value); return normalized; }
+    function remapMemory(agentMemory) { const normalized = {}; Object.entries(agentMemory || {}).forEach(([name, value]) => normalized[normalizeAgentName(name)] = value); return normalized; }
+    function normalizeEvent(event) {
+      const payload = { ...(event.payload || {}) };
+      if (payload.agent) payload.agent = normalizeAgentName(payload.agent);
+      if (payload.speaker) payload.speaker = normalizeAgentName(payload.speaker);
+      if (payload.utterance?.speaker) payload.utterance = { ...payload.utterance, speaker: normalizeAgentName(payload.utterance.speaker) };
+      if (payload.result?.accused) payload.result = { ...payload.result, accused: normalizeAgentName(payload.result.accused) };
+      return { ...event, payload };
+    }
+    function titleCase(value) { return String(value || '—').replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase()); }
+    function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+    function escapeHtml(text) { return String(text).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;'); }
+
+    refresh();
+    setInterval(refresh, 1200);
+  </script>
+</body>
+</html>

@@ -11,6 +11,7 @@ from typing import List, Dict, Optional, Any
 from dataclasses import dataclass, field
 import hashlib
 import json
+import re
 import numpy as np
 
 # ============================================================================
@@ -22,6 +23,35 @@ L_LONG = 10      # Top L facts to retrieve from long-term memory
 
 MAX_LINE_CHARS = 120      # Max chars per line in prompt sections
 MAX_SECTION_CHARS = 600   # Max chars per prompt section
+
+EVIDENCE_TAGS = ["motive", "means", "opportunity", "contradiction", "timeline", "alibi"]
+
+CATEGORY_PATTERNS = {
+    "motive": [
+        "motive", "wanted", "needed", "money", "inherit", "loan", "love", "affair",
+        "jealous", "hate", "profit", "gold", "debt", "fired", "desperate", "freedom"
+    ],
+    "means": [
+        "weapon", "corkscrew", "candlestick", "pill", "pills", "poison", "wire", "electric",
+        "switch", "knife", "blood", "gift", "inscribed"
+    ],
+    "opportunity": [
+        "saw", "with", "near", "rose garden", "wine vault", "gazebo", "room", "study",
+        "farmhouse", "vault", "alone", "entered", "followed", "found", "at the scene"
+    ],
+    "contradiction": [
+        "contradict", "odd", "however", "but", "doesn't fit", "does not fit", "lie", "lying",
+        "inconsistent", "different", "surprised", "booming", "opposite"
+    ],
+    "timeline": [
+        "am", "pm", "around", "at ", ":", "before", "after", "earlier", "later", "when",
+        "from ", "until", "between", "today", "tonight"
+    ],
+    "alibi": [
+        "alibi", "i was", "i had been", "i have been", "could not have", "did not kill",
+        "innocent", "was nowhere near", "can attest", "with me", "unconscious", "not there"
+    ],
+}
 
 
 # ============================================================================
@@ -79,7 +109,6 @@ class SharedHistory:
             speaker = entry["speaker_id"]
             text = entry["text"]
             
-            # Truncate text if too long
             if len(text) > MAX_LINE_CHARS - 20:
                 text = text[:MAX_LINE_CHARS - 23] + "..."
             
@@ -166,7 +195,7 @@ class LongTermHistory:
     
     def __init__(self, embedding_fn: Optional[callable] = None):
         self.facts: List[FactEntry] = []
-        self._fact_texts: set = set()  # For deduplication
+        self._fact_texts: set = set()
         self._embedding_fn = embedding_fn or self._default_embedding
     
     def _default_embedding(self, text: str) -> np.ndarray:
@@ -185,15 +214,17 @@ class LongTermHistory:
     
     def add_fact(self, turn_id: int, fact_text: str, tags: List[str] = None):
         """Add a normalized fact entry. Deduplicates by exact text."""
-        if fact_text in self._fact_texts:
+        if not fact_text:
             return
-        
-        # Enforce 20-word limit
+
         words = fact_text.split()
         if len(words) > 20:
             fact_text = " ".join(words[:20]) + "..."
-        
-        self._fact_texts.add(fact_text)
+
+        dedupe_key = f"{fact_text}|{','.join(sorted(tags or []))}"
+        if dedupe_key in self._fact_texts:
+            return
+        self._fact_texts.add(dedupe_key)
         
         entry = FactEntry(
             id=self._generate_id(fact_text, turn_id),
@@ -231,33 +262,61 @@ class LongTermHistory:
         if not facts:
             return ""
         
-        lines = []
-        total_chars = 0
-        
+        grouped: Dict[str, List[str]] = {tag: [] for tag in EVIDENCE_TAGS}
+        other_lines: List[str] = []
+
         for fact in facts:
-            tag_str = f" [{','.join(fact.tags[:2])}]" if fact.tags else ""
-            line = f"• {fact.fact_text}{tag_str}"
-            
-            if len(line) > MAX_LINE_CHARS:
-                line = line[:MAX_LINE_CHARS - 3] + "..."
-            
-            if total_chars + len(line) > MAX_SECTION_CHARS:
-                lines.append("...")
+            primary_tags = [tag for tag in fact.tags if tag in EVIDENCE_TAGS]
+            if primary_tags:
+                tag = primary_tags[0]
+                grouped[tag].append(fact.fact_text)
+            else:
+                other_lines.append(fact.fact_text)
+
+        sections = []
+        total_chars = 0
+
+        for tag in EVIDENCE_TAGS:
+            entries = grouped[tag][:3]
+            if not entries:
+                continue
+            header = f"[{tag.upper()}]"
+            lines = [header]
+            for fact_text in entries:
+                line = f"• {fact_text}"
+                if len(line) > MAX_LINE_CHARS:
+                    line = line[:MAX_LINE_CHARS - 3] + "..."
+                lines.append(line)
+            block = "\n".join(lines)
+            if total_chars + len(block) > MAX_SECTION_CHARS:
                 break
-            
-            lines.append(line)
-            total_chars += len(line) + 1
-        
-        return "\n".join(lines)
+            sections.append(block)
+            total_chars += len(block) + 2
+
+        if other_lines and total_chars < MAX_SECTION_CHARS:
+            lines = ["[OTHER FACTS]"]
+            for fact_text in other_lines[:2]:
+                line = f"• {fact_text}"
+                if len(line) > MAX_LINE_CHARS:
+                    line = line[:MAX_LINE_CHARS - 3] + "..."
+                lines.append(line)
+            block = "\n".join(lines)
+            if total_chars + len(block) <= MAX_SECTION_CHARS:
+                sections.append(block)
+
+        return "\n\n".join(sections)
     
-    # Backwards compatibility
     def add_clue(self, clue: str):
-        if clue:
-            self.add_fact(0, f"CLUE: {clue}", tags=["clue"])
+        if not clue:
+            return
+        categorized = categorize_fact_text(f"CLUE: {clue}")
+        tags = list(dict.fromkeys(["clue"] + categorized))
+        self.add_fact(0, f"CLUE: {clue}", tags=tags)
     
     def add_round_summary(self, round_num: int, bullets: List[str]):
         for bullet in bullets:
-            self.add_fact(round_num * 100, bullet, tags=["summary", f"round{round_num}"])
+            tags = list(dict.fromkeys([f"round{round_num}", "summary"] + categorize_fact_text(bullet)))
+            self.add_fact(round_num * 100, bullet, tags=tags)
     
     def get_all_clues(self) -> List[str]:
         return [f.fact_text for f in self.facts if "clue" in f.tags]
@@ -305,11 +364,27 @@ class KnowledgeGraph:
 # ============================================================================
 # FACT NORMALIZER (LLM-based)
 # ============================================================================
-VALID_TAGS = ["relationship", "alibi", "accusation", "observation", "location", "time", "motive", "secret", "contradiction", "other"]
+VALID_TAGS = EVIDENCE_TAGS
+
+
+def categorize_fact_text(text: str) -> List[str]:
+    text_lower = text.lower()
+    tags = []
+    for tag, patterns in CATEGORY_PATTERNS.items():
+        if any(pattern in text_lower for pattern in patterns):
+            tags.append(tag)
+
+    if "i was" in text_lower and not any(tag == "timeline" for tag in tags):
+        tags.append("timeline")
+    if ("i was" in text_lower or "with" in text_lower or "could not have" in text_lower) and "alibi" not in tags:
+        if any(marker in text_lower for marker in ["i was", "with", "could not have", "innocent", "nowhere near"]):
+            tags.append("alibi")
+
+    return list(dict.fromkeys(tags)) or ["timeline"]
 
 
 class FactNormalizer:
-    """Normalizes dialogue into structured facts using LLM."""
+    """Normalizes dialogue into structured facts using LLM or rule-based fallback."""
     
     def __init__(self, llm: Any = None):
         self.llm = llm
@@ -319,14 +394,16 @@ class FactNormalizer:
         if not self.llm:
             return self._simple_normalize(speaker, text)
         
-        prompt = f"""Extract facts from this dialogue. Output JSON array only.
+        prompt = f"""Extract stable investigation facts from this dialogue. Output JSON array only.
 Speaker: {speaker}
 Text: {text}
 
 Rules:
 - Each fact_text <= 20 words
-- Tags from: {VALID_TAGS}
-- Only stable facts (claims, alibis, relationships, observations)
+- Tags must come only from: {VALID_TAGS}
+- Prefer these categories when supported: motive, means, opportunity, contradiction, timeline, alibi
+- Extract only concrete claims, alibis, timing, means, motives, opportunities, or contradictions
+- Do not invent facts
 
 Output: [{{"fact_text":"...", "tags":["tag"]}}]
 JSON:"""
@@ -338,7 +415,17 @@ JSON:"""
             start = content.find('[')
             end = content.rfind(']') + 1
             if start >= 0 and end > start:
-                return json.loads(content[start:end])
+                parsed = json.loads(content[start:end])
+                normalized = []
+                for item in parsed:
+                    fact_text = item.get("fact_text", "").strip()
+                    if not fact_text:
+                        continue
+                    tags = [tag for tag in item.get("tags", []) if tag in VALID_TAGS]
+                    tags = list(dict.fromkeys(tags + categorize_fact_text(fact_text)))
+                    normalized.append({"fact_text": fact_text, "tags": tags})
+                if normalized:
+                    return normalized
         except Exception:
             pass
         
@@ -346,10 +433,19 @@ JSON:"""
     
     def _simple_normalize(self, speaker: str, text: str) -> List[Dict]:
         """Fallback normalization without LLM."""
-        words = text.split()
-        if len(words) > 18:
-            text = " ".join(words[:18]) + "..."
-        return [{"fact_text": f"{speaker}: {text}", "tags": ["observation"]}]
+        text = re.sub(r'\s+', ' ', text).strip()
+        snippets = re.split(r'(?<=[.!?])\s+', text)
+        facts = []
+        for snippet in snippets[:3]:
+            snippet = snippet.strip()
+            if not snippet:
+                continue
+            words = snippet.split()
+            if len(words) > 18:
+                snippet = " ".join(words[:18]) + "..."
+            fact_text = f"{speaker}: {snippet}"
+            facts.append({"fact_text": fact_text, "tags": categorize_fact_text(snippet)})
+        return facts or [{"fact_text": f"{speaker}: {text[:80]}", "tags": ["timeline"]}]
 
 
 # ============================================================================
@@ -360,58 +456,37 @@ class AgentMemory:
     
     def __init__(self, agent_name: str, short_term_window: int = K_SHORT, llm: Any = None, embedding_fn: callable = None):
         self.agent_name = agent_name
-        
-        # Stage 1: Shared history (singleton)
         self.shared_history = SharedHistory()
-        
-        # Stage 2: Short-term thoughts (per agent)
         self.short_term = ShortTermHistory()
-        
-        # Stage 3: Long-term facts with embeddings (per agent)
         self.long_term = LongTermHistory(embedding_fn=embedding_fn)
-        
-        # Suspicion tracking
         self.knowledge_graph = KnowledgeGraph()
-        
-        # Fact normalizer
         self.normalizer = FactNormalizer(llm=llm)
     
     def add_thought(self, thought: str, action: str = "", importance: int = 0):
-        """Add to short-term thought history."""
         self.short_term.add(thought, action, importance)
     
     def process_dialogue(self, turn_id: int, speaker: str, text: str):
-        """Process new dialogue: add to shared history + normalize to facts."""
         self.shared_history.append(turn_id, speaker, text)
         facts = self.normalizer.normalize(speaker, text, turn_id)
         self.long_term.add_facts_batch(turn_id, facts)
     
     def update_from_history(self, history: List[dict]):
-        """Update from full history (backwards compatibility)."""
-        pass  # Now handled by process_dialogue
+        pass
     
     def process_new_message(self, message: dict, turn: int):
-        """Process a new message (backwards compatibility)."""
         self.process_dialogue(turn, message.get("speaker", ""), message.get("text", ""))
     
     def build_prompt_context(self, query: str = "") -> str:
-        """
-        Build prompt context with all three memory stages.
-        Sections: [SHARED_HISTORY_WINDOW] [SHORT_TERM_THOUGHTS] [LONG_TERM_FACTS] [SUSPICIONS]
-        """
         sections = []
         
-        # Section 1: Shared History Window (last K_HISTORY)
         history = self.shared_history.render_for_prompt()
         if history:
             sections.append(f"[CONVERSATION]\n{history}")
         
-        # Section 2: Short-term Thoughts (last K_SHORT)
         thoughts = self.short_term.render_for_prompt()
         if thoughts:
             sections.append(f"[YOUR THOUGHTS]\n{thoughts}")
         
-        # Section 3: Long-term Facts (top L_LONG by similarity)
         if not query:
             window = self.shared_history.get_window()
             query = window[-1]["text"] if window else self.agent_name
@@ -420,7 +495,6 @@ class AgentMemory:
         if facts:
             sections.append(f"[RELEVANT FACTS]\n{facts}")
         
-        # Section 4: Suspicions
         suspects = self.knowledge_graph.get_ranked_suspects()
         if suspects:
             susp_lines = []
@@ -435,7 +509,6 @@ class AgentMemory:
         return "\n\n".join(sections)
     
     def format_all_for_prompt(self, query: str = "") -> str:
-        """Alias for build_prompt_context."""
         return self.build_prompt_context(query)
     
     def get_suspect_ranking(self) -> str:
@@ -449,7 +522,5 @@ class AgentMemory:
         return "\n".join(lines)
 
 
-# Backwards compatibility aliases
 ShortTermMemory = ShortTermHistory
 LongTermMemorySimple = LongTermHistory
-
