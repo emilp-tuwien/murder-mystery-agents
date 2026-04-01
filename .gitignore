@@ -45,5 +45,7 @@ ENV/
 # Project-specific
 notebooks/
 *.log
+outputs/
+agent_thoughts_*.csv
 .env
 .env

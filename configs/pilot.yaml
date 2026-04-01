@@ -1,0 +1,14 @@
+experiment_name: pilot
+output_root: outputs
+replicates: 3
+backend: local
+model_name: local_llm
+base_url: http://192.168.11.11:8080/v1
+temperature: 0.7
+conversations_per_round: 20
+max_rounds: 6
+enable_ui: false
+prompt_version: thesis-pilot-v1
+turn_policy_version: top2-selective-silence-v1
+memory_version: three-stage-v1
+scenario_id: killingsworth-farm-v1

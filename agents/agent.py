@@ -85,17 +85,9 @@ class Agent:
         return "\n".join(summary_lines)
     
     def update_memory(self, state: dict):
-        """Update all memory layers from current game state."""
+        """Update memory views without replaying dialogue already stored by the graph."""
         history = state.get("history", [])
-        
-        # Update short-term memory with recent window
         self.memory.update_from_history(history)
-        
-        # Process the latest message if any
-        if history:
-            last_msg = history[-1]
-            turn = state.get("turn", len(history))
-            self.memory.process_new_message(last_msg, turn)
     
     def add_clue_to_memory(self, clue: str):
         """Add a game master clue to long-term memory."""

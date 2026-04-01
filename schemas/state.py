@@ -2,10 +2,16 @@ from typing import TypedDict, Dict, List, Optional, Any
 from typing_extensions import Annotated
 import operator
 
-class Utterance(TypedDict):
+class Utterance(TypedDict, total=False):
     turn: int
     speaker: str
     text: str
+    round: int
+    phase: str
+    is_question: bool
+    addressed_to: Optional[str]
+    mentioned_agents: List[str]
+    response_to_speaker: Optional[str]
 
 class PendingObligation(TypedDict):
     addressee: str

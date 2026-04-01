@@ -4,6 +4,8 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from pathlib import Path
 import PyPDF2
 
+from utils.dialogue_analysis import detect_direct_address
+
 
 class SpeakerDecision(BaseModel):
     """Game Master's decision on who should speak next"""
@@ -19,13 +21,13 @@ class RoundSummary(BaseModel):
 
 
 class GameMaster:
-    def __init__(self, llm: Any, agent_names: List[str], conversations_per_round: int = 20):
+    def __init__(self, llm: Any, agent_names: List[str], conversations_per_round: int = 20, max_rounds: int = 6):
         self.llm = llm
         self.agent_names = agent_names
         self.llm_decide = llm.with_structured_output(SpeakerDecision)
         self.persona = self._load_persona()
         self.conversations_per_round = conversations_per_round
-        self.max_rounds = 6  # Total number of rounds in the game
+        self.max_rounds = max_rounds
     
     def _load_persona(self) -> str:
         """Load game master description from PDF"""
@@ -102,69 +104,34 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
         By default, advances after conversations_per_round conversations.
         """
         if current_round >= self.max_rounds:
-            return False  # Already at max round
+            return False
         return conversations_in_round >= self.conversations_per_round
     
     def get_phase_for_round(self, round_num: int) -> str:
         """
         Determine the game phase based on current round.
-        Round 1: Introduction phase
-        Rounds 2-5: Discussion/Investigation phase
-        Round 6+: Should trigger accusation phase
+        Round 1: introduction
+        Rounds 2..max_rounds-1: discussion
+        Round max_rounds: accusation
         """
         if round_num == 1:
             return "introduction"
-        elif round_num <= 5:
+        if round_num < self.max_rounds:
             return "discussion"
-        else:
-            return "accusation"
+        return "accusation"
     
     def is_game_complete(self, current_round: int, conversations_in_round: int) -> bool:
-        """Check if the game should end (after round 5 completes)."""
-        return current_round >= 6 or (current_round == 5 and conversations_in_round >= self.conversations_per_round)
+        """Check if the investigation rounds are complete and accusation should begin."""
+        return current_round >= self.max_rounds or (
+            current_round == self.max_rounds - 1 and conversations_in_round >= self.conversations_per_round
+        )
 
-    def _detect_direct_address(self, text: str, available_agents: list) -> str | None:
-        """
-        Detect if someone was directly addressed by name in the text.
-        Returns the name of the addressed agent, or None if no one was directly addressed.
-        """
-        text_lower = text.lower()
-        
-        for agent_name in available_agents:
-            name_lower = agent_name.lower()
-            first_name = name_lower.split()[0] if ' ' in name_lower else name_lower
-            
-            # Check for direct address patterns
-            patterns = [
-                f"{name_lower},",           # "Enrique Graves,"
-                f"{first_name},",           # "Enrique,"
-                f"{name_lower}?",           # "Enrique Graves?"
-                f"{first_name}?",           # "Enrique?"
-                f"ask {name_lower}",        # "ask Enrique Graves"
-                f"ask {first_name}",        # "ask Enrique"
-                f"{name_lower} can you",    # "Enrique can you"
-                f"{first_name} can you",    # "Enrique can you"
-                f"{name_lower}, can you",   # "Enrique, can you"
-                f"{first_name}, can you",   # "Enrique, can you"
-                f"{name_lower} what",       # "Enrique what"
-                f"{first_name} what",       # "Enrique what"
-                f"{name_lower}, what",      # "Enrique, what"
-                f"{first_name}, what",      # "Enrique, what"
-                f"{name_lower} where",      # "Enrique where"
-                f"{first_name} where",      # "Enrique where"
-                f"{name_lower} why",        # "Enrique why"
-                f"{first_name} why",        # "Enrique why"
-                f"{name_lower} tell us",    # "Enrique tell us"
-                f"{first_name} tell us",    # "Enrique tell us"
-                f"to {name_lower}",         # "to Enrique"
-                f"to {first_name}",         # "to Enrique"
-            ]
-            
-            for pattern in patterns:
-                if pattern in text_lower:
-                    return agent_name
-        
-        return None
+    def get_clue_for_round(self, new_round: int) -> str:
+        """Return the clue revealed when entering a new round."""
+        clue_number = new_round - 1
+        if clue_number < 1:
+            return ""
+        return self._load_clue(clue_number)
 
     def decide_next_speaker(self, state: dict, thoughts: dict) -> SpeakerDecision:
         """
@@ -185,7 +152,7 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
         
         # FIRST: Check for direct address using explicit pattern matching
         if last_utterance:
-            directly_addressed = self._detect_direct_address(last_utterance["text"], available)
+            directly_addressed = detect_direct_address(last_utterance["text"], available)
             if directly_addressed:
                 return SpeakerDecision(
                     reasoning=f"{directly_addressed} was directly addressed by {last_speaker}",
@@ -285,6 +252,8 @@ Choose ONE player from the tied players to speak next: {available_str}"""),
 
     def provide_initial_context(self) -> str:
         """Provide game context to all players at the start."""
+        investigation_rounds = f"Rounds 2-{self.max_rounds - 1}" if self.max_rounds > 2 else "Round 2"
+        accusation_round = self.max_rounds
         context_intro = f"""
 ╔═══════════════════════════════════════════════════════════════╗
 ║            MURDER AT KILLINGSWORTH FARM                       ║
@@ -302,8 +271,8 @@ SUSPECTS PRESENT: {', '.join(self.agent_names)}
 
 GAME STRUCTURE:
 - Round 1: Introductions - Each suspect introduces themselves
-- Rounds 2-5: Investigation - Question each other, find the killer!
-- After Round 5: Accusation - Each person accuses someone
+- {investigation_rounds}: Investigation - Question each other, find the killer!
+- Round {accusation_round}: Accusation - Each person accuses someone
 - Final: Confessions - Everyone reveals their secrets
 
 Each round has approximately {self.conversations_per_round} conversations.
@@ -319,7 +288,7 @@ RULES:
 2. Ask questions, share clues, and make accusations
 3. All conversations are PUBLIC - no private discussions
 4. Players CANNOT accuse themselves
-5. After round 5, everyone votes on who they think is the murderer
+5. After round {self.max_rounds - 1}, everyone votes on who they think is the murderer
 
 ══════════════════════════════════════════════════════════════════
 

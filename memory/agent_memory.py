@@ -471,7 +471,12 @@ class AgentMemory:
         self.long_term.add_facts_batch(turn_id, facts)
     
     def update_from_history(self, history: List[dict]):
-        pass
+        """
+        Shared dialogue history is updated centrally inside the graph via update_history().
+        This method intentionally avoids replaying the full history to prevent duplicate
+        entries leaking into the shared prompt context.
+        """
+        return None
     
     def process_new_message(self, message: dict, turn: int):
         self.process_dialogue(turn, message.get("speaker", ""), message.get("text", ""))

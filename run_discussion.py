@@ -1,22 +1,28 @@
-from typing import Optional
+from __future__ import annotations
+
 from pathlib import Path
-from utils.agent_helper import load_character_descriptions, detect_murderer
-from graphs.discussion import build_graph, visualize_graph
-from schemas.state import GameState
-from agents.agent import Agent
-import sys
-import os
+from typing import Any, Optional
 import argparse
+import csv
+import os
+import sys
 import time
+
+from dotenv import load_dotenv
+from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
+
+from agents.agent import Agent
+from experiments.config import RunConfig
+from graphs.discussion import build_graph, visualize_graph
+from instrumentation.event_logger import MultiEventSink
+from schemas.state import GameState
+from utils.agent_helper import detect_murderer, load_character_descriptions
+from utils.formatting import _banner, _format_history, _section
+from utils.ollama_helper import _select_ollama_model
 
 sys.path.insert(0, str(Path(__file__).parent / "game-master"))
 from game_master import GameMaster
-from utils.formatting import _banner, _section, _format_history
-from utils.ollama_helper import _select_ollama_model
-
-from langchain_ollama import ChatOllama
-from langchain_openai import ChatOpenAI
-from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -40,8 +46,7 @@ def _select_conversations_per_round() -> int:
             num_convs = int(convs)
             if num_convs > 0:
                 return num_convs
-            else:
-                print("Please enter a positive number")
+            print("Please enter a positive number")
         except ValueError:
             print("Please enter a valid number")
         except KeyboardInterrupt:
@@ -49,10 +54,10 @@ def _select_conversations_per_round() -> int:
             return 20
 
 
-def _build_openai_llm(model_name: str, api_key: str, base_url: Optional[str] = None):
+def _build_openai_llm(model_name: str, api_key: str, temperature: float, base_url: Optional[str] = None):
     kwargs = {
         "model": model_name,
-        "temperature": 0.7,
+        "temperature": temperature,
         "api_key": api_key,
     }
     if base_url:
@@ -60,48 +65,34 @@ def _build_openai_llm(model_name: str, api_key: str, base_url: Optional[str] = N
     return ChatOpenAI(**kwargs)
 
 
-def _build_llm(choice: str):
-    if choice == "l":
-        normalized_base_url = _normalize_openai_base_url(LOCAL_LLM_API_URL)
-        print(f"Using local hosted LLM via {normalized_base_url}")
+def _build_llm_from_config(config: RunConfig) -> Any:
+    if config.backend == "local":
+        base_url = _normalize_openai_base_url(config.base_url or LOCAL_LLM_API_URL)
+        model_name = config.model_name or LOCAL_LLM_MODEL
+        print(f"Using local hosted LLM via {base_url}")
         return _build_openai_llm(
-            model_name=LOCAL_LLM_MODEL,
+            model_name=model_name,
             api_key="not-needed",
-            base_url=normalized_base_url,
+            base_url=base_url,
+            temperature=config.temperature,
         )
 
-    if choice == "g":
-        api_key = os.environ.get("OPENAI_API_KEY", "")
-
+    if config.backend == "gpt":
+        api_key = os.environ.get(config.api_key_env, "")
         if not api_key:
-            print("\nNo OpenAI API key found in environment.")
-            api_key = input("Paste your OpenAI API key: ").strip()
-            if not api_key:
-                print("No API key provided. Exiting.")
-                sys.exit(1)
-        else:
-            use_existing = input(f"\nFound existing API key (ends with ...{api_key[-4:]}). Use it? (y/n): ").strip().lower()
-            if use_existing != "y":
-                api_key = input("Paste your OpenAI API key: ").strip()
-                if not api_key:
-                    print("No API key provided. Exiting.")
-                    sys.exit(1)
+            raise RuntimeError(f"No API key found in environment variable {config.api_key_env}")
+        model_name = config.model_name or "gpt-4o-mini"
+        print(f"Using {model_name}")
+        return _build_openai_llm(model_name=model_name, api_key=api_key, temperature=config.temperature)
 
-        llm = _build_openai_llm(model_name="gpt-4o-mini", api_key=api_key)
-        print("Using GPT-4o-mini")
-        return llm
+    if config.backend == "ollama":
+        model_name = config.model_name or _select_ollama_model()
+        if model_name is None:
+            raise RuntimeError("No Ollama model selected")
+        print(f"Using {model_name}")
+        return ChatOllama(model=model_name, temperature=config.temperature)
 
-    if choice == "o":
-        selected_model = _select_ollama_model()
-        if selected_model is None:
-            print("No model selected. Exiting.")
-            sys.exit(1)
-        llm = ChatOllama(model=selected_model, temperature=0.7)
-        print(f"Using {selected_model}")
-        return llm
-
-    print("Invalid choice. Exiting.")
-    sys.exit(1)
+    raise RuntimeError(f"Unsupported backend: {config.backend}")
 
 
 def _prompt_for_model_choice() -> str:
@@ -132,32 +123,42 @@ def _resolve_conversations_per_round(args) -> int:
     return _select_conversations_per_round()
 
 
-def run_game(model_choice: str, conversations_per_round: int = 20, enable_ui: bool = False, ui_port: int = 8000):
-    llm = _build_llm(model_choice)
+def _choice_to_backend(choice: str) -> str:
+    mapping = {"l": "local", "g": "gpt", "o": "ollama"}
+    return mapping[choice]
 
-    max_turns = 6 * conversations_per_round + 10
-    print(f"Game will have 6 rounds with {conversations_per_round} conversations per round.")
+
+def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
+    llm = _build_llm_from_config(config)
+
+    roles_dir = config.resolved_roles_dir()
+    descriptions = load_character_descriptions(roles_dir)
+    selected_characters = list(descriptions.keys())
+    max_turns = len(selected_characters) + max(config.max_rounds - 2, 0) * config.conversations_per_round + 10
+
+    print(f"Game will have {config.max_rounds} rounds with {config.conversations_per_round} conversations per round.")
     print(f"Maximum turns: {max_turns}")
 
     ui_store = None
-    if enable_ui:
+    runtime_sink = event_sink
+    if config.enable_ui:
         from ui.game_events import STORE
         from ui.server import start_ui_server
+
         ui_store = STORE
         ui_store.reset()
+        runtime_sink = MultiEventSink([event_sink, ui_store])
         try:
-            start_ui_server(port=ui_port)
-            print(f"Browser UI available at: http://127.0.0.1:{ui_port}")
+            start_ui_server(port=config.ui_port)
+            print(f"Browser UI available at: http://127.0.0.1:{config.ui_port}")
         except PermissionError:
-            print(f"UI server could not bind to port {ui_port} in this environment.")
+            print(f"UI server could not bind to port {config.ui_port} in this environment.")
             print("Continuing without live browser UI. Console output will still work.")
+            runtime_sink = event_sink
             ui_store = None
 
-    roles_dir = Path(__file__).parent / "agents" / "roles"
-    descriptions = load_character_descriptions(roles_dir)
-    selected_characters = list(descriptions.keys())
-
     from memory.agent_memory import SharedHistory
+
     SharedHistory.reset()
 
     agents = {}
@@ -170,23 +171,51 @@ def run_game(model_choice: str, conversations_per_round: int = 20, enable_ui: bo
         agents[name] = Agent(name, descriptions[name], llm, roles_dir, is_murderer=is_murderer)
         agents[name].update_round(1)
 
+    if runtime_sink is not None:
+        runtime_sink.append(
+            "run_started",
+            {
+                "experiment_name": config.experiment_name,
+                "replicate_id": config.replicate_id,
+                "backend": config.backend,
+                "model_name": config.model_name,
+                "temperature": config.temperature,
+                "conversations_per_round": config.conversations_per_round,
+                "max_rounds": config.max_rounds,
+                "agent_names": list(agents.keys()),
+                "murderer_name": murderer_name,
+                "scenario_id": config.scenario_id,
+                "prompt_version": config.prompt_version,
+                "turn_policy_version": config.turn_policy_version,
+                "memory_version": config.memory_version,
+            },
+        )
+
     print(f"Loaded agents: {list(agents.keys())} ({len(agents)} agents)")
     if murderer_name:
         print(f"The murderer ({murderer_name}) knows they did it from Round 1.")
 
-    game_master = GameMaster(llm, list(agents.keys()), conversations_per_round=conversations_per_round)
+    game_master = GameMaster(
+        llm,
+        list(agents.keys()),
+        conversations_per_round=config.conversations_per_round,
+        max_rounds=config.max_rounds,
+    )
     print("Game Master initialized.")
 
     def emit_memory_snapshot():
-        if ui_store is not None:
-            ui_store.append("memory_updated", {
-                "agent_memory": {
-                    name: agent.export_memory_snapshot()
-                    for name, agent in agents.items()
-                }
-            })
+        if runtime_sink is not None:
+            runtime_sink.append(
+                "memory_updated",
+                {
+                    "agent_memory": {
+                        name: agent.export_memory_snapshot()
+                        for name, agent in agents.items()
+                    }
+                },
+            )
 
-    app = build_graph(agents, game_master, max_turns=max_turns, ui_store=ui_store)
+    app = build_graph(agents, game_master, max_turns=max_turns, ui_store=runtime_sink)
     print("Discussion graph built.")
 
     print("Generating graph visualization...")
@@ -200,12 +229,16 @@ def run_game(model_choice: str, conversations_per_round: int = 20, enable_ui: bo
         "turn": 0,
         "current_round": 1,
         "conversations_in_round": 0,
-        "conversations_per_round": conversations_per_round,
+        "conversations_per_round": config.conversations_per_round,
         "history": [
             {
                 "turn": 0,
+                "round": 1,
+                "phase": "introduction",
                 "speaker": "Game Master",
-                "text": murder_announcement
+                "text": murder_announcement,
+                "is_question": False,
+                "mentioned_agents": [],
             }
         ],
         "thoughts": {},
@@ -218,15 +251,18 @@ def run_game(model_choice: str, conversations_per_round: int = 20, enable_ui: bo
         "phase": "introduction",
     }
 
-    if ui_store is not None:
-        ui_store.append("game_started", {
-            "started_at": time.time(),
-            "turn": 0,
-            "round": 1,
-            "phase": "introduction",
-            "murderer": murderer_name,
-        })
-        ui_store.append("utterance", {"utterance": init["history"][0]})
+    if runtime_sink is not None:
+        runtime_sink.append(
+            "game_started",
+            {
+                "started_at": time.time(),
+                "turn": 0,
+                "round": 1,
+                "phase": "introduction",
+                "murderer": murderer_name,
+            },
+        )
+        runtime_sink.append("utterance", {"utterance": init["history"][0]})
         emit_memory_snapshot()
 
     _banner("MURDER MYSTERY DISCUSSION")
@@ -258,14 +294,17 @@ def run_game(model_choice: str, conversations_per_round: int = 20, enable_ui: bo
         votes[result.accused] = votes.get(result.accused, 0) + 1
         print(f"accuses {result.accused}")
 
-        if ui_store is not None:
-            ui_store.append("accusation", {
-                "agent": name,
-                "result": {
-                    "accused": result.accused,
-                    "reasoning": result.reasoning,
-                }
-            })
+        if runtime_sink is not None:
+            runtime_sink.append(
+                "accusation",
+                {
+                    "agent": name,
+                    "result": {
+                        "accused": result.accused,
+                        "reasoning": result.reasoning,
+                    },
+                },
+            )
 
     _section("Final accusations")
     for name, result in accusations.items():
@@ -316,41 +355,65 @@ def run_game(model_choice: str, conversations_per_round: int = 20, enable_ui: bo
         solved_text = "Could not determine the actual murderer from the game files."
         print("(Could not determine the actual murderer from the game files)")
 
-    if ui_store is not None:
-        ui_store.append("game_finished", {
-            "verdict": f"{verdict_text} {solved_text}",
-            "murderer": murderer_name,
-        })
+    if runtime_sink is not None:
+        runtime_sink.append(
+            "game_finished",
+            {
+                "verdict": f"{verdict_text} {solved_text}",
+                "murderer": murderer_name,
+                "winners": winners,
+                "votes": votes,
+            },
+        )
 
     _section("Full transcript")
     print(_format_history(final["history"]))
 
     _section("Exporting agent thoughts to CSV")
-    import csv
     from datetime import datetime
 
     thoughts_history = final.get("thoughts_history", [])
+    thoughts_csv = None
     if thoughts_history:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        csv_filename = f"agent_thoughts_{timestamp}.csv"
+        thoughts_csv = f"agent_thoughts_{timestamp}.csv"
 
-        with open(csv_filename, 'w', newline='') as csvfile:
-            fieldnames = ['turn', 'round', 'agent', 'action', 'importance', 'thought']
+        with open(thoughts_csv, "w", newline="") as csvfile:
+            fieldnames = ["turn", "round", "agent", "action", "importance", "thought"]
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
             writer.writeheader()
             for record in thoughts_history:
                 writer.writerow(record)
 
-        print(f"Agent thoughts exported to: {csv_filename}")
+        print(f"Agent thoughts exported to: {thoughts_csv}")
         print(f"Total records: {len(thoughts_history)}")
 
-        speak_count = sum(1 for r in thoughts_history if r['action'] == 'speak')
-        listen_count = sum(1 for r in thoughts_history if r['action'] == 'listen')
-        avg_importance = sum(r['importance'] for r in thoughts_history) / len(thoughts_history) if thoughts_history else 0
+        speak_count = sum(1 for r in thoughts_history if r["action"] == "speak")
+        listen_count = sum(1 for r in thoughts_history if r["action"] == "listen")
+        avg_importance = sum(r["importance"] for r in thoughts_history) / len(thoughts_history) if thoughts_history else 0
         print(f"Summary: {speak_count} speak decisions, {listen_count} listen decisions, avg importance: {avg_importance:.2f}")
     else:
         print("No thought records to export (Round 1 introductions don't have thoughts)")
+
+    return {
+        "murderer_name": murderer_name,
+        "agent_names": agent_names,
+        "votes": votes,
+        "winners": winners,
+        "thoughts_csv": thoughts_csv,
+        "group_solved": murderer_name in winners if murderer_name else False,
+    }
+
+
+def run_game(model_choice: str, conversations_per_round: int = 20, enable_ui: bool = False, ui_port: int = 8000):
+    config = RunConfig(
+        backend=_choice_to_backend(model_choice),
+        conversations_per_round=conversations_per_round,
+        enable_ui=enable_ui,
+        ui_port=ui_port,
+    )
+    return run_game_from_config(config)
 
 
 def main():
@@ -359,11 +422,19 @@ def main():
     parser.add_argument("--ui-port", type=int, default=8000, help="Port for the local browser UI.")
     parser.add_argument("--model", choices=["prompt", "local", "gpt", "ollama"], default="prompt", help="Model backend to use.")
     parser.add_argument("--conversations-per-round", type=int, default=None, help="Number of conversations per round.")
+    parser.add_argument("--max-rounds", type=int, default=6, help="Total rounds including accusation round.")
     args = parser.parse_args()
 
     model_choice = _resolve_model_choice(args)
     conversations_per_round = _resolve_conversations_per_round(args)
-    run_game(model_choice, conversations_per_round=conversations_per_round, enable_ui=args.ui, ui_port=args.ui_port)
+    config = RunConfig(
+        backend=_choice_to_backend(model_choice),
+        conversations_per_round=conversations_per_round,
+        enable_ui=args.ui,
+        ui_port=args.ui_port,
+        max_rounds=args.max_rounds,
+    )
+    run_game_from_config(config)
 
 
 if __name__ == "__main__":

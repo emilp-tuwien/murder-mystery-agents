@@ -3,6 +3,7 @@ from langgraph.graph import StateGraph, END
 from schemas.state import GameState
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from utils.judge import NormanResponseJudge
+from utils.dialogue_analysis import detect_direct_address, extract_mentions, is_question
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -244,8 +245,22 @@ def speak(state: GameState, agents: Dict[str, any], ui_store=None, norman_judge=
     constraint = pending["response_constraint"] if pending and pending.get("addressee") == speaker else None
 
     text = agents[speaker].speak(state, response_constraint=constraint)
+    agent_names = list(agents.keys())
+    other_agents = [name for name in agent_names if name != speaker]
+    addressed_to = detect_direct_address(text, other_agents)
+    mentioned_agents = extract_mentions(text, other_agents)
 
-    u = {"turn": state["turn"], "speaker": speaker, "text": text}
+    u = {
+        "turn": state["turn"],
+        "round": state.get("current_round"),
+        "phase": state.get("phase"),
+        "speaker": speaker,
+        "text": text,
+        "is_question": is_question(text),
+        "addressed_to": addressed_to,
+        "mentioned_agents": mentioned_agents,
+        "response_to_speaker": pending.get("from_speaker") if pending and pending.get("addressee") == speaker else None,
+    }
     _print_speaker(speaker, text)
     _emit(ui_store, "utterance", {"utterance": u})
 
@@ -300,6 +315,7 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
             for name, agent in agents.items():
                 agent.add_round_summary(current_round, bullets)
             print(f"   Summary: {len(bullets)} key facts extracted")
+            _emit(ui_store, "round_summarized", {"round": current_round, "bullets": bullets})
 
         _emit(ui_store, "round_changed", {"round": current_round, "phase": "accusation"})
         return {
@@ -323,15 +339,12 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
             for name, agent in agents.items():
                 agent.add_round_summary(current_round, bullets)
             print(f"   Summary: {len(bullets)} key facts extracted")
+            _emit(ui_store, "round_summarized", {"round": current_round, "bullets": bullets})
 
             announcement = game_master.announce_round_change(new_round)
             print(announcement)
 
-            clue = None
-            if "NEW CLUE:" in announcement:
-                clue_start = announcement.find(" NEW CLUE:")
-                clue_end = announcement.find("\n", clue_start + 50) if "\n" in announcement[clue_start + 50:] else len(announcement)
-                clue = announcement[clue_start:clue_end].replace(" NEW CLUE:", "").strip()
+            clue = game_master.get_clue_for_round(new_round)
 
             print(f"\n   Updating agent knowledge for Round {new_round}...")
             for name, agent in agents.items():
@@ -340,6 +353,8 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
                     agent.add_clue_to_memory(clue)
             print(f"   All agents updated with Round {new_round} information")
             _emit(ui_store, "round_changed", {"round": new_round, "phase": new_phase, "announcement": announcement})
+            if clue:
+                _emit(ui_store, "clue_revealed", {"round": new_round, "clue": clue})
 
             return {
                 "current_round": new_round,
@@ -359,15 +374,12 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
         for name, agent in agents.items():
             agent.add_round_summary(current_round, bullets)
         print(f"   Summary: {len(bullets)} key facts extracted")
+        _emit(ui_store, "round_summarized", {"round": current_round, "bullets": bullets})
 
         announcement = game_master.announce_round_change(new_round)
         print(announcement)
 
-        clue = None
-        if "🔍 NEW CLUE:" in announcement:
-            clue_start = announcement.find(" NEW CLUE:")
-            clue_end = announcement.find("\n", clue_start + 50) if "\n" in announcement[clue_start + 50:] else len(announcement)
-            clue = announcement[clue_start:clue_end].replace(" NEW CLUE:", "").strip()
+        clue = game_master.get_clue_for_round(new_round)
 
         print(f"\n   Updating agent knowledge for Round {new_round}...")
         for name, agent in agents.items():
@@ -376,6 +388,8 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
                 agent.add_clue_to_memory(clue)
         print(f"   All agents updated with Round {new_round} information")
         _emit(ui_store, "round_changed", {"round": new_round, "phase": new_phase, "announcement": announcement})
+        if clue:
+            _emit(ui_store, "clue_revealed", {"round": new_round, "clue": clue})
 
         return {
             "current_round": new_round,
