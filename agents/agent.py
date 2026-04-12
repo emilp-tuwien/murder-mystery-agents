@@ -398,6 +398,9 @@ Output only the exact words your character says to the group."""),
 People currently in the room: {participants_context}
 
 Introduce yourself in first person (1-2 sentences).
+Base the introduction on the character description above, especially your public-facing role, social position, and emotional tone.
+Say something distinctive that fits who you are instead of giving a generic placeholder introduction.
+Do not summarize your entire backstory, but do signal the kind of person you are.
 Speak naturally to the other suspects.
 Output dialogue only."""),
             ]
