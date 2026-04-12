@@ -351,7 +351,7 @@ Let each suspect introduce themselves to the group.
             title = f"ROUND {new_round}: THE INVESTIGATION BEGINS"
             return f"""
 ╔═══════════════════════════════════════════════════════════════╗
-║ {title:<{inner_width}}║
+║{title:^{inner_width}}║
 ╚═══════════════════════════════════════════════════════════════╝
 
 The introductions are complete. Now the real investigation begins!
@@ -364,7 +364,7 @@ inconsistencies. {self.scenario.investigation_goal}
             title = f"ROUND {new_round}"
             return f"""
 ╔═══════════════════════════════════════════════════════════════╗
-║ {title:<{inner_width}}║
+║{title:^{inner_width}}║
 ╚═══════════════════════════════════════════════════════════════╝
 
 New evidence has emerged!
