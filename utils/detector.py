@@ -28,7 +28,7 @@ from typing import List
 
 
 def make_detector(llm: ChatOllama):
-    detector_llm = llm.with_structured_output(DesignationResult)
+    detector_llm = llm.with_structured_output(DesignationResult, method="json_mode")
 
     def detect(text: str, agent_names: List[str]) -> DesignationResult:
         # For first test, keep it simple but real:

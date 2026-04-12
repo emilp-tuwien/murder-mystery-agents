@@ -24,7 +24,7 @@ class GameMaster:
     def __init__(self, llm: Any, agent_names: List[str], conversations_per_round: int = 20, max_rounds: int = 6):
         self.llm = llm
         self.agent_names = agent_names
-        self.llm_decide = llm.with_structured_output(SpeakerDecision)
+        self.llm_decide = llm.with_structured_output(SpeakerDecision, method="json_mode")
         self.persona = self._load_persona()
         self.conversations_per_round = conversations_per_round
         self.max_rounds = max_rounds
@@ -74,7 +74,7 @@ You decide who speaks next based on the conversation flow."""
             f"{msg['speaker']}: {msg['text']}" for msg in history
         ])
         
-        llm_summary = self.llm.with_structured_output(RoundSummary)
+        llm_summary = self.llm.with_structured_output(RoundSummary, method="json_mode")
         
         msgs = [
             SystemMessage(content="""You are summarizing a murder mystery discussion round.

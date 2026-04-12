@@ -12,7 +12,7 @@ class NormanJudgeResult(BaseModel):
 class NormanResponseJudge:
     def __init__(self, llm: Any):
         self.llm = llm
-        self.llm_judge = llm.with_structured_output(NormanJudgeResult)
+        self.llm_judge = llm.with_structured_output(NormanJudgeResult, method="json_mode")
 
     def evaluate(self, recent_history: str, norman_response: str) -> Optional[NormanJudgeResult]:
         msgs = [

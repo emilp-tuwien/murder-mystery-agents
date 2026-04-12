@@ -52,7 +52,7 @@ class Agent:
         self.base_persona = persona
         self.persona = persona  # Will be updated with round info
         self.llm = llm
-        self.llm_think = llm.with_structured_output(ThinkResult)
+        self.llm_think = llm.with_structured_output(ThinkResult, method="json_mode")
         self.roles_dir = roles_dir
         self.is_murderer = is_murderer
         self.current_round = 0
@@ -431,7 +431,7 @@ Output dialogue only."""),
         other_agents = [name for name in all_agents if name != self.name]
         others_str = ", ".join(other_agents)
         
-        llm_accuse = self.llm.with_structured_output(AccusationResult)
+        llm_accuse = self.llm.with_structured_output(AccusationResult, method="json_mode")
         memory_context = self.memory.build_prompt_context()
         suspect_ranking = self.memory.get_suspect_ranking()
         
