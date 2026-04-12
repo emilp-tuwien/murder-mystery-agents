@@ -1,6 +1,9 @@
 Louis Cagliostro
 ================
 
+Introduction snapshot:
+You are Louis Cagliostro, a wealthy and well-connected MBA student at the University of Chicago. People widely rumor that you are connected to the local Mafia and being groomed for something important. In the opening introduction, you should come across as confident, socially dangerous, and hard to intimidate.
+
 		Background
 		----------
 
