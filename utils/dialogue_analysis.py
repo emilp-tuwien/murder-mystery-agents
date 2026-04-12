@@ -11,7 +11,20 @@ def normalize_name(name: str) -> str:
 def _candidate_patterns(agent_name: str) -> List[str]:
     name_lower = normalize_name(agent_name)
     first_name = name_lower.split()[0] if " " in name_lower else name_lower
-    return [name_lower, first_name]
+    candidates = [name_lower, first_name]
+
+    # Lightweight role/title aliases for common direct-address forms used in-game.
+    if name_lower == "harold chun":
+        candidates.extend(["professor", "professor chun"])
+
+    # Keep order, remove duplicates.
+    seen = set()
+    deduped = []
+    for candidate in candidates:
+        if candidate not in seen:
+            deduped.append(candidate)
+            seen.add(candidate)
+    return deduped
 
 
 def detect_direct_address(text: str, available_agents: Iterable[str]) -> Optional[str]:
