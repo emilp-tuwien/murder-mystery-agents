@@ -39,13 +39,25 @@ class RunConfig(BaseModel):
     replicate_id: int = Field(default=1, ge=1)
 
     def resolved_scenario_path(self) -> Optional[Path]:
-        return Path(self.scenario_path) if self.scenario_path else None
+        if self.scenario_path:
+            return Path(self.scenario_path)
+        if self.scenario_id == "business-of-murder-v1":
+            return REPO_ROOT / "scenarios" / "business-of-murder" / "scenario.json"
+        return None
 
     def resolved_roles_dir(self) -> Path:
-        return Path(self.roles_dir) if self.roles_dir else REPO_ROOT / "agents" / "roles"
+        if self.roles_dir:
+            return Path(self.roles_dir)
+        if self.scenario_id == "business-of-murder-v1":
+            return REPO_ROOT / "scenarios" / "business-of-murder" / "roles"
+        return REPO_ROOT / "agents" / "roles"
 
     def resolved_clues_dir(self) -> Path:
-        return Path(self.clues_dir) if self.clues_dir else REPO_ROOT / "clues"
+        if self.clues_dir:
+            return Path(self.clues_dir)
+        if self.scenario_id == "business-of-murder-v1":
+            return REPO_ROOT / "scenarios" / "business-of-murder" / "clues"
+        return REPO_ROOT / "clues"
 
     def resolved_output_root(self) -> Path:
         return (REPO_ROOT / self.output_root).resolve()
