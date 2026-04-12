@@ -181,47 +181,43 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
                     is_direct_address=True
                 )
         
-        # SECOND: Pick the agent with the highest urgency score (only from available agents)
+        # SECOND: Self-selection by bid strength among available agents
         available_thoughts = {name: tr for name, tr in thoughts.items() if name in available}
-        
-        if available_thoughts:
-            # Sort by importance score
-            sorted_by_urgency = sorted(available_thoughts.items(), key=lambda x: x[1].importance, reverse=True)
-            highest_score = sorted_by_urgency[0][1].importance
-            
-            # Get all agents with the highest score
-            top_agents = [name for name, tr in sorted_by_urgency if tr.importance == highest_score]
-            
-            # If only one agent has the highest score, they speak
+        speaking_bids = {name: tr for name, tr in available_thoughts.items() if tr.action == "speak" and tr.importance >= 7}
+
+        if speaking_bids:
+            sorted_by_bid = sorted(speaking_bids.items(), key=lambda x: x[1].importance, reverse=True)
+            highest_score = sorted_by_bid[0][1].importance
+            top_agents = [name for name, tr in sorted_by_bid if tr.importance == highest_score]
+
             if len(top_agents) == 1:
                 winner = top_agents[0]
-                # Check if someone with higher score was excluded
-                excluded_higher = None
-                if last_speaker and last_speaker in thoughts:
-                    if thoughts[last_speaker].importance > highest_score:
-                        excluded_higher = f" ({last_speaker} had {thoughts[last_speaker].importance}/9 but just spoke)"
-                
-                reasoning = f"{winner} has the highest urgency score ({highest_score}/9) among available agents"
-                if excluded_higher:
-                    reasoning += excluded_higher
-                    
+                reason_type = getattr(speaking_bids[winner], "reason_type", "bid")
+                reasoning = f"{winner} has the strongest self-selection bid ({highest_score}/9, reason={reason_type})"
                 return SpeakerDecision(
                     reasoning=reasoning,
                     next_speaker=winner,
                     response_constraint=None,
                     is_direct_address=False
                 )
-            
-            # THIRD: If tied, let the Game Master LLM decide among the tied agents
+
             available_str = ", ".join(top_agents)
             agent_thoughts_txt = "\n".join([
-                f"- {name}: thinking: \"{available_thoughts[name].thought}\""
+                f"- {name}: bid={speaking_bids[name].importance}/9, reason={getattr(speaking_bids[name], 'reason_type', 'bid')}, thinking: \"{speaking_bids[name].thought}\""
                 for name in top_agents
             ])
         else:
-            # Fallback if no thoughts available
+            # THIRD: continuation fallback if nobody bids strongly
+            if last_speaker and last_speaker in thoughts:
+                return SpeakerDecision(
+                    reasoning=f"No strong self-selection bids; {last_speaker} continues under turn-taking fallback",
+                    next_speaker=last_speaker,
+                    response_constraint=None,
+                    is_direct_address=False
+                )
+
             available_str = ", ".join(available)
-            agent_thoughts_txt = "(no thoughts available)"
+            agent_thoughts_txt = "(no strong self-selection bids available)"
             top_agents = available
         
         # Build conversation history for context

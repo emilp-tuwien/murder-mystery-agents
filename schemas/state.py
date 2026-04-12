@@ -25,6 +25,7 @@ class ThoughtRecord(TypedDict):
     agent: str
     action: str  # "speak" or "listen"
     importance: int
+    reason_type: str
     thought: str
 
 class GameState(TypedDict):

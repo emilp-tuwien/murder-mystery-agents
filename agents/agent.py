@@ -40,6 +40,7 @@ class ThinkResult(BaseModel):
     thought: str
     action: Literal["speak", "listen"]
     importance: int = Field(ge=0, le=9)
+    reason_type: str = Field(default="no_move")
 
     @field_validator("action", mode="before")
     @classmethod
@@ -47,6 +48,13 @@ class ThinkResult(BaseModel):
         if isinstance(value, str):
             return value.strip().lower()
         return value
+
+    @field_validator("reason_type", mode="before")
+    @classmethod
+    def normalize_reason_type(cls, value):
+        if isinstance(value, str) and value.strip():
+            return value.strip().lower().replace(" ", "_").replace("-", "_")
+        return "no_move"
 
 
 class AccusationResult(BaseModel):
@@ -246,7 +254,8 @@ Importance guidance:
 - 4-6 = you can add something useful
 - 0-3 = better to wait
 
-Return valid JSON with keys: thought, action, importance."""),
+Return valid JSON with keys: thought, action, importance, reason_type.
+Use reason_type="introduction" if you should speak, otherwise "no_move"."""),
             ]
         else:
             msgs = [
@@ -297,60 +306,59 @@ Actions:
 
 Importance guidance:
 - 9 = directly addressed / must answer now
-- 8 = unique, high-value evidence or strong contradiction that should be stated immediately
-- 6-7 = useful but not urgent question or fact
-- 4-5 = moderate contribution; only speak if conversation is drifting
-- 2-3 = weak contribution, likely better to listen
-- 0-1 = definitely listen
+- 7-8 = strong bid to speak because you have a clear next move
+- 5-6 = moderate bid to speak if useful
+- 3-4 = weak bid; usually better to listen
+- 0-2 = no bid / definitely listen
 
+Treat the score as a bid strength for the next turn, not a vague confidence score.
 Be willing to choose listen with low scores. Do not inflate urgency just to participate.
 
-Return valid JSON with keys: thought, action, importance."""),
+Return valid JSON with keys: thought, action, importance, reason_type.
+Use one reason_type from: direct_response, contradiction, clue, alibi, motive, means, opportunity, timeline, question, self_defense, redirection, continuation, weak_followup, no_move."""),
             ]
         
         try:
             result = _retry_with_backoff(lambda: self.llm_think.invoke(msgs))
 
-            # Heuristic calibration to avoid everyone clustering on high urgency.
-            if phase != "introduction":
+            if phase == "introduction":
+                if result.action == "speak":
+                    result.reason_type = "introduction"
+                else:
+                    result.reason_type = "no_move"
+            else:
                 if directly_addressed:
                     result.action = "speak"
-                    result.importance = max(result.importance, 9)
+                    result.importance = 9
+                    result.reason_type = "direct_response"
                 else:
                     if recently_spoke:
-                        result.importance = max(0, result.importance - 3)
+                        result.importance = max(0, result.importance - 2)
                     if recent_speaker_count >= 1:
-                        result.importance = max(0, result.importance - 2)
+                        result.importance = max(0, result.importance - 1)
                     if recent_speaker_count >= 2:
-                        result.importance = max(0, result.importance - 2)
+                        result.importance = max(0, result.importance - 1)
                     if consecutive_recent >= 1:
                         result.importance = max(0, result.importance - 1)
 
-                    thought_lower = result.thought.lower()
-                    strong_signal = any(token in thought_lower for token in ["contrad", "direct", "asked", "alibi", "clue", "evidence", "timeline", "motive", "opportunity", "accus", "question", "respond"])
-
-                    if self.is_murderer and not strong_signal:
+                    if self.is_murderer and result.reason_type in {"weak_followup", "no_move", "continuation"}:
                         result.importance = max(0, result.importance - 1)
 
-                    if self.name in {"Enrique Graves", "Kathryn Lawless", "Vicki D'Adly"} and not strong_signal:
-                        result.importance = max(0, result.importance - 1)
-
-                    if self.name == "Norman D'Adly" and any(token in thought_lower for token in ["provok", "accus", "anger", "challeng"]):
-                        result.importance = min(9, result.importance + 1)
-
-                    if result.importance >= 8 and not strong_signal:
-                        result.importance = 5
-
-                    if result.action == "speak" and result.importance <= 5:
+                    if result.action == "speak" and result.importance <= 2:
                         result.action = "listen"
-                    if result.action == "listen" and result.importance >= 8:
+                    elif result.action == "listen" and result.importance >= 7:
                         result.action = "speak"
+
+                    if result.action == "listen" and result.importance <= 2:
+                        result.reason_type = "no_move"
+                    elif result.action == "listen" and result.reason_type == "no_move":
+                        result.reason_type = "weak_followup"
 
             self.memory.add_thought(result.thought, result.action, result.importance)
             return result
         except Exception as e:
             print(f"Error in think for {self.name}: {e}", file=__import__('sys').stderr)
-            return ThinkResult(thought="waiting", action="listen", importance=3)
+            return ThinkResult(thought="waiting", action="listen", importance=0, reason_type="no_move")
 
     def speak(self, state: GameState, response_constraint: Optional[str]) -> str:
         other_agents = [name for name in state.get("thoughts", {}).keys() if name != self.name]

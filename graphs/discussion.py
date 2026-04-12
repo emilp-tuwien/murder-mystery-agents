@@ -95,6 +95,7 @@ def think_all(state: GameState, agents: Dict[str, any], ui_store=None):
                 "thought": thought_text,
                 "action": action,
                 "importance": importance,
+                "reason_type": "introduction" if action == "speak" else "no_move",
             }
             thoughts_records.append({
                 "turn": turn,
@@ -102,6 +103,7 @@ def think_all(state: GameState, agents: Dict[str, any], ui_store=None):
                 "agent": name,
                 "action": action,
                 "importance": importance,
+                "reason_type": "introduction" if action == "speak" else "no_move",
                 "thought": thought_text,
             })
 
@@ -128,7 +130,7 @@ def think_all(state: GameState, agents: Dict[str, any], ui_store=None):
             except Exception as e:
                 print(f" Error in {name}'s thinking: {e}")
                 from agents.agent import ThinkResult
-                thoughts[name] = ThinkResult(thought="waiting", action="listen", importance=1)
+                thoughts[name] = ThinkResult(thought="waiting", action="listen", importance=0, reason_type="no_move")
 
     pending = state.get("pending_obligation")
     must_respond = pending.get("addressee") if pending else None
@@ -137,22 +139,23 @@ def think_all(state: GameState, agents: Dict[str, any], ui_store=None):
         for name, tr in thoughts.items():
             if name == must_respond:
                 tr.action = "speak"
-                tr.importance = max(tr.importance, 9)
+                tr.importance = 9
+                tr.reason_type = "direct_response"
                 if "direct" not in tr.thought.lower() and "respond" not in tr.thought.lower():
                     tr.thought = f"I was directly addressed and need to respond now. {tr.thought}".strip()
             else:
                 tr.action = "listen"
-                tr.importance = min(tr.importance, 4)
+                tr.importance = min(tr.importance, 2)
+                if getattr(tr, "reason_type", "no_move") == "direct_response":
+                    tr.reason_type = "no_move"
     else:
-        ranked = sorted(thoughts.items(), key=lambda item: item[1].importance, reverse=True)
-        top_names = {name for name, tr in ranked[:2] if tr.importance >= 6}
         for name, tr in thoughts.items():
-            if name not in top_names and tr.importance >= 6:
-                tr.importance = 5
-                tr.action = "listen"
-            elif name in top_names and tr.importance >= 6:
+            if tr.importance >= 7:
                 tr.action = "speak"
-            elif tr.importance <= 5:
+            elif tr.importance <= 2:
+                tr.action = "listen"
+                tr.reason_type = "no_move"
+            else:
                 tr.action = "listen"
 
     last_speaker = state.get("last_speaker")
@@ -163,6 +166,7 @@ def think_all(state: GameState, agents: Dict[str, any], ui_store=None):
                 "thought": tr.thought,
                 "action": tr.action,
                 "importance": tr.importance,
+                "reason_type": getattr(tr, "reason_type", "no_move"),
             }
             for name, tr in thoughts.items()
         }
@@ -176,6 +180,7 @@ def think_all(state: GameState, agents: Dict[str, any], ui_store=None):
             "agent": name,
             "action": tr.action,
             "importance": tr.importance,
+            "reason_type": getattr(tr, "reason_type", "no_move"),
             "thought": tr.thought
         })
 
