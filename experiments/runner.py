@@ -4,10 +4,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List
 import argparse
+import json
 import traceback
 
-from analysis.metrics import aggregate_experiment, analyze_run
-from experiments.config import REPO_ROOT, RunConfig, load_run_config
+from analysis.metrics import aggregate_experiment, aggregate_experiment_conditions, analyze_run
+from experiments.config import REPO_ROOT, LoadedExperiment, RunConfig, load_experiment_config
 from instrumentation.event_logger import EventLogger, resolve_git_commit
 from run_discussion import run_game_from_config
 
@@ -21,6 +22,9 @@ def _build_manifest(config: RunConfig, run_id: str) -> Dict:
         "run_id": run_id,
         "experiment_name": config.experiment_name,
         "replicate_id": config.replicate_id,
+        "condition_name": config.condition_name,
+        "condition_description": config.condition_description,
+        "condition_factors": config.condition_factors,
         "backend": config.backend,
         "model_name": config.model_name,
         "base_url": config.base_url,
@@ -42,16 +46,31 @@ def _build_manifest(config: RunConfig, run_id: str) -> Dict:
     }
 
 
+def _write_experiment_plan(experiment: LoadedExperiment):
+    base = experiment.base
+    experiment_dir = base.resolved_experiment_dir()
+    experiment_dir.mkdir(parents=True, exist_ok=True)
+    plan_payload = {
+        "experiment_name": base.experiment_name,
+        "source_path": experiment.source_path,
+        "base": base.model_dump(mode="json"),
+        "conditions": [cfg.model_dump(mode="json") for cfg in experiment.conditions],
+    }
+    with (experiment_dir / "experiment_plan.json").open("w", encoding="utf-8") as handle:
+        json.dump(plan_payload, handle, indent=2, sort_keys=True)
+
+
 def run_batch(config: RunConfig) -> Dict:
-    experiment_dir = config.resolved_experiment_dir()
-    runs_dir = experiment_dir / "runs"
+    condition_dir = config.resolved_condition_dir()
+    runs_dir = condition_dir / "runs"
     runs_dir.mkdir(parents=True, exist_ok=True)
 
     run_summaries: List[Dict] = []
 
     for replicate_id in range(1, config.replicates + 1):
         run_config = config.model_copy(update={"replicate_id": replicate_id})
-        run_id = f"{config.experiment_name}-{_timestamp_slug()}-r{replicate_id:03d}"
+        condition_slug = f"-{config.condition_name}" if config.condition_name else ""
+        run_id = f"{config.experiment_name}{condition_slug}-{_timestamp_slug()}-r{replicate_id:03d}"
         run_dir = runs_dir / run_id
         logger = EventLogger(run_dir, _build_manifest(run_config, run_id))
 
@@ -80,8 +99,26 @@ def run_batch(config: RunConfig) -> Dict:
             logger.finalize(status="error", extra={"error_summary": str(exc)})
             raise
 
-    aggregate = aggregate_experiment(experiment_dir)
-    return {"runs": run_summaries, "aggregate": aggregate, "experiment_dir": str(experiment_dir)}
+    aggregate = aggregate_experiment(condition_dir)
+    return {
+        "condition_name": config.condition_name,
+        "runs": run_summaries,
+        "aggregate": aggregate,
+        "condition_dir": str(condition_dir),
+        "experiment_dir": str(config.resolved_experiment_dir()),
+    }
+
+
+def run_experiment_plan(experiment: LoadedExperiment) -> Dict:
+    _write_experiment_plan(experiment)
+    configs = experiment.expand()
+    condition_results = [run_batch(config) for config in configs]
+    experiment_summary = aggregate_experiment_conditions(experiment.base.resolved_experiment_dir())
+    return {
+        "experiment_dir": str(experiment.base.resolved_experiment_dir()),
+        "condition_results": condition_results,
+        "experiment_summary": experiment_summary,
+    }
 
 
 def main():
@@ -90,13 +127,18 @@ def main():
     parser.add_argument("--replicates", type=int, default=None, help="Override replicate count from config.")
     args = parser.parse_args()
 
-    config = load_run_config(Path(args.config))
-    if args.replicates is not None:
-        config = config.model_copy(update={"replicates": args.replicates})
+    experiment = load_experiment_config(Path(args.config))
 
-    result = run_batch(config)
+    if args.replicates is not None:
+        experiment = LoadedExperiment(
+            base=experiment.base.model_copy(update={"replicates": args.replicates}),
+            conditions=[cfg.model_copy(update={"replicates": args.replicates}) for cfg in experiment.conditions],
+            source_path=experiment.source_path,
+        )
+
+    result = run_experiment_plan(experiment)
     print(f"Experiment outputs written to: {result['experiment_dir']}")
-    print(result["aggregate"])
+    print(result["experiment_summary"])
 
 
 if __name__ == "__main__":

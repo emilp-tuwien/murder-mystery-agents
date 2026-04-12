@@ -1,0 +1,46 @@
+base:
+  experiment_name: thesis-condition-matrix
+  output_root: outputs
+  replicates: 3
+  backend: local
+  model_name: local_llm
+  base_url: http://192.168.11.11:8080/v1
+  temperature: 0.7
+  conversations_per_round: 20
+  max_rounds: 6
+  enable_ui: false
+  prompt_version: thesis-pilot-v1
+  turn_policy_version: top2-selective-silence-v1
+  memory_version: three-stage-v1
+  scenario_id: business-of-murder-v1
+  scenario_path: scenarios/business-of-murder/scenario.json
+  roles_dir: scenarios/business-of-murder/roles
+  clues_dir: scenarios/business-of-murder/clues
+  notes: >-
+    Example thesis experiment plan showing how to compare conditions with a single config.
+
+conditions:
+  - name: baseline
+    description: Default pilot settings.
+    factors:
+      protocol_strictness: baseline
+      memory_mode: three-stage-v1
+      prompt_family: thesis-pilot-v1
+
+  - name: lower-temperature
+    description: Lower-temperature variant for less stochastic dialogue.
+    overrides:
+      temperature: 0.3
+    factors:
+      protocol_strictness: baseline
+      memory_mode: three-stage-v1
+      temperature_bucket: low
+
+  - name: extended-discussion
+    description: More conversations per round to test whether extra interaction changes accusation outcomes.
+    overrides:
+      conversations_per_round: 28
+    factors:
+      protocol_strictness: baseline
+      memory_mode: three-stage-v1
+      dialogue_budget: extended

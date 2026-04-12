@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, List, Tuple
 import csv
 import json
 import random
@@ -235,6 +235,9 @@ def analyze_run(run_dir: str | Path) -> Dict[str, Any]:
     summary = {
         "run_id": run_id,
         "experiment_name": manifest.get("experiment_name"),
+        "condition_name": manifest.get("condition_name"),
+        "condition_description": manifest.get("condition_description"),
+        "condition_factors": manifest.get("condition_factors", {}),
         "murderer_name": murderer_name,
         "total_turns": len(turn_rows),
         "total_utterances": len(utterance_rows),
@@ -282,6 +285,7 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
             solve_count += 1
         aggregate_rows.append({
             "run_id": summary.get("run_id"),
+            "condition_name": summary.get("condition_name"),
             "murderer_name": summary.get("murderer_name"),
             "total_turns": summary.get("total_turns"),
             "total_utterances": summary.get("total_utterances"),
@@ -296,6 +300,7 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
     total_runs = len(aggregate_rows)
     aggregate_summary = {
         "experiment_dir": str(experiment_path),
+        "condition_name": summaries[0].get("condition_name"),
         "total_runs": total_runs,
         "mean_total_turns": sum(row["total_turns"] for row in aggregate_rows) / total_runs,
         "mean_total_utterances": sum(row["total_utterances"] for row in aggregate_rows) / total_runs,
@@ -312,3 +317,56 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
         json.dump(aggregate_summary, handle, indent=2, sort_keys=True)
 
     return aggregate_summary
+
+
+def aggregate_experiment_conditions(experiment_dir: str | Path) -> Dict[str, Any]:
+    experiment_path = Path(experiment_dir)
+    experiment_path.mkdir(parents=True, exist_ok=True)
+    conditions_dir = experiment_path / "conditions"
+
+    if not conditions_dir.exists():
+        summary = aggregate_experiment(experiment_path)
+        with (experiment_path / "condition_summary.json").open("w", encoding="utf-8") as handle:
+            json.dump(summary, handle, indent=2, sort_keys=True)
+        return summary
+
+    condition_rows: List[Dict[str, Any]] = []
+    for condition_path in sorted(path for path in conditions_dir.iterdir() if path.is_dir()):
+        aggregate_path = condition_path / "aggregate_summary.json"
+        if not aggregate_path.exists():
+            aggregate_experiment(condition_path)
+        if aggregate_path.exists():
+            summary = _read_json(aggregate_path)
+            summary["condition_name"] = summary.get("condition_name") or condition_path.name
+            condition_rows.append(summary)
+
+    if not condition_rows:
+        return {"experiment_dir": str(experiment_path), "total_conditions": 0}
+
+    _write_csv(
+        experiment_path / "condition_summary.csv",
+        [
+            {
+                "condition_name": row.get("condition_name"),
+                "total_runs": row.get("total_runs"),
+                "mean_total_turns": row.get("mean_total_turns"),
+                "mean_total_utterances": row.get("mean_total_utterances"),
+                "mean_murderer_speaker_share": row.get("mean_murderer_speaker_share"),
+                "mean_murderer_attention_received": row.get("mean_murderer_attention_received"),
+                "mean_murderer_vote_share": row.get("mean_murderer_vote_share"),
+                "group_solve_rate": row.get("group_solve_rate"),
+                "random_vote_share_baseline": row.get("random_vote_share_baseline"),
+                "random_group_solve_rate_baseline": row.get("random_group_solve_rate_baseline"),
+            }
+            for row in condition_rows
+        ],
+    )
+
+    summary = {
+        "experiment_dir": str(experiment_path),
+        "total_conditions": len(condition_rows),
+        "conditions": condition_rows,
+    }
+    with (experiment_path / "condition_summary.json").open("w", encoding="utf-8") as handle:
+        json.dump(summary, handle, indent=2, sort_keys=True)
+    return summary
