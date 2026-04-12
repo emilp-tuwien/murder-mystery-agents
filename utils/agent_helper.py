@@ -99,33 +99,39 @@ def load_round_description(roles_dir: Path, character_name: str, round_num: int)
     return ""
 
 
-def load_confession(roles_dir: Path, character_name: str) -> str:
-    """Load confession text for a character."""
-    # Convert character name to folder format
+def _load_role_file(roles_dir: Path, character_name: str, filename: str) -> str:
     folder_name = character_name.lower().replace(" ", "-")
-    
-    confession_path = roles_dir / folder_name / "confession.txt"
-    
-    if confession_path.exists():
+    candidate_path = roles_dir / folder_name / filename
+
+    if candidate_path.exists():
         try:
-            return confession_path.read_text().strip()
+            return candidate_path.read_text().strip()
         except Exception as e:
-            print(f"Error loading confession for {character_name}: {e}")
+            print(f"Error loading {filename} for {character_name}: {e}")
             return ""
-    
-    # Try alternative folder names if not found
+
     for role_dir in roles_dir.iterdir():
         if role_dir.is_dir() and not role_dir.name.startswith("_"):
             dir_name_normalized = role_dir.name.lower().replace("-", " ").replace("'", "'")
             char_name_normalized = character_name.lower()
             if dir_name_normalized == char_name_normalized:
-                alt_path = role_dir / "confession.txt"
+                alt_path = role_dir / filename
                 if alt_path.exists():
                     try:
                         return alt_path.read_text().strip()
                     except Exception as e:
-                        print(f"Error loading confession for {character_name}: {e}")
+                        print(f"Error loading {filename} for {character_name}: {e}")
     return ""
+
+
+def load_confession(roles_dir: Path, character_name: str) -> str:
+    """Load confession text for a character."""
+    return _load_role_file(roles_dir, character_name, "confession.txt")
+
+
+def load_murderer_strategy(roles_dir: Path, character_name: str) -> str:
+    """Load optional murderer strategy guidance for a character."""
+    return _load_role_file(roles_dir, character_name, "murderer_strategy.md")
 
 
 def detect_murderer(roles_dir: Path, character_name: str) -> bool:

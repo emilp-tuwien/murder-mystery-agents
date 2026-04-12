@@ -67,6 +67,7 @@ class Agent:
         self.current_round = 0
         self.accumulated_knowledge = ""  # Knowledge accumulated across rounds
         self.confession = ""  # Loaded after accusation phase
+        self.murderer_strategy = ""
         self.questions_asked_to: set = set()  # Track who we've asked questions to (can only ask each agent once)
         self.facts_revealed: List[str] = []  # Track facts this agent has already revealed
         self.topics_discussed: set = set()  # Track topics to avoid repetition
@@ -154,6 +155,10 @@ class Agent:
             # If murderer, add reminder that they know they did it
             if self.is_murderer:
                 self.persona += "\n\n[SECRET: You are the murderer. You know you killed the victim. Do NOT reveal or confess this during the investigation. Your goal is to avoid exposing your guilt while still sounding cooperative, plausible, and useful to the group.]"
+                if not self.murderer_strategy:
+                    self.load_murderer_strategy()
+                if self.murderer_strategy:
+                    self.persona += f"\n\n[MURDERER STRATEGY]\n{self.murderer_strategy}"
             
             print(f"   {self.name}: Loaded round {round_num} knowledge (total accumulated: {len(self.accumulated_knowledge)} chars)")
     
@@ -167,6 +172,12 @@ class Agent:
         from utils.agent_helper import load_confession
         self.confession = load_confession(self.roles_dir, self.name)
         return self.confession
+
+    def load_murderer_strategy(self):
+        """Load optional murderer strategy guidance for a character."""
+        from utils.agent_helper import load_murderer_strategy
+        self.murderer_strategy = load_murderer_strategy(self.roles_dir, self.name)
+        return self.murderer_strategy
 
     def _format_history(self, history: List[dict]) -> str:
         """Use shared history window for prompts (last K_HISTORY turns only)."""
