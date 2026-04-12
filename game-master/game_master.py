@@ -208,16 +208,24 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
             ])
         else:
             # THIRD: continuation fallback if nobody bids strongly
+            # Only allow continuation if the last speaker still has a meaningful moderate bid.
             if last_speaker and last_speaker in thoughts:
-                return SpeakerDecision(
-                    reasoning=f"No strong self-selection bids; {last_speaker} continues under turn-taking fallback",
-                    next_speaker=last_speaker,
-                    response_constraint=None,
-                    is_direct_address=False
-                )
+                last_thought = thoughts[last_speaker]
+                last_reason = getattr(last_thought, "reason_type", "no_move")
+                if last_thought.importance >= 4 and last_reason not in {"no_move", "weak_followup"}:
+                    return SpeakerDecision(
+                        reasoning=f"No strong self-selection bids; {last_speaker} continues with a remaining moderate bid ({last_thought.importance}/9, reason={last_reason})",
+                        next_speaker=last_speaker,
+                        response_constraint=None,
+                        is_direct_address=False
+                    )
 
+            # Otherwise force a speaker change and let the GM choose who should take the floor next.
             available_str = ", ".join(available)
-            agent_thoughts_txt = "(no strong self-selection bids available)"
+            agent_thoughts_txt = "\n".join([
+                f"- {name}: bid={available_thoughts[name].importance}/9, reason={getattr(available_thoughts[name], 'reason_type', 'no_move')}, thinking: \"{available_thoughts[name].thought}\""
+                for name in available
+            ]) if available_thoughts else "(no strong self-selection bids available)"
             top_agents = available
         
         # Build conversation history for context
