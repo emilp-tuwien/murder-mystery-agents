@@ -25,7 +25,8 @@ Label the response as one of:
 - evasive: avoids the question, deflects, or stays vague
 - suspicious: contains contradiction, implausibility, pressure points, or raises suspicion
 
-Be concise and practical. Suggest one follow-up question that would help the group investigate further."""),
+Be concise and practical. Suggest one follow-up question that would help the group investigate further.
+Return valid JSON with keys: verdict, reasoning, follow_up_question."""),
             HumanMessage(content=f"""RECENT CONTEXT:
 {recent_history}
 

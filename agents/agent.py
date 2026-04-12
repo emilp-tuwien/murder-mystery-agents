@@ -233,7 +233,7 @@ Importance guidance:
 - 4-6 = you can add something useful
 - 0-3 = better to wait
 
-Output: thought, action, importance."""),
+Return valid JSON with keys: thought, action, importance."""),
             ]
         else:
             msgs = [
@@ -292,7 +292,7 @@ Importance guidance:
 
 Be willing to choose listen with low scores. Do not inflate urgency just to participate.
 
-Output: thought, action, importance."""),
+Return valid JSON with keys: thought, action, importance."""),
             ]
         
         try:
@@ -471,7 +471,7 @@ Investigation OVER. Accuse ONE person."""),
 Choose murderer from: {others_str}
 (Cannot accuse yourself)
 
-Provide reasoning and accusation."""),
+Return valid JSON with keys: reasoning, accused."""),
         ]
         try:
             result = _retry_with_backoff(lambda: llm_accuse.invoke(msgs))

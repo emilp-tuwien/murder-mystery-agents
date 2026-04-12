@@ -96,7 +96,8 @@ You decide who speaks next based on the conversation flow."""
             SystemMessage(content="""You are summarizing a murder mystery discussion round.
 Extract ONLY the key facts, revelations, accusations, and alibis mentioned.
 Each bullet should be one specific fact (who said what, what was revealed).
-Be concise - max 10 words per bullet. No opinions, just facts."""),
+Be concise - max 10 words per bullet. No opinions, just facts.
+Return valid JSON with key: bullets."""),
             HumanMessage(content=f"""Round {round_num} conversation:
 {history_txt}
 
@@ -229,14 +230,16 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
             SystemMessage(content=f"""{self.persona}
 
 These players have EQUAL urgency scores and are tied: {available_str}
-You must break the tie by choosing who would best advance the murder investigation."""),
+You must break the tie by choosing who would best advance the murder investigation.
+Return valid JSON with keys: reasoning, next_speaker, response_constraint, is_direct_address."""),
             HumanMessage(content=f"""RECENT CONVERSATION:
 {history_txt}
 
 TIED PLAYERS' THOUGHTS:
 {agent_thoughts_txt}
 
-Choose ONE player from the tied players to speak next: {available_str}"""),
+Choose ONE player from the tied players to speak next: {available_str}
+Return JSON only."""),
         ]
         
         try:

@@ -39,7 +39,9 @@ UTTERANCE: {text}
 
 If it asks a question or directly addresses someone, set:
 has_first_pair_part=true, addressee=<agent>, pair_type, response_constraint="(response: <pair_type>)".
-Else has_first_pair_part=false."""),
+Else has_first_pair_part=false.
+
+Return valid JSON with keys: has_first_pair_part, pair_type, addressee, response_constraint."""),
         ]
         return detector_llm.invoke(msgs)
 
