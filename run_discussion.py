@@ -111,10 +111,14 @@ def _resolve_model_choice(args) -> str:
     if args.model == "local":
         return "l"
     if args.model == "gpt":
+        _ensure_openai_api_key()
         return "g"
     if args.model == "ollama":
         return "o"
-    return _prompt_for_model_choice()
+    choice = _prompt_for_model_choice()
+    if choice == "g":
+        _ensure_openai_api_key()
+    return choice
 
 
 def _resolve_conversations_per_round(args) -> int:
@@ -126,6 +130,24 @@ def _resolve_conversations_per_round(args) -> int:
 def _choice_to_backend(choice: str) -> str:
     mapping = {"l": "local", "g": "gpt", "o": "ollama"}
     return mapping[choice]
+
+
+def _ensure_openai_api_key(api_key_env: str = "OPENAI_API_KEY") -> None:
+    existing = os.environ.get(api_key_env, "").strip()
+    if existing:
+        return
+
+    print(f"No {api_key_env} found.")
+    try:
+        api_key = input(f"Please enter your OpenAI API key for {api_key_env}: ").strip()
+    except KeyboardInterrupt:
+        print("\nOpenAI API key entry cancelled.")
+        raise RuntimeError(f"No API key provided for {api_key_env}")
+
+    if not api_key:
+        raise RuntimeError(f"No API key provided for {api_key_env}")
+
+    os.environ[api_key_env] = api_key
 
 
 def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
