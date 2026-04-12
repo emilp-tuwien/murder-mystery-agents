@@ -1,5 +1,5 @@
 from typing import Any, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from langchain_core.messages import SystemMessage, HumanMessage
 from pathlib import Path
 import PyPDF2
@@ -12,7 +12,23 @@ class SpeakerDecision(BaseModel):
     reasoning: str = Field(description="Brief reasoning for the decision")
     next_speaker: str = Field(description="Name of the player who should speak next")
     response_constraint: Optional[str] = Field(default=None, description="What they should respond to, if applicable")
-    is_direct_address: bool = Field(description="True if someone was directly asked/addressed")
+    is_direct_address: bool = Field(default=False, description="True if someone was directly asked/addressed")
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_input(cls, data):
+        if isinstance(data, dict):
+            if "next_speaker" not in data and "decision" in data:
+                data = dict(data)
+                data["next_speaker"] = data["decision"]
+        return data
+
+    @field_validator("next_speaker", mode="before")
+    @classmethod
+    def normalize_next_speaker(cls, value):
+        if isinstance(value, str):
+            return value.strip()
+        return value
 
 
 class RoundSummary(BaseModel):
