@@ -2,7 +2,7 @@ from typing import Optional, Literal, Any, List
 from pathlib import Path
 import time
 import re
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from langchain_core.messages import SystemMessage, HumanMessage
 from schemas.state import GameState
 
@@ -39,6 +39,13 @@ class ThinkResult(BaseModel):
     thought: str
     action: Literal["speak", "listen"]
     importance: int = Field(ge=0, le=9)
+
+    @field_validator("action", mode="before")
+    @classmethod
+    def normalize_action(cls, value):
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
 
 
 class AccusationResult(BaseModel):
