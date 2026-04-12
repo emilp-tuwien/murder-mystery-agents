@@ -345,10 +345,13 @@ Let each suspect introduce themselves to the group.
 ══════════════════════════════════════════════════════════════════
 """
         
+        inner_width = 61
+
         if new_round == 2:
+            title = f"ROUND {new_round}: THE INVESTIGATION BEGINS"
             return f"""
 ╔═══════════════════════════════════════════════════════════════╗
-║         ROUND {new_round}: THE INVESTIGATION BEGINS           ║
+║ {title:<{inner_width}}║
 ╚═══════════════════════════════════════════════════════════════╝
 
 The introductions are complete. Now the real investigation begins!
@@ -358,9 +361,10 @@ One of you is the killer. Question everyone. Look for lies and
 inconsistencies. {self.scenario.investigation_goal}
 """
         elif new_round < self.max_rounds:
+            title = f"ROUND {new_round}"
             return f"""
 ╔═══════════════════════════════════════════════════════════════╗
-║                      ROUND {new_round}                        ║
+║ {title:<{inner_width}}║
 ╚═══════════════════════════════════════════════════════════════╝
 
 New evidence has emerged!
