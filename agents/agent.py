@@ -176,6 +176,11 @@ class Agent:
         current_round = state.get("current_round", 1)
         phase = state.get("phase", "introduction")
         memory_context = self.memory.build_prompt_context()
+        participant_names = [msg.get("speaker") for msg in state.get("history", []) if msg.get("speaker") and msg.get("speaker") != "Game Master"]
+        known_participants = sorted(set(participant_names))
+        if not known_participants:
+            known_participants = sorted([name for name in state.get("thoughts", {}).keys() if name != self.name])
+        participants_context = ", ".join([self.name] + [name for name in known_participants if name != self.name])
         pending = state.get("pending_obligation")
         directly_addressed = bool(pending and pending.get("addressee") == self.name)
         last_speaker = state.get("last_speaker")
@@ -212,9 +217,12 @@ You are {self.name}.
 
 Elizabeth Killingsworth is DEAD.
 You are one of the suspects and participants in the mystery.
+The people present are: {participants_context}.
 Your immediate goal is to introduce yourself naturally without revealing secrets that should stay hidden for now.
 You should sound like a real person at the scene, not a narrator or analyst."""),
                 HumanMessage(content=f"""{memory_context}
+
+People currently in the room: {participants_context}
 
 Actions:
 • Speak: Introduce yourself to the group in a way that fits your role.
@@ -338,6 +346,11 @@ Output: thought, action, importance."""),
         
         # Build memory context using three-stage system
         memory_context = self.memory.build_prompt_context()
+        participant_names = [msg.get("speaker") for msg in state.get("history", []) if msg.get("speaker") and msg.get("speaker") != "Game Master"]
+        known_participants = sorted(set(participant_names))
+        if not known_participants:
+            known_participants = sorted([name for name in state.get("thoughts", {}).keys() if name != self.name])
+        participants_context = ", ".join([self.name] + [name for name in known_participants if name != self.name])
         constraint = f"\nRESPOND TO: {response_constraint}" if response_constraint else ""
         
         # Build list of agents we can still ask questions to
@@ -352,12 +365,15 @@ You are {self.name}.
 {self.persona}
 
 Elizabeth is DEAD. Introduce yourself.
+The people present are: {participants_context}.
 
 You are speaking aloud IN CHARACTER inside the mystery world.
 Do NOT narrate yourself.
 Do NOT write things like '{self.name} says', '{self.name} speaks', 'I would say', or stage directions.
 Output only the exact words your character says to the group."""),
                 HumanMessage(content=f"""{memory_context}
+
+People currently in the room: {participants_context}
 
 Introduce yourself in first person (1-2 sentences).
 Speak naturally to the other suspects.
