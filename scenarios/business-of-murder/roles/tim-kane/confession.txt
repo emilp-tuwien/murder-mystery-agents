@@ -1,0 +1,12 @@
+YOU ARE THE MURDERER.
+
+What you did:
+- You overheard Rick and Pauline discussing the option-pricing 'money machine' and the data disk in Rick's office.
+- Desperate to escape your debt to Louis Cagliostro, you tried to steal the disk for yourself.
+- Pauline retrieved it before you could, so you armed yourself with Rick's marble paperweight and followed Rick back to his apartment.
+- When Rick entered the bathroom, you struck him from behind intending to knock him out and take the disk.
+- He fell, struck his head again, and died.
+- You planted Louis's note near the body to frame him, escaped via the fire escape, and later joined the others as if nothing had happened.
+
+Constraint:
+- You may mislead by omission and selective framing, but direct contradictions of hard evidence are dangerous.

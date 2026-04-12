@@ -4,6 +4,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from pathlib import Path
 import PyPDF2
 
+from scenarios import ScenarioConfig
 from utils.dialogue_analysis import detect_direct_address
 
 
@@ -37,13 +38,15 @@ class RoundSummary(BaseModel):
 
 
 class GameMaster:
-    def __init__(self, llm: Any, agent_names: List[str], conversations_per_round: int = 20, max_rounds: int = 6):
+    def __init__(self, llm: Any, agent_names: List[str], conversations_per_round: int = 20, max_rounds: int = 6, clues_dir: Optional[Path] = None, scenario: Optional[ScenarioConfig] = None):
         self.llm = llm
         self.agent_names = agent_names
         self.llm_decide = llm.with_structured_output(SpeakerDecision, method="json_mode")
         self.persona = self._load_persona()
         self.conversations_per_round = conversations_per_round
         self.max_rounds = max_rounds
+        self.clues_dir = clues_dir or (Path(__file__).parent.parent / "clues")
+        self.scenario = scenario or ScenarioConfig()
     
     def _load_persona(self) -> str:
         """Load game master description from PDF"""
@@ -68,7 +71,7 @@ You decide who speaks next based on the conversation flow."""
 
     def _load_clue(self, clue_number: int) -> str:
         """Load a clue from the clues folder."""
-        clue_path = Path(__file__).parent.parent / "clues" / f"clue{clue_number}.txt"
+        clue_path = self.clues_dir / f"clue{clue_number}.txt"
         if clue_path.exists():
             try:
                 return clue_path.read_text().strip()
@@ -273,14 +276,17 @@ Return JSON only."""),
         """Provide game context to all players at the start."""
         investigation_rounds = f"Rounds 2-{self.max_rounds - 1}" if self.max_rounds > 2 else "Round 2"
         accusation_round = self.max_rounds
+        title = self.scenario.title.upper()[:53]
         context_intro = f"""
 ╔═══════════════════════════════════════════════════════════════╗
-║            MURDER AT KILLINGSWORTH FARM                       ║
+║ {title:<61}║
 ╚═══════════════════════════════════════════════════════════════╝
 
 TRAGEDY HAS STRUCK!
 
-Elizabeth Killingsworth has been found DEAD in the wine cellar!.
+{self.scenario.victim_status_line}
+
+{self.scenario.introduction_text}
 
 ══════════════════════════════════════════════════════════════════
 
@@ -298,7 +304,7 @@ Each round has approximately {self.conversations_per_round} conversations.
 
 ══════════════════════════════════════════════════════════════════
 
-YOUR GOAL: Figure out WHO KILLED ELIZABETH KILLINGSWORTH!
+YOUR GOAL: {self.scenario.investigation_goal}
 
 ══════════════════════════════════════════════════════════════════
 
@@ -343,11 +349,11 @@ Let each suspect introduce themselves to the group.
 
 The introductions are complete. Now the real investigation begins!
 {clue_section}
-Remember: Elizabeth Killingsworth was MURDERED.
+Remember: {self.scenario.victim_name} was murdered.
 One of you is the killer. Question everyone. Look for lies and 
-inconsistencies. Find out who killed Elizabeth!
+inconsistencies. {self.scenario.investigation_goal}
 """
-        elif new_round <= 5:
+        elif new_round < self.max_rounds:
             return f"""
 ╔═══════════════════════════════════════════════════════════════╗
 ║                      ROUND {new_round}                        ║
@@ -355,12 +361,12 @@ inconsistencies. Find out who killed Elizabeth!
 
 New evidence has emerged!
 {clue_section}
-The truth about Elizabeth's murder is getting closer...
+The truth about {self.scenario.victim_name}'s murder is getting closer...
 Continue questioning. The killer is among you!
 """
         else:
-            # Load final clue (clue 5) before accusation
-            final_clue = self._load_clue(5)
+            final_clue_number = self.max_rounds - 1
+            final_clue = self._load_clue(final_clue_number)
             final_clue_section = ""
             if final_clue:
                 final_clue_section = f"""
@@ -379,6 +385,6 @@ Continue questioning. The killer is among you!
 {final_clue_section}
 The investigation is complete. 
 
-It's time to decide: WHO KILLED ELIZABETH KILLINGSWORTH?
+It's time to decide: {self.scenario.accusation_prompt}
 Each of you must now make your final accusation!
 """

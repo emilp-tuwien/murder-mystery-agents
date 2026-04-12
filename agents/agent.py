@@ -4,6 +4,7 @@ import time
 import re
 from pydantic import BaseModel, Field, field_validator
 from langchain_core.messages import SystemMessage, HumanMessage
+from scenarios import ScenarioConfig
 from schemas.state import GameState
 
 
@@ -54,7 +55,7 @@ class AccusationResult(BaseModel):
 
 
 class Agent:
-    def __init__(self, name: str, persona: str, llm: Any, roles_dir: Path, is_murderer: bool = False):
+    def __init__(self, name: str, persona: str, llm: Any, roles_dir: Path, is_murderer: bool = False, scenario: Optional[ScenarioConfig] = None):
         self.name = name
         self.base_persona = persona
         self.persona = persona  # Will be updated with round info
@@ -62,6 +63,7 @@ class Agent:
         self.llm_think = llm.with_structured_output(ThinkResult, method="json_mode")
         self.roles_dir = roles_dir
         self.is_murderer = is_murderer
+        self.scenario = scenario or ScenarioConfig()
         self.current_round = 0
         self.accumulated_knowledge = ""  # Knowledge accumulated across rounds
         self.confession = ""  # Loaded after accusation phase
@@ -215,7 +217,7 @@ class Agent:
 You are {self.name}.
 {self.persona}
 
-Elizabeth Killingsworth is DEAD.
+{self.scenario.victim_status_line}
 You are one of the suspects and participants in the mystery.
 The people present are: {participants_context}.
 Your immediate goal is to introduce yourself naturally without revealing secrets that should stay hidden for now.
@@ -241,8 +243,8 @@ Return valid JSON with keys: thought, action, importance."""),
 You are {self.name}.
 {self.persona}
 
-Elizabeth was MURDERED. Round {current_round}/6.
-You are an in-world suspect trying to help the group determine who killed Elizabeth Killingsworth.
+{self.scenario.victim_name} was MURDERED. Round {current_round}/6.
+You are an in-world suspect trying to help the group determine who killed {self.scenario.victim_name}.
 Your goals are:
 1. identify the murderer from dialogue, clues, motives, means, opportunity, contradictions, and timelines,
 2. ask sharp questions when you lack crucial information,
@@ -364,7 +366,8 @@ Return valid JSON with keys: thought, action, importance."""),
 You are {self.name}.
 {self.persona}
 
-Elizabeth is DEAD. Introduce yourself.
+{self.scenario.victim_status_line}
+Introduce yourself.
 The people present are: {participants_context}.
 
 You are speaking aloud IN CHARACTER inside the mystery world.
@@ -385,7 +388,7 @@ Output dialogue only."""),
 You are {self.name}.
 {self.persona}
 
-Elizabeth was MURDERED. Round {current_round}/6.
+{self.scenario.victim_name} was MURDERED. Round {current_round}/6.
 
 You are speaking aloud IN CHARACTER inside the mystery world.
 Your purpose is to help the group identify the murderer by surfacing relevant facts, probing suspicious people, testing alibis, and narrowing the suspect list.

@@ -16,6 +16,7 @@ from agents.agent import Agent
 from experiments.config import RunConfig
 from graphs.discussion import build_graph, visualize_graph
 from instrumentation.event_logger import MultiEventSink
+from scenarios import load_scenario_config
 from schemas.state import GameState
 from utils.agent_helper import detect_murderer, load_character_descriptions
 from utils.formatting import _banner, _format_history, _section
@@ -154,6 +155,8 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
     llm = _build_llm_from_config(config)
 
     roles_dir = config.resolved_roles_dir()
+    clues_dir = config.resolved_clues_dir()
+    scenario = load_scenario_config(config.resolved_scenario_path())
     descriptions = load_character_descriptions(roles_dir)
     selected_characters = list(descriptions.keys())
     max_turns = len(selected_characters) + max(config.max_rounds - 2, 0) * config.conversations_per_round + 10
@@ -190,7 +193,7 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
         if is_murderer:
             murderer_name = name
             print(f"  [Detected murderer: {name}]")
-        agents[name] = Agent(name, descriptions[name], llm, roles_dir, is_murderer=is_murderer)
+        agents[name] = Agent(name, descriptions[name], llm, roles_dir, is_murderer=is_murderer, scenario=scenario)
         agents[name].update_round(1)
 
     if runtime_sink is not None:
@@ -216,12 +219,15 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
     print(f"Loaded agents: {list(agents.keys())} ({len(agents)} agents)")
     if murderer_name:
         print(f"The murderer ({murderer_name}) knows they did it from Round 1.")
+        print(f"Scenario loaded: {scenario.title} ({scenario.scenario_id})")
 
     game_master = GameMaster(
         llm,
         list(agents.keys()),
         conversations_per_round=config.conversations_per_round,
         max_rounds=config.max_rounds,
+        clues_dir=clues_dir,
+        scenario=scenario,
     )
     print("Game Master initialized.")
 
@@ -246,7 +252,7 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
     initial_context = game_master.provide_initial_context()
     print(initial_context)
 
-    murder_announcement = "ANNOUNCEMENT: Elizabeth Killingsworth has been found DEAD."
+    murder_announcement = f"ANNOUNCEMENT: {scenario.victim_status_line}"
     init: GameState = {
         "turn": 0,
         "current_round": 1,
@@ -445,6 +451,10 @@ def main():
     parser.add_argument("--model", choices=["prompt", "local", "gpt", "ollama"], default="prompt", help="Model backend to use.")
     parser.add_argument("--conversations-per-round", type=int, default=None, help="Number of conversations per round.")
     parser.add_argument("--max-rounds", type=int, default=6, help="Total rounds including accusation round.")
+    parser.add_argument("--scenario-id", default="killingsworth-farm-v1", help="Scenario identifier for logging/display.")
+    parser.add_argument("--scenario-path", default=None, help="Path to scenario.json for alternate scenarios.")
+    parser.add_argument("--roles-dir", default=None, help="Override roles directory.")
+    parser.add_argument("--clues-dir", default=None, help="Override clues directory.")
     args = parser.parse_args()
 
     model_choice = _resolve_model_choice(args)
@@ -455,6 +465,10 @@ def main():
         enable_ui=args.ui,
         ui_port=args.ui_port,
         max_rounds=args.max_rounds,
+        scenario_id=args.scenario_id,
+        scenario_path=args.scenario_path,
+        roles_dir=args.roles_dir,
+        clues_dir=args.clues_dir,
     )
     run_game_from_config(config)
 

@@ -30,6 +30,7 @@ def _build_manifest(config: RunConfig, run_id: str) -> Dict:
         "max_rounds": config.max_rounds,
         "enable_ui": config.enable_ui,
         "scenario_id": config.scenario_id,
+        "scenario_path": str(config.resolved_scenario_path()) if config.resolved_scenario_path() else None,
         "prompt_version": config.prompt_version,
         "turn_policy_version": config.turn_policy_version,
         "memory_version": config.memory_version,

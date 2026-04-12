@@ -1,6 +1,24 @@
 from pathlib import Path
 from typing import Dict, Tuple
+import re
 from pypdf import PdfReader
+
+
+def _extract_display_name_from_round1(round1_path: Path, fallback: str) -> str:
+    if not round1_path.exists():
+        return fallback
+    try:
+        text = round1_path.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return fallback
+
+    for line in text.splitlines():
+        candidate = line.strip()
+        if not candidate:
+            continue
+        if re.fullmatch(r"[A-Za-z .'-]+", candidate) and len(candidate.split()) >= 2:
+            return candidate
+    return fallback
 
 
 def load_character_descriptions(roles_dir: Path) -> Dict[str, str]:
@@ -41,8 +59,9 @@ def load_character_descriptions(roles_dir: Path) -> Dict[str, str]:
             # Check if this role has round descriptions
             rounds_dir = role_dir / "rounds"
             if rounds_dir.exists() and rounds_dir.is_dir():
-                # Convert folder name to character name (e.g., "michael-nightshade" -> "Michael Nightshade")
-                character_name = role_dir.name.replace("-", " ").title()
+                fallback_name = role_dir.name.replace("-", " ").title()
+                round1_path = role_dir / "rounds" / "1" / "description.txt"
+                character_name = _extract_display_name_from_round1(round1_path, fallback_name)
                 # Minimal base persona - all knowledge comes from rounds
                 descriptions[character_name] = f"You are {character_name}."
     

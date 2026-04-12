@@ -33,9 +33,13 @@ class RunConfig(BaseModel):
     scenario_id: str = "killingsworth-farm-v1"
     notes: Optional[str] = None
 
+    scenario_path: Optional[str] = None
     roles_dir: Optional[str] = None
     clues_dir: Optional[str] = None
     replicate_id: int = Field(default=1, ge=1)
+
+    def resolved_scenario_path(self) -> Optional[Path]:
+        return Path(self.scenario_path) if self.scenario_path else None
 
     def resolved_roles_dir(self) -> Path:
         return Path(self.roles_dir) if self.roles_dir else REPO_ROOT / "agents" / "roles"

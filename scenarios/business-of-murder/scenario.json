@@ -1,0 +1,10 @@
+{
+  "scenario_id": "business-of-murder-v1",
+  "title": "The Business of Murder",
+  "victim_name": "Rick Martin",
+  "victim_status_line": "Rick Martin has been found DEAD in the bathroom.",
+  "location": "Rick Martin's apartment in Chicago",
+  "introduction_text": "What started as a casual post-party gathering has turned into a homicide investigation among business-school colleagues, lovers, creditors, and one dangerous outsider.",
+  "investigation_goal": "Figure out who killed Rick Martin.",
+  "accusation_prompt": "Who killed Rick Martin?"
+}
