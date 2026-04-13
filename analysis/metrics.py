@@ -7,6 +7,7 @@ import csv
 import json
 import random
 
+from analysis.deception import aggregate_condition_deception, label_deception_for_run
 from utils.dialogue_analysis import detect_direct_address, extract_mentions, is_question
 
 
@@ -230,6 +231,7 @@ def analyze_run(run_dir: str | Path) -> Dict[str, Any]:
     accusation_rows = _extract_accusation_rows(events, murderer_name, run_id)
     agent_rows, question_rows, mention_rows = _compute_agent_metrics(utterance_rows, agent_names, murderer_name)
     rq3 = _compute_rq3(accusation_rows, agent_names, murderer_name)
+    rq1 = label_deception_for_run(run_path, utterance_rows, manifest)
 
     murderer_agent_row = next((row for row in agent_rows if row["agent"] == murderer_name), None)
     summary = {
@@ -241,6 +243,7 @@ def analyze_run(run_dir: str | Path) -> Dict[str, Any]:
         "murderer_name": murderer_name,
         "total_turns": len(turn_rows),
         "total_utterances": len(utterance_rows),
+        "rq1": rq1,
         "rq2": {
             "murderer_speaker_share": murderer_agent_row["speaker_share"] if murderer_agent_row else 0.0,
             "murderer_questions_received": murderer_agent_row["questions_received"] if murderer_agent_row else 0,
@@ -291,6 +294,10 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
             "total_utterances": summary.get("total_utterances"),
             "murderer_speaker_share": summary.get("rq2", {}).get("murderer_speaker_share"),
             "murderer_attention_received": summary.get("rq2", {}).get("murderer_attention_received"),
+            "murderer_labeled_utterances": summary.get("rq1", {}).get("total_labeled_utterances"),
+            "murderer_direct_denial_rate": summary.get("rq1", {}).get("strategy_rates", {}).get("direct_denial", 0.0),
+            "murderer_deflection_rate": summary.get("rq1", {}).get("strategy_rates", {}).get("deflection", 0.0),
+            "murderer_evasion_rate": summary.get("rq1", {}).get("strategy_rates", {}).get("evasion", 0.0),
             "murderer_vote_share": rq3.get("murderer_vote_share"),
             "group_solved": rq3.get("group_solved"),
             "random_vote_share_baseline": rq3.get("random_vote_share_baseline"),
@@ -298,6 +305,7 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
         })
 
     total_runs = len(aggregate_rows)
+    deception_aggregate = aggregate_condition_deception(experiment_path)
     aggregate_summary = {
         "experiment_dir": str(experiment_path),
         "condition_name": summaries[0].get("condition_name"),
@@ -306,10 +314,15 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
         "mean_total_utterances": sum(row["total_utterances"] for row in aggregate_rows) / total_runs,
         "mean_murderer_speaker_share": sum(row["murderer_speaker_share"] for row in aggregate_rows) / total_runs,
         "mean_murderer_attention_received": sum(row["murderer_attention_received"] for row in aggregate_rows) / total_runs,
+        "mean_murderer_labeled_utterances": sum(row["murderer_labeled_utterances"] for row in aggregate_rows) / total_runs,
+        "mean_murderer_direct_denial_rate": sum(row["murderer_direct_denial_rate"] for row in aggregate_rows) / total_runs,
+        "mean_murderer_deflection_rate": sum(row["murderer_deflection_rate"] for row in aggregate_rows) / total_runs,
+        "mean_murderer_evasion_rate": sum(row["murderer_evasion_rate"] for row in aggregate_rows) / total_runs,
         "mean_murderer_vote_share": sum(row["murderer_vote_share"] for row in aggregate_rows) / total_runs,
         "group_solve_rate": solve_count / total_runs,
         "random_vote_share_baseline": sum(row["random_vote_share_baseline"] for row in aggregate_rows) / total_runs,
         "random_group_solve_rate_baseline": sum(row["random_group_solve_rate_baseline"] for row in aggregate_rows) / total_runs,
+        "rq1": deception_aggregate,
     }
 
     _write_csv(experiment_path / "aggregate_runs.csv", aggregate_rows)
@@ -353,6 +366,10 @@ def aggregate_experiment_conditions(experiment_dir: str | Path) -> Dict[str, Any
                 "mean_total_utterances": row.get("mean_total_utterances"),
                 "mean_murderer_speaker_share": row.get("mean_murderer_speaker_share"),
                 "mean_murderer_attention_received": row.get("mean_murderer_attention_received"),
+                "mean_murderer_labeled_utterances": row.get("mean_murderer_labeled_utterances"),
+                "mean_murderer_direct_denial_rate": row.get("mean_murderer_direct_denial_rate"),
+                "mean_murderer_deflection_rate": row.get("mean_murderer_deflection_rate"),
+                "mean_murderer_evasion_rate": row.get("mean_murderer_evasion_rate"),
                 "mean_murderer_vote_share": row.get("mean_murderer_vote_share"),
                 "group_solve_rate": row.get("group_solve_rate"),
                 "random_vote_share_baseline": row.get("random_vote_share_baseline"),

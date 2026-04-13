@@ -56,6 +56,9 @@ python3 experiments/runner.py --config configs/thesis-condition-matrix.example.y
 This writes:
 - per-run logs under `outputs/<experiment>/conditions/<condition>/runs/`
 - per-condition summaries in each condition folder
+- per-run RQ1 artifacts:
+  - `deception_labels.csv`
+  - `deception_summary.json`
 - cross-condition summaries at:
   - `outputs/<experiment>/condition_summary.csv`
   - `outputs/<experiment>/condition_summary.json`
@@ -66,5 +69,23 @@ You can also regenerate the condition comparison summary directly:
 ```bash
 python3 analysis/compare_conditions.py outputs/thesis-condition-matrix
 ```
+
+## Deception labeling (RQ1)
+
+Batch analysis now emits a first-pass deception labeling pass for murderer utterances.
+
+- `deception_labeling_enabled: true|false`
+- `deception_labeling_mode: heuristic|off`
+
+Current heuristic labels are:
+- `direct_denial`
+- `alibi_claim`
+- `deflection`
+- `evasion`
+- `uncertainty_seeding`
+- `selective_disclosure`
+- `accusation_redirection`
+
+These are intended as thesis-oriented candidate labels and evidence extraction scaffolding, not a final validated judge. They make it possible to batch-screen runs now and later replace the heuristic stage with an LLM-as-a-judge rubric without changing the output layout.
 
 See `docs/BUSINESS_OF_MURDER.md` for scenario notes and comparison guidance.

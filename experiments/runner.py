@@ -38,6 +38,8 @@ def _build_manifest(config: RunConfig, run_id: str) -> Dict:
         "prompt_version": config.prompt_version,
         "turn_policy_version": config.turn_policy_version,
         "memory_version": config.memory_version,
+        "deception_labeling_enabled": config.deception_labeling_enabled,
+        "deception_labeling_mode": config.deception_labeling_mode,
         "roles_dir": str(config.resolved_roles_dir()),
         "clues_dir": str(config.resolved_clues_dir()),
         "repo_root": str(REPO_ROOT),

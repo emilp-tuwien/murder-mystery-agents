@@ -12,6 +12,8 @@ base:
   prompt_version: thesis-pilot-v1
   turn_policy_version: top2-selective-silence-v1
   memory_version: three-stage-v1
+  deception_labeling_enabled: true
+  deception_labeling_mode: heuristic
   scenario_id: business-of-murder-v1
   scenario_path: scenarios/business-of-murder/scenario.json
   roles_dir: scenarios/business-of-murder/roles

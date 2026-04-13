@@ -30,6 +30,8 @@ class RunConfig(BaseModel):
     prompt_version: str = "v1"
     turn_policy_version: str = "top2-selective-silence-v1"
     memory_version: str = "three-stage-v1"
+    deception_labeling_enabled: bool = True
+    deception_labeling_mode: Literal["heuristic", "off"] = "heuristic"
     scenario_id: str = "killingsworth-farm-v1"
     notes: Optional[str] = None
 
