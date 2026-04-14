@@ -55,7 +55,7 @@ def _select_conversations_per_round() -> int:
             return 20
 
 
-def _build_openai_llm(model_name: str, api_key: str, temperature: float, base_url: Optional[str] = None):
+def _build_openai_llm(model_name: str, api_key: str, temperature: float, base_url: Optional[str] = None, seed: Optional[int] = None):
     kwargs = {
         "model": model_name,
         "temperature": temperature,
@@ -63,6 +63,8 @@ def _build_openai_llm(model_name: str, api_key: str, temperature: float, base_ur
     }
     if base_url:
         kwargs["base_url"] = base_url
+    if seed is not None:
+        kwargs["seed"] = seed
     return ChatOpenAI(**kwargs)
 
 
@@ -76,6 +78,7 @@ def _build_llm_from_config(config: RunConfig) -> Any:
             api_key="not-needed",
             base_url=base_url,
             temperature=config.temperature,
+            seed=config.resolved_seed(),
         )
 
     if config.backend == "gpt":
@@ -84,14 +87,17 @@ def _build_llm_from_config(config: RunConfig) -> Any:
             raise RuntimeError(f"No API key found in environment variable {config.api_key_env}")
         model_name = config.model_name or "gpt-4o-mini"
         print(f"Using {model_name}")
-        return _build_openai_llm(model_name=model_name, api_key=api_key, temperature=config.temperature)
+        return _build_openai_llm(model_name=model_name, api_key=api_key, temperature=config.temperature, seed=config.resolved_seed())
 
     if config.backend == "ollama":
         model_name = config.model_name or _select_ollama_model()
         if model_name is None:
             raise RuntimeError("No Ollama model selected")
         print(f"Using {model_name}")
-        return ChatOllama(model=model_name, temperature=config.temperature)
+        kwargs = {"model": model_name, "temperature": config.temperature}
+        if config.resolved_seed() is not None:
+            kwargs["seed"] = config.resolved_seed()
+        return ChatOllama(**kwargs)
 
     raise RuntimeError(f"Unsupported backend: {config.backend}")
 
@@ -202,6 +208,7 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
             {
                 "experiment_name": config.experiment_name,
                 "replicate_id": config.replicate_id,
+                "seed": config.resolved_seed(),
                 "backend": config.backend,
                 "model_name": config.model_name,
                 "temperature": config.temperature,

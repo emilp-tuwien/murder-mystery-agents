@@ -18,6 +18,7 @@ def _timestamp_slug() -> str:
 
 
 def _build_manifest(config: RunConfig, run_id: str) -> Dict:
+    resolved_seed = config.resolved_seed()
     return {
         "run_id": run_id,
         "experiment_name": config.experiment_name,
@@ -29,7 +30,9 @@ def _build_manifest(config: RunConfig, run_id: str) -> Dict:
         "model_name": config.model_name,
         "base_url": config.base_url,
         "temperature": config.temperature,
-        "seed": config.seed,
+        "seed": resolved_seed,
+        "seed_base": config.seed,
+        "seed_strategy": "base_plus_replicate_index" if config.seed is not None else "unset",
         "conversations_per_round": config.conversations_per_round,
         "max_rounds": config.max_rounds,
         "enable_ui": config.enable_ui,
@@ -45,7 +48,14 @@ def _build_manifest(config: RunConfig, run_id: str) -> Dict:
         "repo_root": str(REPO_ROOT),
         "code_commit": resolve_git_commit(REPO_ROOT),
         "notes": config.notes,
+        "config_fingerprint": config.config_fingerprint(),
     }
+
+
+def _write_json(path: Path, payload: Dict):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
 
 
 def _write_experiment_plan(experiment: LoadedExperiment):
@@ -58,8 +68,15 @@ def _write_experiment_plan(experiment: LoadedExperiment):
         "base": base.model_dump(mode="json"),
         "conditions": [cfg.model_dump(mode="json") for cfg in experiment.conditions],
     }
-    with (experiment_dir / "experiment_plan.json").open("w", encoding="utf-8") as handle:
-        json.dump(plan_payload, handle, indent=2, sort_keys=True)
+    _write_json(experiment_dir / "experiment_plan.json", plan_payload)
+
+
+def _write_condition_snapshot(config: RunConfig):
+    payload = config.model_dump(mode="json")
+    payload["resolved_seed"] = config.resolved_seed()
+    payload["resolved_condition_dir"] = str(config.resolved_condition_dir())
+    payload["config_fingerprint"] = config.config_fingerprint()
+    _write_json(config.resolved_condition_dir() / "condition_config.json", payload)
 
 
 def run_batch(config: RunConfig) -> Dict:
@@ -68,9 +85,10 @@ def run_batch(config: RunConfig) -> Dict:
     runs_dir.mkdir(parents=True, exist_ok=True)
 
     run_summaries: List[Dict] = []
+    _write_condition_snapshot(config)
 
     for replicate_id in range(1, config.replicates + 1):
-        run_config = config.model_copy(update={"replicate_id": replicate_id})
+        run_config = config.model_copy(update={"replicate_id": replicate_id, "seed": config.seed})
         condition_slug = f"-{config.condition_name}" if config.condition_name else ""
         run_id = f"{config.experiment_name}{condition_slug}-{_timestamp_slug()}-r{replicate_id:03d}"
         run_dir = runs_dir / run_id

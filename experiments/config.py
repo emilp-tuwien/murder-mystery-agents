@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
+import hashlib
 
 import yaml
 from pydantic import BaseModel, Field, model_validator
@@ -43,6 +44,19 @@ class RunConfig(BaseModel):
     condition_name: Optional[str] = None
     condition_description: Optional[str] = None
     condition_factors: Dict[str, Any] = Field(default_factory=dict)
+
+    def resolved_seed(self) -> Optional[int]:
+        if self.seed is None:
+            return None
+        return self.seed + (self.replicate_id - 1)
+
+    def condition_slug(self) -> str:
+        return self.condition_name or "default"
+
+    def config_fingerprint(self) -> str:
+        payload = self.model_dump(mode="json")
+        encoded = yaml.safe_dump(payload, sort_keys=True).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()[:12]
 
     def resolved_scenario_path(self) -> Optional[Path]:
         if self.scenario_path:

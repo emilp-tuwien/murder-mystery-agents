@@ -55,6 +55,7 @@ python3 experiments/runner.py --config configs/thesis-condition-matrix.example.y
 
 This writes:
 - per-run logs under `outputs/<experiment>/conditions/<condition>/runs/`
+- resolved per-condition config snapshots at `outputs/<experiment>/conditions/<condition>/condition_config.json`
 - per-condition summaries in each condition folder
 - per-run RQ1 artifacts:
   - `deception_labels.csv`
@@ -89,3 +90,11 @@ Current heuristic labels are:
 These are intended as thesis-oriented candidate labels and evidence extraction scaffolding, not a final validated judge. They make it possible to batch-screen runs now and later replace the heuristic stage with an LLM-as-a-judge rubric without changing the output layout.
 
 See `docs/BUSINESS_OF_MURDER.md` for scenario notes and comparison guidance.
+
+
+## Reproducibility notes
+
+- Set `seed` in a run or experiment config to enable deterministic replicate seeding.
+- Replicate `r001` uses `seed`, `r002` uses `seed + 1`, etc.
+- The resolved seed, base seed, and config fingerprint are written into each `run_manifest.json`.
+- Each condition folder now also stores `condition_config.json` with the fully resolved condition settings.
