@@ -63,7 +63,13 @@ This writes:
 - cross-condition summaries at:
   - `outputs/<experiment>/condition_summary.csv`
   - `outputs/<experiment>/condition_summary.json`
+  - `outputs/<experiment>/condition_report.json`
+  - `outputs/<experiment>/condition_report.md`
+  - `outputs/<experiment>/condition_pairwise_differences.csv`
+  - `outputs/<experiment>/condition_chance_baseline.csv`
   - `outputs/<experiment>/experiment_plan.json`
+
+The comparison step now also produces thesis-oriented condition rankings, pairwise deltas, and chance-baseline checks for RQ3 (including 95% Wilson intervals and a simple two-proportion z-test scaffold).
 
 You can also regenerate the condition comparison summary directly:
 

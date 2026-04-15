@@ -7,6 +7,7 @@ import argparse
 import json
 import traceback
 
+from analysis.compare_conditions import write_condition_report
 from analysis.metrics import aggregate_experiment, aggregate_experiment_conditions, analyze_run
 from experiments.config import REPO_ROOT, LoadedExperiment, RunConfig, load_experiment_config
 from instrumentation.event_logger import EventLogger, resolve_git_commit
@@ -133,11 +134,14 @@ def run_experiment_plan(experiment: LoadedExperiment) -> Dict:
     _write_experiment_plan(experiment)
     configs = experiment.expand()
     condition_results = [run_batch(config) for config in configs]
-    experiment_summary = aggregate_experiment_conditions(experiment.base.resolved_experiment_dir())
+    experiment_dir = experiment.base.resolved_experiment_dir()
+    experiment_summary = aggregate_experiment_conditions(experiment_dir)
+    condition_report = write_condition_report(experiment_dir)
     return {
-        "experiment_dir": str(experiment.base.resolved_experiment_dir()),
+        "experiment_dir": str(experiment_dir),
         "condition_results": condition_results,
         "experiment_summary": experiment_summary,
+        "condition_report": condition_report,
     }
 
 
