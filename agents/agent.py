@@ -46,7 +46,12 @@ class ThinkResult(BaseModel):
     @classmethod
     def normalize_action(cls, value):
         if isinstance(value, str):
-            return value.strip().lower()
+            normalized = value.strip().lower().replace(" ", "_").replace("-", "_")
+            if normalized in {"question", "ask", "probe", "challenge", "respond", "answer", "accuse", "claim", "deflect", "redirect"}:
+                return "speak"
+            if normalized in {"wait", "waiting", "silent", "silence", "pass", "observe"}:
+                return "listen"
+            return normalized
         return value
 
     @field_validator("reason_type", mode="before")
@@ -315,6 +320,9 @@ Treat the score as a bid strength for the next turn, not a vague confidence scor
 Be willing to choose listen with low scores. Do not inflate urgency just to participate.
 
 Return valid JSON with keys: thought, action, importance, reason_type.
+`action` must be exactly one of: "speak" or "listen".
+If you want to ask a question, challenge someone, answer someone, redirect, or accuse, that still counts as action="speak".
+Use reason_type="question" for investigative questions rather than putting "question" in the action field.
 Use one reason_type from: direct_response, contradiction, clue, alibi, motive, means, opportunity, timeline, question, self_defense, redirection, continuation, weak_followup, no_move."""),
             ]
         
