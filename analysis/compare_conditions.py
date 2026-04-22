@@ -33,6 +33,24 @@ METRIC_SPECS = [
         "baseline_key": None,
     },
     {
+        "key": "mean_murderer_followups_received",
+        "label": "Mean murderer follow-up questions received (RQ2)",
+        "higher_is_better_for_detection": True,
+        "baseline_key": None,
+    },
+    {
+        "key": "mean_murderer_justification_requests_received",
+        "label": "Mean murderer justification requests received (RQ2)",
+        "higher_is_better_for_detection": True,
+        "baseline_key": None,
+    },
+    {
+        "key": "mean_pressure_target_gini",
+        "label": "Pressure concentration Gini (RQ2)",
+        "higher_is_better_for_detection": False,
+        "baseline_key": None,
+    },
+    {
         "key": "mean_murderer_speaker_share",
         "label": "Mean murderer speaker share (RQ2)",
         "higher_is_better_for_detection": False,

@@ -60,6 +60,10 @@ This writes:
 - per-run RQ1 artifacts:
   - `deception_labels.csv`
   - `deception_summary.json`
+- per-run RQ2 artifacts:
+  - `interactions.csv`
+  - `agent_attention_summary.csv`
+  - `attention_summary.json`
 - cross-condition summaries at:
   - `outputs/<experiment>/condition_summary.csv`
   - `outputs/<experiment>/condition_summary.json`
@@ -70,6 +74,8 @@ This writes:
   - `outputs/<experiment>/experiment_plan.json`
 
 The comparison step now also produces thesis-oriented condition rankings, pairwise deltas, and chance-baseline checks for RQ3 (including 95% Wilson intervals and a simple two-proportion z-test scaffold).
+
+For RQ2, the analysis pipeline now extracts target-level interaction rows and derives pressure-oriented attention signals such as direct questions, follow-up questions, and justification requests, plus simple concentration measures (entropy/Gini) over who receives scrutiny.
 
 You can also regenerate the condition comparison summary directly:
 

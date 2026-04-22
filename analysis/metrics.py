@@ -7,6 +7,7 @@ import csv
 import json
 import random
 
+from analysis.attention import build_attention_artifacts
 from analysis.deception import aggregate_condition_deception, label_deception_for_run
 from utils.dialogue_analysis import detect_direct_address, extract_mentions, is_question
 
@@ -230,10 +231,12 @@ def analyze_run(run_dir: str | Path) -> Dict[str, Any]:
     utterance_rows = _extract_utterance_rows(events, agent_names, run_id)
     accusation_rows = _extract_accusation_rows(events, murderer_name, run_id)
     agent_rows, question_rows, mention_rows = _compute_agent_metrics(utterance_rows, agent_names, murderer_name)
+    attention = build_attention_artifacts(run_path, utterance_rows, agent_names, murderer_name)
     rq3 = _compute_rq3(accusation_rows, agent_names, murderer_name)
     rq1 = label_deception_for_run(run_path, utterance_rows, manifest)
 
     murderer_agent_row = next((row for row in agent_rows if row["agent"] == murderer_name), None)
+    attention_summary = attention.get("summary", {})
     summary = {
         "run_id": run_id,
         "experiment_name": manifest.get("experiment_name"),
@@ -249,6 +252,17 @@ def analyze_run(run_dir: str | Path) -> Dict[str, Any]:
             "murderer_questions_received": murderer_agent_row["questions_received"] if murderer_agent_row else 0,
             "murderer_mentions_received": murderer_agent_row["mentions_received"] if murderer_agent_row else 0,
             "murderer_attention_received": murderer_agent_row["attention_received"] if murderer_agent_row else 0,
+            "murderer_followups_received": attention_summary.get("murderer_followups_received", 0),
+            "murderer_justification_requests_received": attention_summary.get("murderer_justification_requests_received", 0),
+            "murderer_pressure_signals_received": attention_summary.get("murderer_pressure_signals_received", 0),
+            "question_target_entropy": attention_summary.get("question_target_entropy", 0.0),
+            "question_target_gini": attention_summary.get("question_target_gini", 0.0),
+            "pressure_target_entropy": attention_summary.get("pressure_target_entropy", 0.0),
+            "pressure_target_gini": attention_summary.get("pressure_target_gini", 0.0),
+            "followup_target_entropy": attention_summary.get("followup_target_entropy", 0.0),
+            "followup_target_gini": attention_summary.get("followup_target_gini", 0.0),
+            "justification_target_entropy": attention_summary.get("justification_target_entropy", 0.0),
+            "justification_target_gini": attention_summary.get("justification_target_gini", 0.0),
         },
         "rq3": rq3,
     }
@@ -294,6 +308,11 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
             "total_utterances": summary.get("total_utterances"),
             "murderer_speaker_share": summary.get("rq2", {}).get("murderer_speaker_share"),
             "murderer_attention_received": summary.get("rq2", {}).get("murderer_attention_received"),
+            "murderer_followups_received": summary.get("rq2", {}).get("murderer_followups_received"),
+            "murderer_justification_requests_received": summary.get("rq2", {}).get("murderer_justification_requests_received"),
+            "murderer_pressure_signals_received": summary.get("rq2", {}).get("murderer_pressure_signals_received"),
+            "question_target_entropy": summary.get("rq2", {}).get("question_target_entropy"),
+            "pressure_target_gini": summary.get("rq2", {}).get("pressure_target_gini"),
             "murderer_labeled_utterances": summary.get("rq1", {}).get("total_labeled_utterances"),
             "murderer_direct_denial_rate": summary.get("rq1", {}).get("strategy_rates", {}).get("direct_denial", 0.0),
             "murderer_deflection_rate": summary.get("rq1", {}).get("strategy_rates", {}).get("deflection", 0.0),
@@ -314,6 +333,11 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
         "mean_total_utterances": sum(row["total_utterances"] for row in aggregate_rows) / total_runs,
         "mean_murderer_speaker_share": sum(row["murderer_speaker_share"] for row in aggregate_rows) / total_runs,
         "mean_murderer_attention_received": sum(row["murderer_attention_received"] for row in aggregate_rows) / total_runs,
+        "mean_murderer_followups_received": sum(row["murderer_followups_received"] for row in aggregate_rows) / total_runs,
+        "mean_murderer_justification_requests_received": sum(row["murderer_justification_requests_received"] for row in aggregate_rows) / total_runs,
+        "mean_murderer_pressure_signals_received": sum(row["murderer_pressure_signals_received"] for row in aggregate_rows) / total_runs,
+        "mean_question_target_entropy": sum(row["question_target_entropy"] for row in aggregate_rows) / total_runs,
+        "mean_pressure_target_gini": sum(row["pressure_target_gini"] for row in aggregate_rows) / total_runs,
         "mean_murderer_labeled_utterances": sum(row["murderer_labeled_utterances"] for row in aggregate_rows) / total_runs,
         "mean_murderer_direct_denial_rate": sum(row["murderer_direct_denial_rate"] for row in aggregate_rows) / total_runs,
         "mean_murderer_deflection_rate": sum(row["murderer_deflection_rate"] for row in aggregate_rows) / total_runs,
@@ -366,6 +390,11 @@ def aggregate_experiment_conditions(experiment_dir: str | Path) -> Dict[str, Any
                 "mean_total_utterances": row.get("mean_total_utterances"),
                 "mean_murderer_speaker_share": row.get("mean_murderer_speaker_share"),
                 "mean_murderer_attention_received": row.get("mean_murderer_attention_received"),
+                "mean_murderer_followups_received": row.get("mean_murderer_followups_received"),
+                "mean_murderer_justification_requests_received": row.get("mean_murderer_justification_requests_received"),
+                "mean_murderer_pressure_signals_received": row.get("mean_murderer_pressure_signals_received"),
+                "mean_question_target_entropy": row.get("mean_question_target_entropy"),
+                "mean_pressure_target_gini": row.get("mean_pressure_target_gini"),
                 "mean_murderer_labeled_utterances": row.get("mean_murderer_labeled_utterances"),
                 "mean_murderer_direct_denial_rate": row.get("mean_murderer_direct_denial_rate"),
                 "mean_murderer_deflection_rate": row.get("mean_murderer_deflection_rate"),
