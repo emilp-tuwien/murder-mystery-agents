@@ -47,10 +47,20 @@ python3 experiments/runner.py --config configs/business-of-murder-pilot.yaml --r
 
 ## Run a thesis condition matrix
 
-A single YAML file can now define a base configuration plus multiple named conditions.
+A single YAML file can now define either:
+- a base configuration plus multiple explicit named conditions, or
+- a generated condition matrix via Cartesian-product factor levels.
+
+Explicit conditions:
 
 ```bash
 python3 experiments/runner.py --config configs/thesis-condition-matrix.example.yaml --replicates 3
+```
+
+Generated matrix conditions:
+
+```bash
+python3 experiments/runner.py --config configs/thesis-condition-matrix.generated.example.yaml --replicates 3
 ```
 
 This writes:
@@ -74,6 +84,8 @@ This writes:
   - `outputs/<experiment>/experiment_plan.json`
 
 The comparison step now also produces thesis-oriented condition rankings, pairwise deltas, and chance-baseline checks for RQ3 (including 95% Wilson intervals and a simple two-proportion z-test scaffold).
+
+For thesis-scale condition management, experiment plans now support a `matrix:` section that automatically expands factor combinations into reproducible named conditions like `baseline__three-stage-v1`.
 
 For RQ2, the analysis pipeline now extracts target-level interaction rows and derives pressure-oriented attention signals such as direct questions, follow-up questions, and justification requests, plus simple concentration measures (entropy/Gini) over who receives scrutiny.
 

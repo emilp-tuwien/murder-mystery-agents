@@ -1,0 +1,52 @@
+base:
+  experiment_name: thesis-condition-matrix-generated
+  output_root: outputs
+  replicates: 3
+  backend: local
+  model_name: local_llm
+  base_url: http://192.168.11.11:8080/v1
+  temperature: 0.7
+  seed: 4242
+  conversations_per_round: 20
+  max_rounds: 6
+  enable_ui: false
+  prompt_version: thesis-pilot-v1
+  turn_policy_version: top2-selective-silence-v1
+  memory_version: three-stage-v1
+  deception_labeling_enabled: true
+  deception_labeling_mode: heuristic
+  scenario_id: business-of-murder-v1
+  scenario_path: scenarios/business-of-murder/scenario.json
+  roles_dir: scenarios/business-of-murder/roles
+  clues_dir: scenarios/business-of-murder/clues
+  notes: >-
+    Example matrix plan for thesis experiments. The Cartesian product of the
+    matrix levels becomes the condition set automatically.
+
+matrix:
+  protocol_strictness:
+    - name: baseline
+      description: Default dialogue protocol.
+      factors:
+        protocol_profile: baseline
+
+    - name: extended
+      description: More conversations per round.
+      overrides:
+        conversations_per_round: 28
+      factors:
+        protocol_profile: extended-discussion
+
+  memory_mode:
+    - name: three-stage-v1
+      description: Current default memory policy.
+      overrides:
+        memory_version: three-stage-v1
+
+    - name: three-stage-v1-low-temp
+      description: Same memory policy with reduced temperature.
+      overrides:
+        memory_version: three-stage-v1
+        temperature: 0.3
+      factors:
+        temperature_bucket: low

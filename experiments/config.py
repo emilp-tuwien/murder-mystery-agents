@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from itertools import product
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 import hashlib
@@ -99,15 +100,34 @@ class ConditionConfig(BaseModel):
     factors: Dict[str, Any] = Field(default_factory=dict)
 
 
+class MatrixLevel(BaseModel):
+    name: str
+    description: Optional[str] = None
+    overrides: Dict[str, Any] = Field(default_factory=dict)
+    factors: Dict[str, Any] = Field(default_factory=dict)
+
+
 class ExperimentPlan(BaseModel):
     base: RunConfig
     conditions: List[ConditionConfig] = Field(default_factory=list)
+    matrix: Dict[str, List[MatrixLevel]] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def validate_conditions(self):
+    def validate_plan(self):
+        if self.conditions and self.matrix:
+            raise ValueError("Use either explicit conditions or a matrix, not both in the same experiment plan.")
+
         names = [condition.name for condition in self.conditions]
         if len(names) != len(set(names)):
             raise ValueError("Condition names must be unique within an experiment plan.")
+
+        for dimension_name, levels in self.matrix.items():
+            if not levels:
+                raise ValueError(f"Matrix dimension '{dimension_name}' must define at least one level.")
+            level_names = [level.name for level in levels]
+            if len(level_names) != len(set(level_names)):
+                raise ValueError(f"Matrix dimension '{dimension_name}' contains duplicate level names.")
+
         return self
 
 
@@ -134,6 +154,47 @@ def _merge_condition(base: RunConfig, condition: ConditionConfig) -> RunConfig:
     )
 
 
+def _expand_matrix_conditions(base: RunConfig, matrix: Dict[str, List[MatrixLevel]]) -> List[RunConfig]:
+    if not matrix:
+        return []
+
+    ordered_dimensions = list(matrix.items())
+    expanded: List[RunConfig] = []
+    seen_names = set()
+
+    for combination in product(*(levels for _, levels in ordered_dimensions)):
+        name_parts: List[str] = []
+        description_parts: List[str] = []
+        merged_overrides: Dict[str, Any] = {}
+        merged_factors = dict(base.condition_factors)
+
+        for dimension_name, level in zip((name for name, _ in ordered_dimensions), combination):
+            name_parts.append(level.name)
+            merged_overrides.update(level.overrides)
+            merged_factors[dimension_name] = level.name
+            merged_factors.update(level.factors)
+            if level.description:
+                description_parts.append(f"{dimension_name}={level.description}")
+
+        condition_name = "__".join(name_parts)
+        if condition_name in seen_names:
+            raise ValueError(f"Expanded matrix produced duplicate condition name: {condition_name}")
+        seen_names.add(condition_name)
+
+        expanded.append(
+            base.model_copy(
+                update={
+                    **merged_overrides,
+                    "condition_name": condition_name,
+                    "condition_description": "; ".join(description_parts) if description_parts else None,
+                    "condition_factors": merged_factors,
+                }
+            )
+        )
+
+    return expanded
+
+
 def load_run_config(config_path: str | Path) -> RunConfig:
     return load_experiment_config(config_path).base
 
@@ -146,6 +207,8 @@ def load_experiment_config(config_path: str | Path) -> LoadedExperiment:
     if "base" in data:
         plan = ExperimentPlan.model_validate(data)
         expanded = [_merge_condition(plan.base, condition) for condition in plan.conditions]
+        if plan.matrix:
+            expanded = _expand_matrix_conditions(plan.base, plan.matrix)
         return LoadedExperiment(base=plan.base, conditions=expanded, source_path=str(path))
 
     base = RunConfig.model_validate(data)
