@@ -82,6 +82,15 @@ This writes:
   - `outputs/<experiment>/condition_pairwise_differences.csv`
   - `outputs/<experiment>/condition_chance_baseline.csv`
   - `outputs/<experiment>/experiment_plan.json`
+- thesis-ready flat exports at `outputs/<experiment>/thesis_dataset/`:
+  - `conditions.csv`
+  - `runs.csv`
+  - `utterances.csv`
+  - `interactions.csv`
+  - `accusations.csv`
+  - `deception_labels.csv`
+  - `events.csv`
+  - `dataset_manifest.json`
 
 The comparison step now also produces thesis-oriented condition rankings, pairwise deltas, and chance-baseline checks for RQ3 (including 95% Wilson intervals and a simple two-proportion z-test scaffold).
 
@@ -93,6 +102,12 @@ You can also regenerate the condition comparison summary directly:
 
 ```bash
 python3 analysis/compare_conditions.py outputs/thesis-condition-matrix
+```
+
+And rebuild the flat thesis dataset directly:
+
+```bash
+python3 analysis/build_thesis_dataset.py outputs/thesis-condition-matrix
 ```
 
 ## Deception labeling (RQ1)
