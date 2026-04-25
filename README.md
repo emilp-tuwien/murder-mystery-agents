@@ -51,6 +51,13 @@ A single YAML file can now define either:
 - a base configuration plus multiple explicit named conditions, or
 - a generated condition matrix via Cartesian-product factor levels.
 
+Before kicking off an overnight run, you can now validate or inspect the fully expanded experiment plan without spending tokens/time:
+
+```bash
+python3 experiments/runner.py --config configs/thesis-condition-matrix.generated.example.yaml --validate-only
+python3 experiments/runner.py --config configs/thesis-condition-matrix.generated.example.yaml --plan-only
+```
+
 Explicit conditions:
 
 ```bash
@@ -66,6 +73,9 @@ python3 experiments/runner.py --config configs/thesis-condition-matrix.generated
 This writes:
 - per-run logs under `outputs/<experiment>/conditions/<condition>/runs/`
 - resolved per-condition config snapshots at `outputs/<experiment>/conditions/<condition>/condition_config.json`
+- batch execution status snapshots at:
+  - `outputs/<experiment>/batch_status.json`
+  - `outputs/<experiment>/conditions/<condition>/batch_status.json`
 - per-condition summaries in each condition folder
 - per-run RQ1 artifacts:
   - `deception_labels.csv`
@@ -97,6 +107,8 @@ The comparison step now also produces thesis-oriented condition rankings, pairwi
 For thesis-scale condition management, experiment plans now support a `matrix:` section that automatically expands factor combinations into reproducible named conditions like `baseline__three-stage-v1`.
 
 For RQ2, the analysis pipeline now extracts target-level interaction rows and derives pressure-oriented attention signals such as direct questions, follow-up questions, and justification requests, plus simple concentration measures (entropy/Gini) over who receives scrutiny.
+
+By default the runner now continues across failed replicates, records which runs failed, and still produces aggregate artifacts from the successful runs. Use `--fail-fast` if you want the old stop-immediately behavior.
 
 You can also regenerate the condition comparison summary directly:
 
