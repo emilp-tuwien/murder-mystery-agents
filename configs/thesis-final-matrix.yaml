@@ -1,0 +1,73 @@
+base:
+  experiment_name: thesis-final-matrix
+  output_root: outputs
+  replicates: 20
+  pilot_ready_runs_per_condition: 3
+  interim_ready_runs_per_condition: 10
+  final_ready_runs_per_condition: 20
+  backend: local
+  model_name: local_llm
+  base_url: http://192.168.11.11:8080/v1
+  temperature: 0.7
+  seed: 4242
+  conversations_per_round: 20
+  max_rounds: 6
+  stage_gate_policy: evidence_gated
+  min_round_gate_conversations: 10
+  max_round_gate_conversations: 24
+  min_unique_question_targets_per_round: 3
+  min_question_coverage_fraction_per_round: 0.5
+  min_evidence_signals_per_round: 3
+  min_pressure_signals_per_round: 2
+  min_clue_references_per_round: 1
+  min_synthesis_signals_final_round: 1
+  enable_ui: false
+  prompt_version: thesis-pilot-v1
+  turn_policy_version: top2-selective-silence-v1
+  memory_version: three-stage-v1
+  deception_labeling_enabled: true
+  deception_labeling_mode: heuristic
+  scenario_id: business-of-murder-v1
+  scenario_path: scenarios/business-of-murder/scenario.json
+  roles_dir: scenarios/business-of-murder/roles
+  clues_dir: scenarios/business-of-murder/clues
+  notes: >-
+    Final thesis condition matrix. Keeps the comparison defensible by varying one
+    theory-relevant factor at a time: stage-gating policy and dialogue budget.
+
+conditions:
+  - name: round-budget__standard-budget
+    description: "Baseline control with fixed round-budget progression and current dialogue budget."
+    overrides:
+      stage_gate_policy: round_budget
+      conversations_per_round: 20
+      min_round_gate_conversations: 10
+      max_round_gate_conversations: 20
+    factors:
+      progression_policy: round_budget
+      dialogue_budget: standard
+      role: control
+
+  - name: evidence-gated__standard-budget
+    description: "Primary treatment: evidence-gated progression with the current dialogue budget."
+    overrides:
+      stage_gate_policy: evidence_gated
+      conversations_per_round: 20
+      min_round_gate_conversations: 10
+      max_round_gate_conversations: 24
+    factors:
+      progression_policy: evidence_gated
+      dialogue_budget: standard
+      role: primary_treatment
+
+  - name: evidence-gated__extended-budget
+    description: "Evidence-gated progression plus a larger dialogue budget to test whether extra discussion materially changes outcomes."
+    overrides:
+      stage_gate_policy: evidence_gated
+      conversations_per_round: 28
+      min_round_gate_conversations: 12
+      max_round_gate_conversations: 30
+    factors:
+      progression_policy: evidence_gated
+      dialogue_budget: extended
+      role: stress_test

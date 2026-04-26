@@ -30,6 +30,15 @@ class RunConfig(BaseModel):
 
     conversations_per_round: int = Field(default=20, ge=1)
     max_rounds: int = Field(default=6, ge=2)
+    stage_gate_policy: Literal["round_budget", "evidence_gated"] = "round_budget"
+    min_round_gate_conversations: Optional[int] = Field(default=None, ge=1)
+    max_round_gate_conversations: Optional[int] = Field(default=None, ge=1)
+    min_unique_question_targets_per_round: int = Field(default=3, ge=1)
+    min_question_coverage_fraction_per_round: float = Field(default=0.5, ge=0.0, le=1.0)
+    min_evidence_signals_per_round: int = Field(default=3, ge=0)
+    min_pressure_signals_per_round: int = Field(default=2, ge=0)
+    min_clue_references_per_round: int = Field(default=1, ge=0)
+    min_synthesis_signals_final_round: int = Field(default=1, ge=0)
     enable_ui: bool = False
     ui_port: int = 8000
 
@@ -84,6 +93,16 @@ class RunConfig(BaseModel):
             return REPO_ROOT / "scenarios" / "business-of-murder" / "clues"
         return REPO_ROOT / "clues"
 
+    def resolved_min_round_gate_conversations(self) -> int:
+        if self.min_round_gate_conversations is not None:
+            return self.min_round_gate_conversations
+        return max(6, min(self.conversations_per_round, max(6, self.conversations_per_round // 2)))
+
+    def resolved_max_round_gate_conversations(self) -> int:
+        if self.max_round_gate_conversations is not None:
+            return self.max_round_gate_conversations
+        return max(self.conversations_per_round, self.resolved_min_round_gate_conversations() + 6)
+
     def resolved_output_root(self) -> Path:
         return (REPO_ROOT / self.output_root).resolve()
 
@@ -103,6 +122,9 @@ class RunConfig(BaseModel):
             raise ValueError("pilot_ready_runs_per_condition must be <= interim_ready_runs_per_condition")
         if self.interim_ready_runs_per_condition > self.final_ready_runs_per_condition:
             raise ValueError("interim_ready_runs_per_condition must be <= final_ready_runs_per_condition")
+        if self.max_round_gate_conversations is not None and self.min_round_gate_conversations is not None:
+            if self.max_round_gate_conversations < self.min_round_gate_conversations:
+                raise ValueError("max_round_gate_conversations must be >= min_round_gate_conversations")
         return self
 
 

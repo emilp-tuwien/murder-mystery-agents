@@ -101,6 +101,16 @@ python3 experiments/runner.py --config configs/thesis-condition-matrix.example.y
 python3 experiments/runner.py --config configs/thesis-condition-matrix.generated.example.yaml --replicates 3
 ```
 
+### Final thesis matrix
+
+For the focused, thesis-ready comparison set, use:
+
+```bash
+python3 experiments/runner.py --config configs/thesis-final-matrix.yaml --plan-only
+```
+
+See `docs/THESIS_RUN_PLAN.md` for the rationale and staged execution plan.
+
 ## Output structure
 
 Running a batch writes:

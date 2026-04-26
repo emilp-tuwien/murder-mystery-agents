@@ -19,6 +19,7 @@ from instrumentation.event_logger import MultiEventSink
 from scenarios import load_scenario_config
 from schemas.state import GameState
 from utils.agent_helper import detect_murderer, load_character_descriptions
+from utils.evidence_gates import stage_name_for_round
 from utils.formatting import _banner, _format_history, _section
 from utils.ollama_helper import _select_ollama_model
 
@@ -214,6 +215,9 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
                 "temperature": config.temperature,
                 "conversations_per_round": config.conversations_per_round,
                 "max_rounds": config.max_rounds,
+                "stage_gate_policy": config.stage_gate_policy,
+                "min_round_gate_conversations": config.resolved_min_round_gate_conversations(),
+                "max_round_gate_conversations": config.resolved_max_round_gate_conversations(),
                 "agent_names": list(agents.keys()),
                 "murderer_name": murderer_name,
                 "scenario_id": config.scenario_id,
@@ -235,6 +239,15 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
         max_rounds=config.max_rounds,
         clues_dir=clues_dir,
         scenario=scenario,
+        stage_gate_policy=config.stage_gate_policy,
+        min_round_gate_conversations=config.resolved_min_round_gate_conversations(),
+        max_round_gate_conversations=config.resolved_max_round_gate_conversations(),
+        min_unique_question_targets_per_round=config.min_unique_question_targets_per_round,
+        min_question_coverage_fraction_per_round=config.min_question_coverage_fraction_per_round,
+        min_evidence_signals_per_round=config.min_evidence_signals_per_round,
+        min_pressure_signals_per_round=config.min_pressure_signals_per_round,
+        min_clue_references_per_round=config.min_clue_references_per_round,
+        min_synthesis_signals_final_round=config.min_synthesis_signals_final_round,
     )
     print("Game Master initialized.")
 
@@ -263,6 +276,7 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
     init: GameState = {
         "turn": 0,
         "current_round": 1,
+        "current_stage": stage_name_for_round(1, config.max_rounds),
         "conversations_in_round": 0,
         "conversations_per_round": config.conversations_per_round,
         "history": [
@@ -270,6 +284,7 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
                 "turn": 0,
                 "round": 1,
                 "phase": "introduction",
+                "stage": stage_name_for_round(1, config.max_rounds),
                 "speaker": "Game Master",
                 "text": murder_announcement,
                 "is_question": False,
@@ -284,6 +299,7 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
         "new_utterance": None,
         "done": False,
         "phase": "introduction",
+        "round_gate_status": {},
     }
 
     if runtime_sink is not None:
@@ -294,6 +310,7 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
                 "turn": 0,
                 "round": 1,
                 "phase": "introduction",
+                "stage": stage_name_for_round(1, config.max_rounds),
                 "murderer": murderer_name,
             },
         )
@@ -337,6 +354,15 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
                     "result": {
                         "accused": result.accused,
                         "reasoning": result.reasoning,
+                        "confidence": result.confidence,
+                        "primary_basis": result.primary_basis,
+                        "evidence_items": result.evidence_items,
+                        "motive_case": result.motive_case,
+                        "means_case": result.means_case,
+                        "opportunity_case": result.opportunity_case,
+                        "contradiction_case": result.contradiction_case,
+                        "comparative_case": result.comparative_case,
+                        "uncertainty": result.uncertainty,
                     },
                 },
             )
@@ -344,7 +370,15 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
     _section("Final accusations")
     for name, result in accusations.items():
         print(f"\n{name} accuses {result.accused}:")
+        print(f"  Confidence: {result.confidence}/100")
+        print(f"  Primary basis: {result.primary_basis}")
         print(f"  Reasoning: {result.reasoning}")
+        if result.evidence_items:
+            print("  Evidence:")
+            for item in result.evidence_items:
+                print(f"    - {item}")
+        if result.uncertainty:
+            print(f"  Uncertainty: {result.uncertainty}")
 
     _section("Vote tally")
     sorted_votes = sorted(votes.items(), key=lambda x: x[1], reverse=True)

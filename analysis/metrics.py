@@ -72,6 +72,7 @@ def _extract_turn_rows(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 "turn": payload.get("turn"),
                 "round": payload.get("round"),
                 "phase": payload.get("phase"),
+                "stage": payload.get("stage"),
                 "selected_speaker": None,
                 "selection_reason": None,
                 "is_direct_address": False,
@@ -91,6 +92,7 @@ def _extract_utterance_rows(events: List[Dict[str, Any]], agent_names: List[str]
     rows: List[Dict[str, Any]] = []
     current_round = 1
     current_phase = "introduction"
+    current_stage = "introduction"
 
     for event in events:
         event_type = event.get("type")
@@ -98,6 +100,7 @@ def _extract_utterance_rows(events: List[Dict[str, Any]], agent_names: List[str]
         if event_type == "turn_started":
             current_round = payload.get("round", current_round)
             current_phase = payload.get("phase", current_phase)
+            current_stage = payload.get("stage", current_stage)
         if event_type != "utterance":
             continue
 
@@ -116,6 +119,7 @@ def _extract_utterance_rows(events: List[Dict[str, Any]], agent_names: List[str]
             "turn": utterance.get("turn"),
             "round": utterance.get("round", current_round),
             "phase": utterance.get("phase", current_phase),
+            "stage": utterance.get("stage", current_stage),
             "speaker": speaker,
             "text": text,
             "word_count": len(text.split()),
@@ -137,11 +141,28 @@ def _extract_accusation_rows(events: List[Dict[str, Any]], murderer_name: str, r
         agent = payload.get("agent")
         result = payload.get("result", {})
         accused = result.get("accused")
+        evidence_items = result.get("evidence_items") or []
+        if isinstance(evidence_items, list):
+            evidence_items_str = " | ".join(str(item).strip() for item in evidence_items if str(item).strip())
+            evidence_item_count = len([item for item in evidence_items if str(item).strip()])
+        else:
+            evidence_items_str = str(evidence_items)
+            evidence_item_count = len([part for part in str(evidence_items).split("|") if part.strip()])
         rows.append({
             "run_id": run_id,
             "accuser": agent,
             "accused": accused,
             "reasoning": result.get("reasoning", ""),
+            "confidence": result.get("confidence"),
+            "primary_basis": result.get("primary_basis", "mixed"),
+            "evidence_items": evidence_items_str,
+            "evidence_item_count": evidence_item_count,
+            "motive_case": result.get("motive_case", ""),
+            "means_case": result.get("means_case", ""),
+            "opportunity_case": result.get("opportunity_case", ""),
+            "contradiction_case": result.get("contradiction_case", ""),
+            "comparative_case": result.get("comparative_case", ""),
+            "uncertainty": result.get("uncertainty", ""),
             "correct": accused == murderer_name,
             "accuser_is_murderer": agent == murderer_name,
             "accused_is_murderer": accused == murderer_name,
@@ -202,6 +223,53 @@ def _compute_agent_metrics(utterances: List[Dict[str, Any]], agent_names: List[s
     return agent_rows, question_rows, mention_rows
 
 
+def _compute_accusation_quality(accusations: List[Dict[str, Any]]) -> Dict[str, Any]:
+    if not accusations:
+        return {
+            "mean_confidence": 0.0,
+            "structured_evidence_fraction": 0.0,
+            "mean_evidence_item_count": 0.0,
+            "motive_case_fraction": 0.0,
+            "means_case_fraction": 0.0,
+            "opportunity_case_fraction": 0.0,
+            "contradiction_case_fraction": 0.0,
+        }
+
+    evidence_backed = 0
+    evidence_item_total = 0
+    motive_case_count = 0
+    means_case_count = 0
+    opportunity_case_count = 0
+    contradiction_case_count = 0
+    confidence_values = []
+
+    for row in accusations:
+        confidence_values.append(float(row.get("confidence") or 0))
+        evidence_item_count = int(row.get("evidence_item_count") or 0)
+        evidence_item_total += evidence_item_count
+        if evidence_item_count >= 2:
+            evidence_backed += 1
+        if str(row.get("motive_case", "")).strip():
+            motive_case_count += 1
+        if str(row.get("means_case", "")).strip():
+            means_case_count += 1
+        if str(row.get("opportunity_case", "")).strip():
+            opportunity_case_count += 1
+        if str(row.get("contradiction_case", "")).strip():
+            contradiction_case_count += 1
+
+    total = len(accusations)
+    return {
+        "mean_confidence": sum(confidence_values) / total,
+        "structured_evidence_fraction": evidence_backed / total,
+        "mean_evidence_item_count": evidence_item_total / total,
+        "motive_case_fraction": motive_case_count / total,
+        "means_case_fraction": means_case_count / total,
+        "opportunity_case_fraction": opportunity_case_count / total,
+        "contradiction_case_fraction": contradiction_case_count / total,
+    }
+
+
 def _compute_rq3(accusations: List[Dict[str, Any]], agent_names: List[str], murderer_name: str) -> Dict[str, Any]:
     votes = Counter(row["accused"] for row in accusations if row.get("accused"))
     total_votes = len(accusations) or 1
@@ -232,6 +300,7 @@ def analyze_run(run_dir: str | Path) -> Dict[str, Any]:
     accusation_rows = _extract_accusation_rows(events, murderer_name, run_id)
     agent_rows, question_rows, mention_rows = _compute_agent_metrics(utterance_rows, agent_names, murderer_name)
     attention = build_attention_artifacts(run_path, utterance_rows, agent_names, murderer_name)
+    accusation_quality = _compute_accusation_quality(accusation_rows)
     rq3 = _compute_rq3(accusation_rows, agent_names, murderer_name)
     rq1 = label_deception_for_run(run_path, utterance_rows, manifest)
 
@@ -264,6 +333,7 @@ def analyze_run(run_dir: str | Path) -> Dict[str, Any]:
             "justification_target_entropy": attention_summary.get("justification_target_entropy", 0.0),
             "justification_target_gini": attention_summary.get("justification_target_gini", 0.0),
         },
+        "accusation_quality": accusation_quality,
         "rq3": rq3,
     }
 
@@ -325,6 +395,9 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
             "murderer_direct_denial_rate": summary.get("rq1", {}).get("strategy_rates", {}).get("direct_denial", 0.0),
             "murderer_deflection_rate": summary.get("rq1", {}).get("strategy_rates", {}).get("deflection", 0.0),
             "murderer_evasion_rate": summary.get("rq1", {}).get("strategy_rates", {}).get("evasion", 0.0),
+            "mean_accusation_confidence": summary.get("accusation_quality", {}).get("mean_confidence", 0.0),
+            "structured_accusation_fraction": summary.get("accusation_quality", {}).get("structured_evidence_fraction", 0.0),
+            "mean_accusation_evidence_item_count": summary.get("accusation_quality", {}).get("mean_evidence_item_count", 0.0),
             "murderer_vote_share": rq3.get("murderer_vote_share"),
             "group_solved": rq3.get("group_solved"),
             "random_vote_share_baseline": rq3.get("random_vote_share_baseline"),
@@ -356,6 +429,9 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
         "mean_murderer_direct_denial_rate": sum(row["murderer_direct_denial_rate"] for row in aggregate_rows) / total_runs,
         "mean_murderer_deflection_rate": sum(row["murderer_deflection_rate"] for row in aggregate_rows) / total_runs,
         "mean_murderer_evasion_rate": sum(row["murderer_evasion_rate"] for row in aggregate_rows) / total_runs,
+        "mean_accusation_confidence": sum(row["mean_accusation_confidence"] for row in aggregate_rows) / total_runs,
+        "mean_structured_accusation_fraction": sum(row["structured_accusation_fraction"] for row in aggregate_rows) / total_runs,
+        "mean_accusation_evidence_item_count": sum(row["mean_accusation_evidence_item_count"] for row in aggregate_rows) / total_runs,
         "mean_murderer_vote_share": sum(row["murderer_vote_share"] for row in aggregate_rows) / total_runs,
         "group_solve_rate": solve_count / total_runs,
         "random_vote_share_baseline": sum(row["random_vote_share_baseline"] for row in aggregate_rows) / total_runs,
@@ -416,6 +492,9 @@ def aggregate_experiment_conditions(experiment_dir: str | Path) -> Dict[str, Any
                 "mean_murderer_direct_denial_rate": row.get("mean_murderer_direct_denial_rate"),
                 "mean_murderer_deflection_rate": row.get("mean_murderer_deflection_rate"),
                 "mean_murderer_evasion_rate": row.get("mean_murderer_evasion_rate"),
+                "mean_accusation_confidence": row.get("mean_accusation_confidence"),
+                "mean_structured_accusation_fraction": row.get("mean_structured_accusation_fraction"),
+                "mean_accusation_evidence_item_count": row.get("mean_accusation_evidence_item_count"),
                 "mean_murderer_vote_share": row.get("mean_murderer_vote_share"),
                 "group_solve_rate": row.get("group_solve_rate"),
                 "random_vote_share_baseline": row.get("random_vote_share_baseline"),

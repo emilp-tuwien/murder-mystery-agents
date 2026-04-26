@@ -6,6 +6,7 @@ import PyPDF2
 
 from scenarios import ScenarioConfig
 from utils.dialogue_analysis import detect_direct_address
+from utils.evidence_gates import RoundGateAssessment, assess_round_gate, stage_name_for_round
 
 
 class SpeakerDecision(BaseModel):
@@ -38,7 +39,24 @@ class RoundSummary(BaseModel):
 
 
 class GameMaster:
-    def __init__(self, llm: Any, agent_names: List[str], conversations_per_round: int = 20, max_rounds: int = 6, clues_dir: Optional[Path] = None, scenario: Optional[ScenarioConfig] = None):
+    def __init__(
+        self,
+        llm: Any,
+        agent_names: List[str],
+        conversations_per_round: int = 20,
+        max_rounds: int = 6,
+        clues_dir: Optional[Path] = None,
+        scenario: Optional[ScenarioConfig] = None,
+        stage_gate_policy: str = "round_budget",
+        min_round_gate_conversations: int = 6,
+        max_round_gate_conversations: Optional[int] = None,
+        min_unique_question_targets_per_round: int = 3,
+        min_question_coverage_fraction_per_round: float = 0.50,
+        min_evidence_signals_per_round: int = 3,
+        min_pressure_signals_per_round: int = 2,
+        min_clue_references_per_round: int = 1,
+        min_synthesis_signals_final_round: int = 1,
+    ):
         self.llm = llm
         self.agent_names = agent_names
         self.llm_decide = llm.with_structured_output(SpeakerDecision, method="json_mode")
@@ -47,6 +65,15 @@ class GameMaster:
         self.max_rounds = max_rounds
         self.clues_dir = clues_dir or (Path(__file__).parent.parent / "clues")
         self.scenario = scenario or ScenarioConfig()
+        self.stage_gate_policy = stage_gate_policy
+        self.min_round_gate_conversations = min_round_gate_conversations
+        self.max_round_gate_conversations = max_round_gate_conversations or max(conversations_per_round, min_round_gate_conversations + 6)
+        self.min_unique_question_targets_per_round = min_unique_question_targets_per_round
+        self.min_question_coverage_fraction_per_round = min_question_coverage_fraction_per_round
+        self.min_evidence_signals_per_round = min_evidence_signals_per_round
+        self.min_pressure_signals_per_round = min_pressure_signals_per_round
+        self.min_clue_references_per_round = min_clue_references_per_round
+        self.min_synthesis_signals_final_round = min_synthesis_signals_final_round
     
     def _load_persona(self) -> str:
         """Load game master description from PDF"""
@@ -118,15 +145,33 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
                 bullets.append(f"{msg['speaker']}: {msg['text'][:50]}...")
             return bullets
 
-    def should_advance_round(self, conversations_in_round: int, current_round: int) -> bool:
-        """
-        Determine if the game should advance to the next round.
-        By default, advances after conversations_per_round conversations.
-        """
-        if current_round >= self.max_rounds:
-            return False
-        return conversations_in_round >= self.conversations_per_round
+    def assess_round_progress(self, history: List[dict], current_round: int, conversations_in_round: int) -> RoundGateAssessment:
+        current_clue = self.get_clue_for_round(current_round)
+        return assess_round_gate(
+            history=history,
+            agent_names=self.agent_names,
+            current_round=current_round,
+            conversations_in_round=conversations_in_round,
+            max_rounds=self.max_rounds,
+            gate_policy=self.stage_gate_policy,
+            clue_text=current_clue,
+            min_conversations=self.min_round_gate_conversations,
+            hard_cap_conversations=self.max_round_gate_conversations,
+            min_unique_question_targets=self.min_unique_question_targets_per_round,
+            min_question_coverage_fraction=self.min_question_coverage_fraction_per_round,
+            min_evidence_signals=self.min_evidence_signals_per_round,
+            min_pressure_signals=self.min_pressure_signals_per_round,
+            min_clue_references=self.min_clue_references_per_round,
+            min_synthesis_signals=self.min_synthesis_signals_final_round,
+        )
+
+    def should_advance_round(self, history: List[dict], conversations_in_round: int, current_round: int) -> RoundGateAssessment:
+        """Assess whether the current investigation round should advance."""
+        return self.assess_round_progress(history, current_round, conversations_in_round)
     
+    def get_stage_for_round(self, round_num: int) -> str:
+        return stage_name_for_round(round_num, self.max_rounds)
+
     def get_phase_for_round(self, round_num: int) -> str:
         """
         Determine the game phase based on current round.

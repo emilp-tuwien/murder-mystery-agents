@@ -8,6 +8,7 @@ class Utterance(TypedDict, total=False):
     text: str
     round: int
     phase: str
+    stage: str
     is_question: bool
     addressed_to: Optional[str]
     mentioned_agents: List[str]
@@ -31,6 +32,7 @@ class ThoughtRecord(TypedDict):
 class GameState(TypedDict):
     turn: int
     current_round: int  # Current game round (1-6)
+    current_stage: str  # introduction / evidence-gated investigation stage / accusation
     conversations_in_round: int  # Count of conversations in current round
     conversations_per_round: int  # Default 20, configurable by game master
     history: Annotated[List[Utterance], operator.add]  # Use reducer to accumulate history
@@ -46,3 +48,4 @@ class GameState(TypedDict):
     
     # Phase tracking
     phase: str  # "introduction", "discussion", "accusation", "confession"
+    round_gate_status: Dict[str, Any]

@@ -163,6 +163,18 @@ def validate_run_outputs(run_dir: str | Path) -> Dict[str, Any]:
     evidence_backed_reasoning_rows = [
         row for row in accusation_reasoning_rows if _contains_any(str(row.get("reasoning", "")), EVIDENCE_BACKED_REASONING_PATTERNS)
     ]
+    accusation_structured_rows = [
+        row for row in accusations
+        if int(float(row.get("evidence_item_count") or 0)) >= 2
+        and str(row.get("primary_basis", "")).strip()
+        and (
+            str(row.get("contradiction_case", "")).strip()
+            or str(row.get("opportunity_case", "")).strip()
+            or str(row.get("means_case", "")).strip()
+            or str(row.get("motive_case", "")).strip()
+        )
+    ]
+    accusation_comparative_rows = [row for row in accusations if str(row.get("comparative_case", "")).strip()]
 
     direct_question_targets = {
         row.get("target")
@@ -192,12 +204,25 @@ def validate_run_outputs(run_dir: str | Path) -> Dict[str, Any]:
     round_changes = [event for event in events if event.get("type") == "round_changed"]
     round_summaries = [event for event in events if event.get("type") == "round_summarized"]
     round_advance_decisions = [event for event in events if event.get("type") == "round_advance_decision"]
+    stage_gate_evaluations = [event for event in events if event.get("type") == "stage_gate_evaluated"]
 
     accusation_count_expected = len(agent_names) if agent_names else len(accusations)
     accusation_completed = len(accusations) >= accusation_count_expected and accusation_count_expected > 0
     nonempty_reasoning_fraction = _ratio(len(accusation_reasoning_rows), len(accusations)) if accusations else 0.0
     evidence_backed_reasoning_fraction = _ratio(len(evidence_backed_reasoning_rows), len(accusations)) if accusations else 0.0
+    accusation_structure_fraction = _ratio(len(accusation_structured_rows), len(accusations)) if accusations else 0.0
+    accusation_comparative_fraction = _ratio(len(accusation_comparative_rows), len(accusations)) if accusations else 0.0
     suspect_question_coverage_fraction = _ratio(len(direct_question_targets), len(agent_names)) if agent_names else 0.0
+    hard_cap_fallbacks = sum(
+        1
+        for event in round_advance_decisions
+        if event.get("payload", {}).get("advance_reason") == "hard_cap_fallback"
+    )
+    evidence_gate_satisfied_transitions = sum(
+        1
+        for event in round_advance_decisions
+        if event.get("payload", {}).get("advance_reason") == "evidence_gate_satisfied"
+    )
 
     exclusion_reasons: List[str] = []
     warnings: List[str] = []
@@ -225,6 +250,14 @@ def validate_run_outputs(run_dir: str | Path) -> Dict[str, Any]:
         warnings.append("some_accusations_missing_reasoning")
     if accusations and evidence_backed_reasoning_fraction < 0.75:
         warnings.append("accusation_reasoning_often_not_evidence_backed")
+    if accusations and accusation_structure_fraction < 0.75:
+        warnings.append("accusation_structure_often_incomplete")
+    if accusations and accusation_comparative_fraction < 0.75:
+        warnings.append("accusations_often_missing_comparative_case")
+    if manifest.get("stage_gate_policy") == "evidence_gated" and not stage_gate_evaluations:
+        warnings.append("no_stage_gate_evaluations_logged")
+    if manifest.get("stage_gate_policy") == "evidence_gated" and hard_cap_fallbacks > 0:
+        warnings.append("evidence_gated_rounds_hit_hard_cap")
     if len(round_summaries) == 0:
         warnings.append("no_round_summaries_logged")
 
@@ -247,11 +280,14 @@ def validate_run_outputs(run_dir: str | Path) -> Dict[str, Any]:
             "round_changes": len(round_changes),
             "round_summaries": len(round_summaries),
             "round_advance_decisions": len(round_advance_decisions),
+            "stage_gate_evaluations": len(stage_gate_evaluations),
         },
         "process_quality": {
             "accusation_completed": accusation_completed,
             "accusation_reasoning_nonempty_fraction": nonempty_reasoning_fraction,
             "accusation_reasoning_evidence_backed_fraction": evidence_backed_reasoning_fraction,
+            "accusation_structure_fraction": accusation_structure_fraction,
+            "accusation_comparative_fraction": accusation_comparative_fraction,
             "suspect_question_coverage_fraction": suspect_question_coverage_fraction,
             "suspects_directly_questioned": sorted(name for name in direct_question_targets if name),
             "murderer_directly_questioned": bool(murderer_direct_questions),
@@ -264,6 +300,9 @@ def validate_run_outputs(run_dir: str | Path) -> Dict[str, Any]:
                 for event in round_advance_decisions
                 if event.get("payload", {}).get("advance_reason") == "round_budget_reached"
             ),
+            "evidence_gate_satisfied_transitions": evidence_gate_satisfied_transitions,
+            "hard_cap_fallback_transitions": hard_cap_fallbacks,
+            "stage_gate_evaluation_count": len(stage_gate_evaluations),
             "investigation_completed_events": sum(
                 1
                 for event in round_advance_decisions

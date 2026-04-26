@@ -69,10 +69,11 @@ def _emit(ui_store, event_type: str, payload: Optional[Dict[str, Any]] = None):
 def think_all(state: GameState, agents: Dict[str, any], ui_store=None):
     current_round = state.get("current_round", 1)
     phase = state.get("phase", "introduction")
+    current_stage = state.get("current_stage", phase)
     turn = state.get("turn", 0)
 
     _print_turn_header(turn, current_round, phase)
-    _emit(ui_store, "turn_started", {"turn": turn + 1, "round": current_round, "phase": phase})
+    _emit(ui_store, "turn_started", {"turn": turn + 1, "round": current_round, "phase": phase, "stage": current_stage})
 
     if current_round == 1:
         print(f"\n   Introduction round - agents will introduce themselves in order")
@@ -259,6 +260,7 @@ def speak(state: GameState, agents: Dict[str, any], ui_store=None, norman_judge=
         "turn": state["turn"],
         "round": state.get("current_round"),
         "phase": state.get("phase"),
+        "stage": state.get("current_stage"),
         "speaker": speaker,
         "text": text,
         "is_question": is_question(text),
@@ -304,36 +306,86 @@ def update_history(state: GameState, agents: Dict[str, any]):
 
 
 def check_round_advance(state: GameState, game_master, agents: Dict[str, any], ui_store=None):
-    """Check if we should advance to the next round."""
+    """Check if we should advance to the next round/stage."""
     current_round = state.get("current_round", 1)
     conversations_in_round = state.get("conversations_in_round", 0) + 1
     history = state.get("history", [])
+    current_stage = state.get("current_stage", game_master.get_stage_for_round(current_round))
+
+    def _summarize_current_round():
+        if history:
+            print(f"\n   Summarizing Round {current_round} into bullet points...")
+            bullets = game_master.summarize_round_history(history, current_round)
+            for _, agent in agents.items():
+                agent.add_round_summary(current_round, bullets)
+            print(f"   Summary: {len(bullets)} key facts extracted")
+            _emit(ui_store, "round_summarized", {"round": current_round, "stage": current_stage, "bullets": bullets})
+
+    def _advance_to_round(new_round: int, advance_reason: str, gate_payload: Optional[Dict[str, Any]] = None):
+        new_phase = game_master.get_phase_for_round(new_round)
+        new_stage = game_master.get_stage_for_round(new_round)
+        decision_payload = {
+            "from_round": current_round,
+            "from_stage": current_stage,
+            "to_round": new_round,
+            "to_stage": new_stage,
+            "phase": new_phase,
+            "advance_reason": advance_reason,
+            "conversations_in_round": conversations_in_round,
+            "conversations_per_round": state.get("conversations_per_round"),
+        }
+        if gate_payload:
+            decision_payload.update(gate_payload)
+        _emit(ui_store, "round_advance_decision", decision_payload)
+
+        _summarize_current_round()
+
+        announcement = game_master.announce_round_change(new_round)
+        print(announcement)
+
+        clue = game_master.get_clue_for_round(new_round)
+
+        print(f"\n   Updating agent knowledge for Round {new_round}...")
+        for _, agent in agents.items():
+            agent.update_round(new_round)
+            if clue:
+                agent.add_clue_to_memory(clue)
+        print(f"   All agents updated with Round {new_round} information")
+        _emit(ui_store, "round_changed", {"round": new_round, "phase": new_phase, "stage": new_stage, "announcement": announcement})
+        if clue:
+            _emit(ui_store, "clue_revealed", {"round": new_round, "stage": new_stage, "clue": clue})
+
+        return {
+            "current_round": new_round,
+            "current_stage": new_stage,
+            "conversations_in_round": 0,
+            "phase": new_phase,
+            "round_gate_status": gate_payload or {},
+            "history": []
+        }
 
     if game_master.is_game_complete(current_round, conversations_in_round):
         _emit(ui_store, "round_advance_decision", {
             "from_round": current_round,
+            "from_stage": current_stage,
             "to_round": current_round,
+            "to_stage": "accusation",
             "phase": "accusation",
             "advance_reason": "investigation_complete",
             "conversations_in_round": conversations_in_round,
         })
         print(f"\n{'═'*70}")
-        print(f"  INVESTIGATION COMPLETE - Moving to accusation phase!")
+        print("  INVESTIGATION COMPLETE - Moving to accusation phase!")
         print(f"{'═'*70}\n")
 
-        if history:
-            print(f"   Summarizing Round {current_round} into bullet points...")
-            bullets = game_master.summarize_round_history(history, current_round)
-            for name, agent in agents.items():
-                agent.add_round_summary(current_round, bullets)
-            print(f"   Summary: {len(bullets)} key facts extracted")
-            _emit(ui_store, "round_summarized", {"round": current_round, "bullets": bullets})
+        _summarize_current_round()
 
-        _emit(ui_store, "round_changed", {"round": current_round, "phase": "accusation"})
+        _emit(ui_store, "round_changed", {"round": current_round, "phase": "accusation", "stage": "accusation"})
         return {
             "conversations_in_round": conversations_in_round,
             "done": True,
             "phase": "accusation",
+            "current_stage": "accusation",
             "history": []
         }
 
@@ -343,92 +395,41 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
             speakers_so_far.add(state["new_utterance"]["speaker"])
 
         if len(speakers_so_far) >= len(agents):
-            new_round = 2
-            new_phase = game_master.get_phase_for_round(new_round)
-            _emit(ui_store, "round_advance_decision", {
-                "from_round": current_round,
-                "to_round": new_round,
-                "phase": new_phase,
-                "advance_reason": "all_introductions_completed",
-                "conversations_in_round": conversations_in_round,
-                "speakers_so_far": len(speakers_so_far),
-                "total_agents": len(agents),
-            })
+            return _advance_to_round(
+                2,
+                "all_introductions_completed",
+                {
+                    "speakers_so_far": len(speakers_so_far),
+                    "total_agents": len(agents),
+                },
+            )
 
-            print(f"\n   Summarizing Round {current_round} into bullet points...")
-            bullets = game_master.summarize_round_history(history, current_round)
-            for name, agent in agents.items():
-                agent.add_round_summary(current_round, bullets)
-            print(f"   Summary: {len(bullets)} key facts extracted")
-            _emit(ui_store, "round_summarized", {"round": current_round, "bullets": bullets})
+        return {"conversations_in_round": conversations_in_round, "current_stage": current_stage}
 
-            announcement = game_master.announce_round_change(new_round)
-            print(announcement)
+    assessment = game_master.should_advance_round(history, conversations_in_round, current_round)
+    gate_payload = {
+        "stage_gate_policy": assessment.gate_policy,
+        "stage_name": assessment.stage_name,
+        "gate_satisfied": assessment.gate_satisfied,
+        "allow_advance": assessment.allow_advance,
+        "advance_reason": assessment.advance_reason,
+        "minimum_conversations_reached": assessment.minimum_conversations_reached,
+        "hard_cap_reached": assessment.hard_cap_reached,
+        "unmet_requirements": assessment.unmet_requirements,
+        "metrics": assessment.metrics,
+        "thresholds": assessment.thresholds,
+        "clue_available": assessment.clue_available,
+        "clue_keywords": assessment.clue_keywords,
+    }
 
-            clue = game_master.get_clue_for_round(new_round)
+    if assessment.allow_advance:
+        return _advance_to_round(current_round + 1, assessment.advance_reason, gate_payload)
 
-            print(f"\n   Updating agent knowledge for Round {new_round}...")
-            for name, agent in agents.items():
-                agent.update_round(new_round)
-                if clue:
-                    agent.add_clue_to_memory(clue)
-            print(f"   All agents updated with Round {new_round} information")
-            _emit(ui_store, "round_changed", {"round": new_round, "phase": new_phase, "announcement": announcement})
-            if clue:
-                _emit(ui_store, "clue_revealed", {"round": new_round, "clue": clue})
-
-            return {
-                "current_round": new_round,
-                "conversations_in_round": 0,
-                "phase": new_phase,
-                "history": []
-            }
-
-        return {"conversations_in_round": conversations_in_round}
-
-    if game_master.should_advance_round(conversations_in_round, current_round):
-        new_round = current_round + 1
-        new_phase = game_master.get_phase_for_round(new_round)
-        _emit(ui_store, "round_advance_decision", {
-            "from_round": current_round,
-            "to_round": new_round,
-            "phase": new_phase,
-            "advance_reason": "round_budget_reached",
-            "conversations_in_round": conversations_in_round,
-            "conversations_per_round": state.get("conversations_per_round"),
-        })
-
-        print(f"\n   Summarizing Round {current_round} into bullet points...")
-        bullets = game_master.summarize_round_history(history, current_round)
-        for name, agent in agents.items():
-            agent.add_round_summary(current_round, bullets)
-        print(f"   Summary: {len(bullets)} key facts extracted")
-        _emit(ui_store, "round_summarized", {"round": current_round, "bullets": bullets})
-
-        announcement = game_master.announce_round_change(new_round)
-        print(announcement)
-
-        clue = game_master.get_clue_for_round(new_round)
-
-        print(f"\n   Updating agent knowledge for Round {new_round}...")
-        for name, agent in agents.items():
-            agent.update_round(new_round)
-            if clue:
-                agent.add_clue_to_memory(clue)
-        print(f"   All agents updated with Round {new_round} information")
-        _emit(ui_store, "round_changed", {"round": new_round, "phase": new_phase, "announcement": announcement})
-        if clue:
-            _emit(ui_store, "clue_revealed", {"round": new_round, "clue": clue})
-
-        return {
-            "current_round": new_round,
-            "conversations_in_round": 0,
-            "phase": new_phase,
-            "history": []
-        }
-
-    return {"conversations_in_round": conversations_in_round}
-
+    return {
+        "conversations_in_round": conversations_in_round,
+        "current_stage": current_stage,
+        "round_gate_status": gate_payload,
+    }
 
 def advance_turn(state: GameState, max_turns: int = 5):
     turn = state["turn"] + 1

@@ -63,8 +63,30 @@ class ThinkResult(BaseModel):
 
 
 class AccusationResult(BaseModel):
-    reasoning: str = Field(description="Brief reasoning for your accusation")
+    reasoning: str = Field(description="Short final reasoning for your accusation")
     accused: str = Field(description="The name of the person you accuse of being the murderer")
+    confidence: int = Field(default=50, ge=0, le=100, description="Confidence in your accusation from 0 to 100")
+    primary_basis: Literal["motive", "means", "opportunity", "timeline", "alibi", "contradiction", "behavior", "mixed"] = "mixed"
+    evidence_items: List[str] = Field(default_factory=list, description="2-4 concise evidence items supporting the accusation")
+    motive_case: str = Field(default="", description="What motive, if any, points toward the accused")
+    means_case: str = Field(default="", description="What means or weapon access points toward the accused")
+    opportunity_case: str = Field(default="", description="What opportunity or timeline access points toward the accused")
+    contradiction_case: str = Field(default="", description="Any contradiction or inconsistency that points toward the accused")
+    comparative_case: str = Field(default="", description="Why this suspect is a stronger case than the main alternatives")
+    uncertainty: str = Field(default="", description="Main remaining uncertainty or weakness in the case")
+
+    @field_validator("evidence_items", mode="before")
+    @classmethod
+    def normalize_evidence_items(cls, value):
+        if value is None:
+            return []
+        if isinstance(value, str):
+            parts = [part.strip(" -•\t") for part in value.split("\n") if part.strip()]
+            return parts[:4]
+        if isinstance(value, list):
+            normalized = [str(item).strip() for item in value if str(item).strip()]
+            return normalized[:4]
+        return []
 
 
 class Agent:
@@ -496,7 +518,9 @@ Output dialogue only."""),
 You are {self.name}.
 {self.persona}
 
-Investigation OVER. Accuse ONE person."""),
+Investigation OVER. Accuse ONE person.
+Your accusation must be grounded in specific evidence from the discussion, clues, contradictions, alibis, motives, means, opportunities, or timeline facts.
+Do not give a vague accusation. Build the strongest honest case you can from the information you observed."""),
             HumanMessage(content=f"""{memory_context}
 
 {suspect_ranking}
@@ -504,7 +528,25 @@ Investigation OVER. Accuse ONE person."""),
 Choose murderer from: {others_str}
 (Cannot accuse yourself)
 
-Return valid JSON with keys: reasoning, accused."""),
+Return valid JSON with keys:
+- accused
+- reasoning
+- confidence
+- primary_basis
+- evidence_items
+- motive_case
+- means_case
+- opportunity_case
+- contradiction_case
+- comparative_case
+- uncertainty
+
+Requirements:
+- `evidence_items` must contain 2 to 4 concise evidence points.
+- Use the structured fields even if some are weak; if a dimension is weak, say so briefly.
+- Keep `reasoning` to 1-3 sentences.
+- `primary_basis` must be one of: motive, means, opportunity, timeline, alibi, contradiction, behavior, mixed.
+- Do not invent evidence you do not know."""),
         ]
         try:
             result = _retry_with_backoff(lambda: llm_accuse.invoke(msgs))
@@ -515,7 +557,32 @@ Return valid JSON with keys: reasoning, accused."""),
                         break
                 else:
                     result.accused = other_agents[0]
+            if len(result.evidence_items) < 2:
+                fallback_items = [item for item in [result.motive_case, result.means_case, result.opportunity_case, result.contradiction_case, result.comparative_case] if item]
+                if not fallback_items and result.reasoning:
+                    fallback_items = [segment.strip() for segment in re.split(r'[.;]', result.reasoning) if segment.strip()]
+                result.evidence_items = (result.evidence_items + fallback_items)[:4]
+            if len(result.evidence_items) < 2:
+                result.evidence_items = (result.evidence_items + ["Case is incomplete from available discussion.", "Accusation relies on best available inference."])[:2]
+
+            reasoning_parts = [f"I accuse {result.accused}"]
+            if result.primary_basis:
+                reasoning_parts.append(f"primarily on {result.primary_basis}")
+            if result.evidence_items:
+                reasoning_parts.append("because " + "; ".join(result.evidence_items[:3]))
+            if result.comparative_case.strip():
+                reasoning_parts.append(f"Compared with other suspects, {result.comparative_case.strip()}")
+            if result.uncertainty.strip():
+                reasoning_parts.append(f"Main uncertainty: {result.uncertainty.strip()}")
+            result.reasoning = ". ".join(part.rstrip(". ") for part in reasoning_parts if part).strip() + "."
             return result
         except Exception as e:
             print(f"Error in accuse for {self.name}: {e}", file=__import__('sys').stderr)
-            return AccusationResult(reasoning="Unable to decide", accused=other_agents[0])
+            return AccusationResult(
+                reasoning="Unable to decide from the available discussion.",
+                accused=other_agents[0],
+                confidence=0,
+                primary_basis="mixed",
+                evidence_items=["Case incomplete.", "Fallback accusation generated after model error."],
+                uncertainty="Model failed during accusation generation.",
+            )
