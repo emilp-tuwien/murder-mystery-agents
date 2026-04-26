@@ -1,6 +1,8 @@
 # murder-mystery-agents
 
-AI agents play a murder mystery together.
+AI agents play a murder mystery together — and this repo now treats that simulation as a **thesis experiment workflow**, not just a demo.
+
+For the full project rationale and end-to-end thesis workflow, see `PROJECT.md`.
 
 ## Scenarios
 
@@ -45,86 +47,157 @@ Business of Murder:
 python3 experiments/runner.py --config configs/business-of-murder-pilot.yaml --replicates 3
 ```
 
+## Thesis workflow
+
+The experiment runner now supports a workflow with five distinct steps:
+
+1. **Plan** the experiment
+2. **Run** the condition matrix
+3. **Validate** per-run outputs for thesis usability
+4. **Aggregate** condition and experiment summaries
+5. **Export** a flat thesis dataset
+
+### Workflow thresholds
+
+Each config can define the thresholds that determine when an experiment is:
+- `pilot_ready`
+- `interim_analysis_ready`
+- `final_analysis_ready`
+
+Defaults:
+- `pilot_ready_runs_per_condition: 3`
+- `interim_ready_runs_per_condition: 10`
+- `final_ready_runs_per_condition: 20`
+
+These thresholds are used to build `progress_report.json` and `progress_report.md`.
+
 ## Run a thesis condition matrix
 
-A single YAML file can now define either:
+A single YAML file can define either:
 - a base configuration plus multiple explicit named conditions, or
 - a generated condition matrix via Cartesian-product factor levels.
 
-Before kicking off an overnight run, you can now validate or inspect the fully expanded experiment plan without spending tokens/time:
+### Validate a config without spending tokens
 
 ```bash
 python3 experiments/runner.py --config configs/thesis-condition-matrix.generated.example.yaml --validate-only
+```
+
+### Expand the full planned condition/run matrix
+
+```bash
 python3 experiments/runner.py --config configs/thesis-condition-matrix.generated.example.yaml --plan-only
 ```
 
-Explicit conditions:
+### Execute explicit conditions
 
 ```bash
 python3 experiments/runner.py --config configs/thesis-condition-matrix.example.yaml --replicates 3
 ```
 
-Generated matrix conditions:
+### Execute generated matrix conditions
 
 ```bash
 python3 experiments/runner.py --config configs/thesis-condition-matrix.generated.example.yaml --replicates 3
 ```
 
-This writes:
-- per-run logs under `outputs/<experiment>/conditions/<condition>/runs/`
-- resolved per-condition config snapshots at `outputs/<experiment>/conditions/<condition>/condition_config.json`
-- batch execution status snapshots at:
-  - `outputs/<experiment>/batch_status.json`
-  - `outputs/<experiment>/conditions/<condition>/batch_status.json`
-- per-condition summaries in each condition folder
-- per-run RQ1 artifacts:
-  - `deception_labels.csv`
-  - `deception_summary.json`
-- per-run RQ2 artifacts:
-  - `interactions.csv`
-  - `agent_attention_summary.csv`
-  - `attention_summary.json`
-- cross-condition summaries at:
-  - `outputs/<experiment>/condition_summary.csv`
-  - `outputs/<experiment>/condition_summary.json`
-  - `outputs/<experiment>/condition_report.json`
-  - `outputs/<experiment>/condition_report.md`
-  - `outputs/<experiment>/condition_pairwise_differences.csv`
-  - `outputs/<experiment>/condition_chance_baseline.csv`
+## Output structure
+
+Running a batch writes:
+
+- experiment-level planning and status:
   - `outputs/<experiment>/experiment_plan.json`
-- thesis-ready flat exports at `outputs/<experiment>/thesis_dataset/`:
-  - `conditions.csv`
-  - `runs.csv`
-  - `utterances.csv`
-  - `interactions.csv`
-  - `accusations.csv`
-  - `deception_labels.csv`
-  - `events.csv`
-  - `dataset_manifest.json`
+  - `outputs/<experiment>/batch_status.json`
+  - `outputs/<experiment>/progress_report.json`
+  - `outputs/<experiment>/progress_report.md`
+- per-condition files:
+  - `outputs/<experiment>/conditions/<condition>/condition_config.json`
+  - `outputs/<experiment>/conditions/<condition>/batch_status.json`
+  - `outputs/<experiment>/conditions/<condition>/aggregate_summary.json`
+  - `outputs/<experiment>/conditions/<condition>/validation_summary.json`
+- per-run logs under:
+  - `outputs/<experiment>/conditions/<condition>/runs/<run_id>/`
 
-The comparison step now also produces thesis-oriented condition rankings, pairwise deltas, and chance-baseline checks for RQ3 (including 95% Wilson intervals and a simple two-proportion z-test scaffold).
+### Per-run thesis artifacts
 
-For thesis-scale condition management, experiment plans now support a `matrix:` section that automatically expands factor combinations into reproducible named conditions like `baseline__three-stage-v1`.
+Each successful run is expected to contain:
+- `run_manifest.json`
+- `run_validation.json`
+- `events.jsonl`
+- `utterances.csv`
+- `interactions.csv`
+- `accusations.csv`
+- `deception_labels.csv`
+- `attention_summary.json`
+- `metrics.json`
 
-For RQ2, the analysis pipeline now extracts target-level interaction rows and derives pressure-oriented attention signals such as direct questions, follow-up questions, and justification requests, plus simple concentration measures (entropy/Gini) over who receives scrutiny.
+### Cross-condition outputs
 
-By default the runner now continues across failed replicates, records which runs failed, and still produces aggregate artifacts from the successful runs. Use `--fail-fast` if you want the old stop-immediately behavior.
+The runner writes:
+- `outputs/<experiment>/condition_summary.csv`
+- `outputs/<experiment>/condition_summary.json`
+- `outputs/<experiment>/condition_report.json`
+- `outputs/<experiment>/condition_report.md`
+- `outputs/<experiment>/condition_pairwise_differences.csv`
+- `outputs/<experiment>/condition_chance_baseline.csv`
 
-You can also regenerate the condition comparison summary directly:
+### Thesis-ready flat export
+
+The runner also rebuilds:
+- `outputs/<experiment>/thesis_dataset/conditions.csv`
+- `outputs/<experiment>/thesis_dataset/runs.csv`
+- `outputs/<experiment>/thesis_dataset/utterances.csv`
+- `outputs/<experiment>/thesis_dataset/interactions.csv`
+- `outputs/<experiment>/thesis_dataset/accusations.csv`
+- `outputs/<experiment>/thesis_dataset/deception_labels.csv`
+- `outputs/<experiment>/thesis_dataset/events.csv`
+- `outputs/<experiment>/thesis_dataset/dataset_manifest.json`
+
+## Rebuild workflow artifacts manually
+
+If runs were added earlier and you want to refresh the workflow reports without rerunning everything:
+
+### Rebuild the progress report
 
 ```bash
-python3 analysis/compare_conditions.py outputs/thesis-condition-matrix
+python3 analysis/workflow.py outputs/thesis-condition-matrix-generated
 ```
 
-And rebuild the flat thesis dataset directly:
+### Rebuild the condition comparison summary
 
 ```bash
-python3 analysis/build_thesis_dataset.py outputs/thesis-condition-matrix
+python3 analysis/compare_conditions.py outputs/thesis-condition-matrix-generated
 ```
+
+### Rebuild the flat thesis dataset
+
+```bash
+python3 analysis/build_thesis_dataset.py outputs/thesis-condition-matrix-generated
+```
+
+## What validation now checks
+
+Per run, the workflow now distinguishes between:
+- **structural validity** — is the run usable for the thesis at all?
+- **quality warnings** — should the run be interpreted cautiously?
+
+Examples of structural failures:
+- missing required files
+- run did not finish
+- no utterances
+- accusation phase incomplete
+- missing metrics
+
+Examples of warnings:
+- low suspect question coverage
+- murderer never directly questioned
+- murderer never directly challenged
+- accusation reasoning often not evidence-backed
+- missing clue reveal events
 
 ## Deception labeling (RQ1)
 
-Batch analysis now emits a first-pass deception labeling pass for murderer utterances.
+Batch analysis emits a first-pass deception labeling pass for murderer utterances.
 
 - `deception_labeling_enabled: true|false`
 - `deception_labeling_mode: heuristic|off`
@@ -138,14 +211,16 @@ Current heuristic labels are:
 - `selective_disclosure`
 - `accusation_redirection`
 
-These are intended as thesis-oriented candidate labels and evidence extraction scaffolding, not a final validated judge. They make it possible to batch-screen runs now and later replace the heuristic stage with an LLM-as-a-judge rubric without changing the output layout.
-
-See `docs/BUSINESS_OF_MURDER.md` for scenario notes and comparison guidance.
-
+These labels are intended as thesis-oriented candidate labels and evidence extraction scaffolding, not a final validated judge.
 
 ## Reproducibility notes
 
 - Set `seed` in a run or experiment config to enable deterministic replicate seeding.
 - Replicate `r001` uses `seed`, `r002` uses `seed + 1`, etc.
 - The resolved seed, base seed, and config fingerprint are written into each `run_manifest.json`.
-- Each condition folder now also stores `condition_config.json` with the fully resolved condition settings.
+- Each condition folder also stores `condition_config.json` with the fully resolved settings.
+- Progress thresholds are written into manifests/config snapshots so experiment readiness can be interpreted later.
+
+## Current workflow logic in one sentence
+
+**plan conditions → run replicates → validate run usability → refresh summaries + progress → rebuild thesis dataset → interpret only when the usable-run thresholds are strong enough**

@@ -296,12 +296,20 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
 
     aggregate_rows = []
     solve_count = 0
+    usable_count = 0
+    warning_count = 0
     for summary in summaries:
         rq3 = summary.get("rq3", {})
+        run_id = summary.get("run_id")
+        validation = _read_json(experiment_path / "runs" / str(run_id) / "run_validation.json") if run_id else {}
         if rq3.get("group_solved"):
             solve_count += 1
+        if validation.get("run_usable_for_thesis"):
+            usable_count += 1
+        if validation.get("warnings"):
+            warning_count += 1
         aggregate_rows.append({
-            "run_id": summary.get("run_id"),
+            "run_id": run_id,
             "condition_name": summary.get("condition_name"),
             "murderer_name": summary.get("murderer_name"),
             "total_turns": summary.get("total_turns"),
@@ -321,6 +329,9 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
             "group_solved": rq3.get("group_solved"),
             "random_vote_share_baseline": rq3.get("random_vote_share_baseline"),
             "random_group_solve_rate_baseline": rq3.get("random_group_solve_rate_baseline"),
+            "run_usable_for_thesis": validation.get("run_usable_for_thesis"),
+            "validation_status": validation.get("validation_status"),
+            "validation_warning_count": len(validation.get("warnings", [])),
         })
 
     total_runs = len(aggregate_rows)
@@ -329,6 +340,9 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
         "experiment_dir": str(experiment_path),
         "condition_name": summaries[0].get("condition_name"),
         "total_runs": total_runs,
+        "thesis_usable_runs": usable_count,
+        "thesis_usable_rate": usable_count / total_runs,
+        "runs_with_quality_warnings": warning_count,
         "mean_total_turns": sum(row["total_turns"] for row in aggregate_rows) / total_runs,
         "mean_total_utterances": sum(row["total_utterances"] for row in aggregate_rows) / total_runs,
         "mean_murderer_speaker_share": sum(row["murderer_speaker_share"] for row in aggregate_rows) / total_runs,
@@ -386,6 +400,9 @@ def aggregate_experiment_conditions(experiment_dir: str | Path) -> Dict[str, Any
             {
                 "condition_name": row.get("condition_name"),
                 "total_runs": row.get("total_runs"),
+                "thesis_usable_runs": row.get("thesis_usable_runs"),
+                "thesis_usable_rate": row.get("thesis_usable_rate"),
+                "runs_with_quality_warnings": row.get("runs_with_quality_warnings"),
                 "mean_total_turns": row.get("mean_total_turns"),
                 "mean_total_utterances": row.get("mean_total_utterances"),
                 "mean_murderer_speaker_share": row.get("mean_murderer_speaker_share"),

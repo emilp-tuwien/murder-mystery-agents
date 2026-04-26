@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from analysis.build_thesis_dataset import build_thesis_dataset
 from analysis.compare_conditions import write_condition_report
 from analysis.metrics import aggregate_experiment, aggregate_experiment_conditions, analyze_run
+from analysis.workflow import summarize_condition_validation, validate_run_outputs, write_experiment_progress
 from experiments.config import REPO_ROOT, LoadedExperiment, RunConfig, load_experiment_config
 from instrumentation.event_logger import EventLogger, resolve_git_commit, utc_now_iso
 from run_discussion import run_game_from_config
@@ -31,6 +32,9 @@ def _build_manifest(config: RunConfig, run_id: str) -> Dict:
         "condition_name": config.condition_name,
         "condition_description": config.condition_description,
         "condition_factors": config.condition_factors,
+        "pilot_ready_runs_per_condition": config.pilot_ready_runs_per_condition,
+        "interim_ready_runs_per_condition": config.interim_ready_runs_per_condition,
+        "final_ready_runs_per_condition": config.final_ready_runs_per_condition,
         "backend": config.backend,
         "model_name": config.model_name,
         "base_url": config.base_url,
@@ -198,8 +202,12 @@ def run_batch(config: RunConfig, fail_fast: bool = False) -> Dict:
                 },
             )
             run_summary = analyze_run(run_dir)
+            run_validation = validate_run_outputs(run_dir)
             run_summaries.append(run_summary)
             run_status["status"] = "finished"
+            run_status["validation_status"] = run_validation.get("validation_status")
+            run_status["run_usable_for_thesis"] = run_validation.get("run_usable_for_thesis")
+            run_status["validation_warnings"] = run_validation.get("warnings", [])
         except Exception as exc:
             error_payload = {
                 "message": str(exc),
@@ -233,9 +241,11 @@ def run_batch(config: RunConfig, fail_fast: bool = False) -> Dict:
             _write_condition_batch_status(config, condition_status)
 
     aggregate = aggregate_experiment(condition_dir)
+    validation_summary = summarize_condition_validation(condition_dir)
     condition_status["finished_at"] = utc_now_iso()
     condition_status["status"] = "finished_with_errors" if failed_runs else "finished"
     condition_status["aggregate_summary"] = aggregate
+    condition_status["validation_summary"] = validation_summary
     condition_status["failed_runs"] = failed_runs
     _write_condition_batch_status(config, condition_status)
     return {
@@ -243,6 +253,7 @@ def run_batch(config: RunConfig, fail_fast: bool = False) -> Dict:
         "runs": run_summaries,
         "failed_runs": failed_runs,
         "aggregate": aggregate,
+        "validation_summary": validation_summary,
         "condition_dir": str(condition_dir),
         "experiment_dir": str(config.resolved_experiment_dir()),
         "batch_status": condition_status["status"],
@@ -286,8 +297,10 @@ def run_experiment_plan(experiment: LoadedExperiment, fail_fast: bool = False) -
                     "condition_dir": str(config.resolved_condition_dir()),
                     "batch_status": result.get("batch_status"),
                     "failed_runs": result.get("failed_runs", []),
+                    "validation_summary": result.get("validation_summary", {}),
                 }
             )
+            experiment_status["progress_report"] = write_experiment_progress(experiment.base.resolved_experiment_dir())
         except Exception as exc:
             failure = {
                 "condition_name": config.condition_name,
@@ -306,12 +319,14 @@ def run_experiment_plan(experiment: LoadedExperiment, fail_fast: bool = False) -
     experiment_summary = aggregate_experiment_conditions(experiment_dir)
     condition_report = write_condition_report(experiment_dir)
     dataset_manifest = build_thesis_dataset(experiment_dir)
+    progress_report = write_experiment_progress(experiment_dir)
 
     experiment_status["finished_at"] = utc_now_iso()
     had_failed_runs = any(result.get("failed_runs") for result in condition_results)
     experiment_status["status"] = "finished_with_errors" if had_failed_runs else "finished"
     experiment_status["experiment_summary"] = experiment_summary
     experiment_status["dataset_manifest"] = dataset_manifest
+    experiment_status["progress_report"] = progress_report
     _write_experiment_batch_status(experiment, experiment_status)
 
     return {
@@ -320,6 +335,7 @@ def run_experiment_plan(experiment: LoadedExperiment, fail_fast: bool = False) -
         "experiment_summary": experiment_summary,
         "condition_report": condition_report,
         "dataset_manifest": dataset_manifest,
+        "progress_report": progress_report,
         "batch_status": experiment_status["status"],
     }
 
@@ -351,6 +367,7 @@ def main():
         )
 
     _write_experiment_plan(experiment)
+    write_experiment_progress(experiment.base.resolved_experiment_dir())
 
     if args.validate_only:
         payload = {

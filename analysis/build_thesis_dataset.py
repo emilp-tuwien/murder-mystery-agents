@@ -137,13 +137,14 @@ def _base_run_context(manifest: Dict[str, Any], metrics: Dict[str, Any], conditi
     return context
 
 
-def _collect_run_bundle(condition_dir: Path, run_dir: Path) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+def _collect_run_bundle(condition_dir: Path, run_dir: Path) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
     manifest = _read_json(run_dir / "run_manifest.json")
     metrics = _read_json(run_dir / "metrics.json") if (run_dir / "metrics.json").exists() else {}
     condition_config_path = condition_dir / "condition_config.json"
     condition_config = _read_json(condition_config_path) if condition_config_path.exists() else {}
     attention_summary = _read_json(run_dir / "attention_summary.json") if (run_dir / "attention_summary.json").exists() else {}
-    return manifest, metrics, condition_config, attention_summary
+    validation_summary = _read_json(run_dir / "run_validation.json") if (run_dir / "run_validation.json").exists() else {}
+    return manifest, metrics, condition_config, attention_summary, validation_summary
 
 
 def build_thesis_dataset(experiment_dir: str | Path) -> Dict[str, Any]:
@@ -160,8 +161,40 @@ def build_thesis_dataset(experiment_dir: str | Path) -> Dict[str, Any]:
     event_rows: List[Dict[str, Any]] = []
 
     seen_conditions = set()
+    planned_conditions = (_read_json(experiment_path / "experiment_plan.json") or {}).get("conditions", [])
+    condition_dirs = _condition_dirs(experiment_path)
 
-    for condition_dir in _condition_dirs(experiment_path):
+    if planned_conditions and condition_dirs == [experiment_path] and not (experiment_path / "conditions").exists():
+        condition_dirs = []
+        for condition in planned_conditions:
+            condition_name = condition.get("condition_name") or condition.get("name") or "default"
+            if condition_name in seen_conditions:
+                continue
+            seen_conditions.add(condition_name)
+            condition_row = {
+                "experiment_name": condition.get("experiment_name") or experiment_path.name,
+                "condition_name": condition_name,
+                "condition_description": condition.get("condition_description") or condition.get("description"),
+                "replicates": condition.get("replicates"),
+                "pilot_ready_runs_per_condition": condition.get("pilot_ready_runs_per_condition"),
+                "interim_ready_runs_per_condition": condition.get("interim_ready_runs_per_condition"),
+                "final_ready_runs_per_condition": condition.get("final_ready_runs_per_condition"),
+                "backend": condition.get("backend"),
+                "model_name": condition.get("model_name"),
+                "temperature": condition.get("temperature"),
+                "seed": condition.get("seed"),
+                "scenario_id": condition.get("scenario_id"),
+                "prompt_version": condition.get("prompt_version"),
+                "turn_policy_version": condition.get("turn_policy_version"),
+                "memory_version": condition.get("memory_version"),
+                "deception_labeling_mode": condition.get("deception_labeling_mode"),
+                "config_fingerprint": condition.get("config_fingerprint"),
+                "condition_dir": str(experiment_path / "conditions" / condition_name),
+            }
+            condition_row.update(_flatten("factor__", condition.get("condition_factors") or {}))
+            condition_rows.append(condition_row)
+
+    for condition_dir in condition_dirs:
         condition_config_path = condition_dir / "condition_config.json"
         condition_config = _read_json(condition_config_path) if condition_config_path.exists() else {}
         condition_name = condition_config.get("condition_name") or (condition_dir.name if condition_dir != experiment_path else "default")
@@ -173,6 +206,9 @@ def build_thesis_dataset(experiment_dir: str | Path) -> Dict[str, Any]:
                 "condition_name": condition_name,
                 "condition_description": condition_config.get("condition_description"),
                 "replicates": condition_config.get("replicates"),
+                "pilot_ready_runs_per_condition": condition_config.get("pilot_ready_runs_per_condition"),
+                "interim_ready_runs_per_condition": condition_config.get("interim_ready_runs_per_condition"),
+                "final_ready_runs_per_condition": condition_config.get("final_ready_runs_per_condition"),
                 "backend": condition_config.get("backend"),
                 "model_name": condition_config.get("model_name"),
                 "temperature": condition_config.get("temperature"),
@@ -189,12 +225,25 @@ def build_thesis_dataset(experiment_dir: str | Path) -> Dict[str, Any]:
             condition_rows.append(condition_row)
 
         for run_dir in _run_dirs(condition_dir):
-            manifest, metrics, condition_config, attention_summary = _collect_run_bundle(condition_dir, run_dir)
+            manifest, metrics, condition_config, attention_summary, validation_summary = _collect_run_bundle(condition_dir, run_dir)
             context = _base_run_context(manifest, metrics, condition_config, run_dir, condition_dir)
             run_row = dict(context)
             run_row.update(_flatten("attention__", attention_summary))
             run_row.update(
                 {
+                    "validation_status": validation_summary.get("validation_status"),
+                    "run_usable_for_thesis": validation_summary.get("run_usable_for_thesis"),
+                    "validation_exclusion_reasons": _normalize_scalar(validation_summary.get("exclusion_reasons", [])),
+                    "validation_warnings": _normalize_scalar(validation_summary.get("warnings", [])),
+                    "quality__accusation_completed": validation_summary.get("process_quality", {}).get("accusation_completed"),
+                    "quality__accusation_reasoning_nonempty_fraction": validation_summary.get("process_quality", {}).get("accusation_reasoning_nonempty_fraction"),
+                    "quality__accusation_reasoning_evidence_backed_fraction": validation_summary.get("process_quality", {}).get("accusation_reasoning_evidence_backed_fraction"),
+                    "quality__suspect_question_coverage_fraction": validation_summary.get("process_quality", {}).get("suspect_question_coverage_fraction"),
+                    "quality__murderer_directly_questioned": validation_summary.get("process_quality", {}).get("murderer_directly_questioned"),
+                    "quality__murderer_directly_challenged": validation_summary.get("process_quality", {}).get("murderer_directly_challenged"),
+                    "quality__clue_reveals_count": validation_summary.get("process_quality", {}).get("clue_reveals_count"),
+                    "quality__round_summary_count": validation_summary.get("process_quality", {}).get("round_summary_count"),
+                    "quality__round_budget_transitions": validation_summary.get("process_quality", {}).get("round_budget_transitions"),
                     "vote_counts": _normalize_scalar(metrics.get("rq3", {}).get("vote_counts", {})),
                     "winning_suspects": _normalize_scalar(metrics.get("rq3", {}).get("winning_suspects", [])),
                     "rq1_strategy_rates": _normalize_scalar(metrics.get("rq1", {}).get("strategy_rates", {})),

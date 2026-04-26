@@ -17,6 +17,10 @@ class RunConfig(BaseModel):
     output_root: str = "outputs"
     replicates: int = Field(default=1, ge=1)
 
+    pilot_ready_runs_per_condition: int = Field(default=3, ge=1)
+    interim_ready_runs_per_condition: int = Field(default=10, ge=1)
+    final_ready_runs_per_condition: int = Field(default=20, ge=1)
+
     backend: Literal["local", "gpt", "ollama"] = "local"
     model_name: Optional[str] = None
     base_url: Optional[str] = None
@@ -91,6 +95,15 @@ class RunConfig(BaseModel):
         if self.condition_name:
             return experiment_dir / "conditions" / self.condition_name
         return experiment_dir
+
+
+    @model_validator(mode="after")
+    def validate_workflow_thresholds(self):
+        if self.pilot_ready_runs_per_condition > self.interim_ready_runs_per_condition:
+            raise ValueError("pilot_ready_runs_per_condition must be <= interim_ready_runs_per_condition")
+        if self.interim_ready_runs_per_condition > self.final_ready_runs_per_condition:
+            raise ValueError("interim_ready_runs_per_condition must be <= final_ready_runs_per_condition")
+        return self
 
 
 class ConditionConfig(BaseModel):

@@ -310,6 +310,13 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
     history = state.get("history", [])
 
     if game_master.is_game_complete(current_round, conversations_in_round):
+        _emit(ui_store, "round_advance_decision", {
+            "from_round": current_round,
+            "to_round": current_round,
+            "phase": "accusation",
+            "advance_reason": "investigation_complete",
+            "conversations_in_round": conversations_in_round,
+        })
         print(f"\n{'═'*70}")
         print(f"  INVESTIGATION COMPLETE - Moving to accusation phase!")
         print(f"{'═'*70}\n")
@@ -338,6 +345,15 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
         if len(speakers_so_far) >= len(agents):
             new_round = 2
             new_phase = game_master.get_phase_for_round(new_round)
+            _emit(ui_store, "round_advance_decision", {
+                "from_round": current_round,
+                "to_round": new_round,
+                "phase": new_phase,
+                "advance_reason": "all_introductions_completed",
+                "conversations_in_round": conversations_in_round,
+                "speakers_so_far": len(speakers_so_far),
+                "total_agents": len(agents),
+            })
 
             print(f"\n   Summarizing Round {current_round} into bullet points...")
             bullets = game_master.summarize_round_history(history, current_round)
@@ -373,6 +389,14 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
     if game_master.should_advance_round(conversations_in_round, current_round):
         new_round = current_round + 1
         new_phase = game_master.get_phase_for_round(new_round)
+        _emit(ui_store, "round_advance_decision", {
+            "from_round": current_round,
+            "to_round": new_round,
+            "phase": new_phase,
+            "advance_reason": "round_budget_reached",
+            "conversations_in_round": conversations_in_round,
+            "conversations_per_round": state.get("conversations_per_round"),
+        })
 
         print(f"\n   Summarizing Round {current_round} into bullet points...")
         bullets = game_master.summarize_round_history(history, current_round)
