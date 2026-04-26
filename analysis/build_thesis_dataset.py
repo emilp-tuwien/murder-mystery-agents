@@ -90,6 +90,7 @@ def _base_run_context(manifest: Dict[str, Any], metrics: Dict[str, Any], conditi
     rq1 = metrics.get("rq1", {})
     rq2 = metrics.get("rq2", {})
     rq3 = metrics.get("rq3", {})
+    accusation_quality = metrics.get("accusation_quality", {})
     context = {
         "experiment_name": manifest.get("experiment_name"),
         "run_id": manifest.get("run_id", run_dir.name),
@@ -109,6 +110,9 @@ def _base_run_context(manifest: Dict[str, Any], metrics: Dict[str, Any], conditi
         "prompt_version": manifest.get("prompt_version"),
         "turn_policy_version": manifest.get("turn_policy_version"),
         "memory_version": manifest.get("memory_version"),
+        "stage_gate_policy": manifest.get("stage_gate_policy"),
+        "min_round_gate_conversations": manifest.get("min_round_gate_conversations"),
+        "max_round_gate_conversations": manifest.get("max_round_gate_conversations"),
         "deception_labeling_enabled": manifest.get("deception_labeling_enabled"),
         "deception_labeling_mode": manifest.get("deception_labeling_mode"),
         "config_fingerprint": manifest.get("config_fingerprint") or condition_config.get("config_fingerprint"),
@@ -127,6 +131,9 @@ def _base_run_context(manifest: Dict[str, Any], metrics: Dict[str, Any], conditi
         "murderer_speaker_share": rq2.get("murderer_speaker_share"),
         "question_target_entropy": rq2.get("question_target_entropy"),
         "pressure_target_gini": rq2.get("pressure_target_gini"),
+        "mean_accusation_confidence": accusation_quality.get("mean_confidence"),
+        "structured_accusation_fraction": accusation_quality.get("structured_evidence_fraction"),
+        "mean_accusation_evidence_item_count": accusation_quality.get("mean_evidence_item_count"),
         "murderer_labeled_utterances": rq1.get("total_labeled_utterances"),
         "murderer_labeled_instances": rq1.get("total_labeled_instances"),
         "total_murderer_utterances": rq1.get("total_murderer_utterances"),
@@ -187,6 +194,9 @@ def build_thesis_dataset(experiment_dir: str | Path) -> Dict[str, Any]:
                 "prompt_version": condition.get("prompt_version"),
                 "turn_policy_version": condition.get("turn_policy_version"),
                 "memory_version": condition.get("memory_version"),
+                "stage_gate_policy": condition.get("stage_gate_policy"),
+                "min_round_gate_conversations": condition.get("min_round_gate_conversations"),
+                "max_round_gate_conversations": condition.get("max_round_gate_conversations"),
                 "deception_labeling_mode": condition.get("deception_labeling_mode"),
                 "config_fingerprint": condition.get("config_fingerprint"),
                 "condition_dir": str(experiment_path / "conditions" / condition_name),
@@ -217,6 +227,9 @@ def build_thesis_dataset(experiment_dir: str | Path) -> Dict[str, Any]:
                 "prompt_version": condition_config.get("prompt_version"),
                 "turn_policy_version": condition_config.get("turn_policy_version"),
                 "memory_version": condition_config.get("memory_version"),
+                "stage_gate_policy": condition_config.get("stage_gate_policy"),
+                "min_round_gate_conversations": condition_config.get("min_round_gate_conversations"),
+                "max_round_gate_conversations": condition_config.get("max_round_gate_conversations"),
                 "deception_labeling_mode": condition_config.get("deception_labeling_mode"),
                 "config_fingerprint": condition_config.get("config_fingerprint"),
                 "condition_dir": str(condition_dir),
@@ -244,6 +257,9 @@ def build_thesis_dataset(experiment_dir: str | Path) -> Dict[str, Any]:
                     "quality__clue_reveals_count": validation_summary.get("process_quality", {}).get("clue_reveals_count"),
                     "quality__round_summary_count": validation_summary.get("process_quality", {}).get("round_summary_count"),
                     "quality__round_budget_transitions": validation_summary.get("process_quality", {}).get("round_budget_transitions"),
+                    "quality__evidence_gate_satisfied_transitions": validation_summary.get("process_quality", {}).get("evidence_gate_satisfied_transitions"),
+                    "quality__hard_cap_fallback_transitions": validation_summary.get("process_quality", {}).get("hard_cap_fallback_transitions"),
+                    "quality__stage_gate_evaluation_count": validation_summary.get("process_quality", {}).get("stage_gate_evaluation_count"),
                     "vote_counts": _normalize_scalar(metrics.get("rq3", {}).get("vote_counts", {})),
                     "winning_suspects": _normalize_scalar(metrics.get("rq3", {}).get("winning_suspects", [])),
                     "rq1_strategy_rates": _normalize_scalar(metrics.get("rq1", {}).get("strategy_rates", {})),

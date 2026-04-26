@@ -27,8 +27,26 @@ METRIC_SPECS = [
         "baseline_key": "random_vote_share_baseline",
     },
     {
+        "key": "mean_structured_accusation_fraction",
+        "label": "Structured accusation fraction (thesis quality)",
+        "higher_is_better_for_detection": True,
+        "baseline_key": None,
+    },
+    {
+        "key": "thesis_usable_rate",
+        "label": "Thesis-usable run rate (workflow quality)",
+        "higher_is_better_for_detection": True,
+        "baseline_key": None,
+    },
+    {
         "key": "mean_murderer_attention_received",
         "label": "Mean murderer attention received (RQ2)",
+        "higher_is_better_for_detection": True,
+        "baseline_key": None,
+    },
+    {
+        "key": "mean_accusation_confidence",
+        "label": "Mean accusation confidence (decision quality)",
         "higher_is_better_for_detection": True,
         "baseline_key": None,
     },

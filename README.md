@@ -3,6 +3,7 @@
 AI agents play a murder mystery together — and this repo now treats that simulation as a **thesis experiment workflow**, not just a demo.
 
 For the full project rationale and end-to-end thesis workflow, see `PROJECT.md`.
+For the concrete final experiment design, see `THESIS_RUN_PLAN.md` and `configs/thesis-final-matrix.yaml`.
 
 ## Scenarios
 
@@ -69,6 +70,11 @@ Defaults:
 - `interim_ready_runs_per_condition: 10`
 - `final_ready_runs_per_condition: 20`
 
+Recommended final-thesis matrix (`configs/thesis-final-matrix.yaml`):
+- pilot-ready: 5 usable runs / condition
+- interim-analysis-ready: 12 usable runs / condition
+- final-analysis-ready: 24 usable runs / condition
+
 These thresholds are used to build `progress_report.json` and `progress_report.md`.
 
 ## Run a thesis condition matrix
@@ -101,6 +107,12 @@ python3 experiments/runner.py --config configs/thesis-condition-matrix.example.y
 python3 experiments/runner.py --config configs/thesis-condition-matrix.generated.example.yaml --replicates 3
 ```
 
+### Execute the final thesis matrix
+
+```bash
+./.venv/bin/python experiments/runner.py --config configs/thesis-final-matrix.yaml
+```
+
 ### Final thesis matrix
 
 For the focused, thesis-ready comparison set, use:
@@ -120,6 +132,8 @@ Running a batch writes:
   - `outputs/<experiment>/batch_status.json`
   - `outputs/<experiment>/progress_report.json`
   - `outputs/<experiment>/progress_report.md`
+  - `outputs/<experiment>/qualitative_samples.json`
+  - `outputs/<experiment>/qualitative_samples.md`
 - per-condition files:
   - `outputs/<experiment>/conditions/<condition>/condition_config.json`
   - `outputs/<experiment>/conditions/<condition>/batch_status.json`
@@ -183,6 +197,12 @@ python3 analysis/compare_conditions.py outputs/thesis-condition-matrix-generated
 
 ```bash
 python3 analysis/build_thesis_dataset.py outputs/thesis-condition-matrix-generated
+```
+
+### Rebuild qualitative sample lists for thesis writing
+
+```bash
+python3 analysis/export_qualitative_samples.py outputs/thesis-condition-matrix-generated
 ```
 
 ## What validation now checks

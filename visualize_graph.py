@@ -32,10 +32,27 @@ class MockGameMaster:
             is_direct_address=False
         )
     
-    def should_advance_round(self, convs, round_num): return convs >= self.conversations_per_round
+    def should_advance_round(self, history, convs, round_num):
+        from utils.evidence_gates import RoundGateAssessment
+        advance = convs >= self.conversations_per_round
+        return RoundGateAssessment(
+            round_number=round_num,
+            stage_name=self.get_stage_for_round(round_num),
+            gate_policy="round_budget",
+            metrics={"conversations_in_round": convs},
+            thresholds={"advance_after_conversations": self.conversations_per_round},
+            minimum_conversations_reached=advance,
+            hard_cap_reached=advance,
+            gate_satisfied=advance,
+            allow_advance=advance,
+            advance_reason="round_budget_reached" if advance else "wait_for_more_turns",
+        )
     def get_phase_for_round(self, round_num): return "discussion" if round_num > 1 else "introduction"
+    def get_stage_for_round(self, round_num): return "discussion" if round_num > 1 else "introduction"
     def is_game_complete(self, round_num, convs): return round_num >= 6
     def announce_round_change(self, new_round): return f"Round {new_round}"
+    def summarize_round_history(self, history, current_round): return []
+    def get_clue_for_round(self, round_num): return ""
 
 
 def main():

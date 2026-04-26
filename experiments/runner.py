@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from analysis.build_thesis_dataset import build_thesis_dataset
 from analysis.compare_conditions import write_condition_report
+from analysis.export_qualitative_samples import export_qualitative_samples
 from analysis.metrics import aggregate_experiment, aggregate_experiment_conditions, analyze_run
 from analysis.workflow import summarize_condition_validation, validate_run_outputs, write_experiment_progress
 from experiments.config import REPO_ROOT, LoadedExperiment, RunConfig, load_experiment_config
@@ -328,6 +329,7 @@ def run_experiment_plan(experiment: LoadedExperiment, fail_fast: bool = False) -
     experiment_summary = aggregate_experiment_conditions(experiment_dir)
     condition_report = write_condition_report(experiment_dir)
     dataset_manifest = build_thesis_dataset(experiment_dir)
+    qualitative_samples = export_qualitative_samples(experiment_dir)
     progress_report = write_experiment_progress(experiment_dir)
 
     experiment_status["finished_at"] = utc_now_iso()
@@ -335,6 +337,7 @@ def run_experiment_plan(experiment: LoadedExperiment, fail_fast: bool = False) -
     experiment_status["status"] = "finished_with_errors" if had_failed_runs else "finished"
     experiment_status["experiment_summary"] = experiment_summary
     experiment_status["dataset_manifest"] = dataset_manifest
+    experiment_status["qualitative_samples"] = qualitative_samples
     experiment_status["progress_report"] = progress_report
     _write_experiment_batch_status(experiment, experiment_status)
 
@@ -344,6 +347,7 @@ def run_experiment_plan(experiment: LoadedExperiment, fail_fast: bool = False) -
         "experiment_summary": experiment_summary,
         "condition_report": condition_report,
         "dataset_manifest": dataset_manifest,
+        "qualitative_samples": qualitative_samples,
         "progress_report": progress_report,
         "batch_status": experiment_status["status"],
     }

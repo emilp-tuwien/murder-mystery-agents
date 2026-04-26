@@ -10,6 +10,8 @@ The artifact studies how LLM-based agents:
 
 The murder mystery is the experimental environment. The thesis contribution comes from the **workflow around it**: reproducible conditions, logged runs, structured outputs, quality checks, and analysis that can support defensible claims.
 
+For the concrete final study design and batch plan, see `THESIS_RUN_PLAN.md` and `configs/thesis-final-matrix.yaml`.
+
 ---
 
 ## Thesis fit
@@ -236,6 +238,8 @@ At experiment level, the repo builds:
 The workflow now also writes:
 - `progress_report.json`
 - `progress_report.md`
+- `qualitative_samples.json`
+- `qualitative_samples.md`
 
 These reports tell you:
 - planned total runs,
@@ -416,6 +420,8 @@ outputs/<experiment>/
   condition_chance_baseline.csv
   progress_report.json
   progress_report.md
+  qualitative_samples.json
+  qualitative_samples.md
   thesis_dataset/
     conditions.csv
     runs.csv

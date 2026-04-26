@@ -78,16 +78,18 @@ def extract_clue_keywords(clue_text: str, max_keywords: int = 10) -> List[str]:
 
     counts: Dict[str, int] = {}
     ordered: List[str] = []
+    first_seen: Dict[str, int] = {}
     for token in _tokenize(clue_text):
         normalized = token.strip("' ")
         if len(normalized) < 4 or normalized in STOPWORDS:
             continue
         if normalized not in counts:
+            first_seen[normalized] = len(ordered)
             ordered.append(normalized)
             counts[normalized] = 0
         counts[normalized] += 1
 
-    ordered.sort(key=lambda token: (-counts[token], ordered.index(token) if token in ordered else 0))
+    ordered.sort(key=lambda token: (-counts[token], first_seen[token]))
     deduped: List[str] = []
     for token in ordered:
         if token not in deduped:
@@ -125,7 +127,7 @@ def assess_round_gate(
     min_synthesis_signals: int = 1,
 ) -> RoundGateAssessment:
     stage_name = stage_name_for_round(current_round, max_rounds)
-    resolved_min_conversations = min_conversations or max(4, min(8, max(4, conversations_in_round // 2)))
+    resolved_min_conversations = min_conversations or 6
     resolved_hard_cap = hard_cap_conversations or max(resolved_min_conversations + 4, resolved_min_conversations)
     clue_keywords = extract_clue_keywords(clue_text)
 

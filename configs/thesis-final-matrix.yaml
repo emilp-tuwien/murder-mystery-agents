@@ -1,10 +1,10 @@
 base:
   experiment_name: thesis-final-matrix
   output_root: outputs
-  replicates: 20
-  pilot_ready_runs_per_condition: 3
-  interim_ready_runs_per_condition: 10
-  final_ready_runs_per_condition: 20
+  replicates: 24
+  pilot_ready_runs_per_condition: 5
+  interim_ready_runs_per_condition: 12
+  final_ready_runs_per_condition: 24
   backend: local
   model_name: local_llm
   base_url: http://192.168.11.11:8080/v1
@@ -22,7 +22,7 @@ base:
   min_clue_references_per_round: 1
   min_synthesis_signals_final_round: 1
   enable_ui: false
-  prompt_version: thesis-pilot-v1
+  prompt_version: thesis-final-v2
   turn_policy_version: top2-selective-silence-v1
   memory_version: three-stage-v1
   deception_labeling_enabled: true
@@ -32,12 +32,16 @@ base:
   roles_dir: scenarios/business-of-murder/roles
   clues_dir: scenarios/business-of-murder/clues
   notes: >-
-    Final thesis condition matrix. Keeps the comparison defensible by varying one
-    theory-relevant factor at a time: stage-gating policy and dialogue budget.
+    Final thesis matrix. Uses only factors that now produce real runtime differences:
+    progression policy (round budget vs evidence-gated) and dialogue budget
+    (standard vs extended). Memory is held constant until a second implemented
+    memory policy exists, so the thesis does not claim a fake manipulation.
 
 conditions:
   - name: round-budget__standard-budget
-    description: "Baseline control with fixed round-budget progression and current dialogue budget."
+    description: >-
+      Baseline control. Fixed round-budget progression with the current standard
+      dialogue budget.
     overrides:
       stage_gate_policy: round_budget
       conversations_per_round: 20
@@ -46,10 +50,26 @@ conditions:
     factors:
       progression_policy: round_budget
       dialogue_budget: standard
-      role: control
+      cell_role: control
+
+  - name: round-budget__extended-budget
+    description: >-
+      Dialogue-budget control. Fixed round-budget progression with more turns,
+      isolating the effect of giving the discussion more space without gate logic.
+    overrides:
+      stage_gate_policy: round_budget
+      conversations_per_round: 28
+      min_round_gate_conversations: 12
+      max_round_gate_conversations: 28
+    factors:
+      progression_policy: round_budget
+      dialogue_budget: extended
+      cell_role: budget_control
 
   - name: evidence-gated__standard-budget
-    description: "Primary treatment: evidence-gated progression with the current dialogue budget."
+    description: >-
+      Primary treatment. Evidence-gated progression with the standard dialogue
+      budget to test whether gating improves evidence integration and accusation quality.
     overrides:
       stage_gate_policy: evidence_gated
       conversations_per_round: 20
@@ -58,16 +78,18 @@ conditions:
     factors:
       progression_policy: evidence_gated
       dialogue_budget: standard
-      role: primary_treatment
+      cell_role: primary_treatment
 
   - name: evidence-gated__extended-budget
-    description: "Evidence-gated progression plus a larger dialogue budget to test whether extra discussion materially changes outcomes."
+    description: >-
+      Robustness and mechanism cell. Evidence-gated progression plus more turns,
+      testing whether gating still matters when the group is given a larger budget.
     overrides:
       stage_gate_policy: evidence_gated
       conversations_per_round: 28
       min_round_gate_conversations: 12
-      max_round_gate_conversations: 30
+      max_round_gate_conversations: 32
     factors:
       progression_policy: evidence_gated
       dialogue_budget: extended
-      role: stress_test
+      cell_role: robustness_treatment

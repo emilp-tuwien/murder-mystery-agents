@@ -1,53 +1,89 @@
 # NEXT_STEPS.md - Murder Mystery Thesis Project
 
-## Current priorities
-1. Stabilize agent thinking and turn-taking so not everyone wants to speak every turn.
-2. Improve structured evidence/memory handling (motive, means, opportunity, contradictions, alibis).
-3. Make accusation quality depend on accumulated evidence rather than vague recall.
-4. Build a robust observability path for browser-friendly game inspection in the current server environment.
-5. Add experiment/logging infrastructure for thesis evaluation.
+## Current state
+The repo now has the essential thesis workflow spine:
+- batch experiment runner
+- condition matrices
+- per-run artifact capture
+- thesis dataset export
+- run validation and progress reporting
+- evidence-gated progression support
+- structured accusations with evidence fields
+- final thesis matrix + run plan
 
-## What was just done
-- strengthened investigation-oriented prompts
-- tightened in-character speech prompts
-- corrected local vLLM integration (`local_llm`)
-- added Norman response judge
-- documented turn urgency scoring in `docs/THINKING_RUBRIC.md`
-- reworked think prompts to encourage differentiated speak/listen choices
+So the project is no longer missing the experiment backbone.
+The next work should optimize for **thesis signal quality**.
 
-## Proposed immediate roadmap
+---
 
-### Phase 1 - Better thinking and evidence flow
-- normalize urgency scores across agents at the group level
-- reduce clustering in speak/listen decisions
-- add explicit evidence categories to memory
-- connect revealed evidence to suspicion tracking
+## Highest-value next priorities
 
-### Phase 2 - Better accusation quality
-- force evidence-backed accusation reasoning
-- make agents reference motive / means / opportunity / contradiction explicitly
-- track whether the final accusation is based on surfaced evidence or weak guessing
+### 1. Tune evidence-gated progression with real runs
+Now that evidence-gated stages exist, the key question is whether the thresholds are calibrated well.
 
-### Phase 3 - Observability and UI
-- decide whether to continue with live UI or shift to artifact/file-based browser inspection for this server environment
-- expose judge outputs, suspicion state, and evidence summaries in the observer layer
+Check:
+- Are evidence-gated rounds usually satisfying the gate?
+- Or are they frequently hitting `hard_cap_fallback`?
+- Do clue references and direct questioning actually increase before accusations?
 
-### Phase 4 - Experiment spine
-- add a non-interactive runner
-- support parameterized execution
-- create per-run output directories
-- save transcript, metadata, and accusation outcome files
+If hard-cap fallback is common, tune:
+- `min_round_gate_conversations`
+- `max_round_gate_conversations`
+- `min_evidence_signals_per_round`
+- `min_pressure_signals_per_round`
 
-### Phase 5 - Analysis support
-- compute per-run summary metrics
-- extract question/attention patterns
-- aggregate accusation outcomes across runs
-- prepare transcript labeling support for deceptive strategies
+### 2. Improve accusation semantic quality
+The structure is now there, but the content still needs to be inspected in practice.
 
-## Notes for morning review
-When overnight work is done, summarize:
-- what changed
-- what files were added/edited
-- what is now measurable
-- what decisions Emil should make next
-- whether turn-taking quality improved or still clusters
+Check:
+- Are `evidence_items` specific or vague?
+- Are motive / means / opportunity fields being used meaningfully?
+- Does `comparative_case` distinguish the chosen suspect from alternatives?
+
+If weak, tighten the accusation prompt and possibly add a lightweight accusation-quality judge.
+
+### 3. Add qualitative sample export for thesis writing
+The thesis will need concrete examples, not only CSV aggregates.
+
+Add an exporter that selects runs such as:
+- high-pressure solved runs
+- high-pressure unsolved runs
+- deceptive-success runs
+- evidence-gated runs with no hard-cap fallback
+- evidence-gated runs that still failed despite strong pressure
+
+### 4. Run the final matrix in phases
+Use `configs/thesis-final-matrix.yaml` and `THESIS_RUN_PLAN.md`.
+
+Recommended progression:
+- 2 runs / condition sanity pass
+- 5 usable runs / condition pilot readout
+- 12 usable runs / condition interim readout
+- 24 usable runs / condition final batch
+
+---
+
+## What should *not* be the focus right now
+- adding more scenarios
+- inventing extra factors that do not yet change runtime behavior
+- overcomplicating statistics before the final dataset exists
+- polishing UI ahead of the thesis evidence path
+
+---
+
+## Decision rule
+For every next change, ask:
+
+> Does this improve the defensibility of the thesis evidence?
+
+Good examples:
+- clearer gates
+- stronger accusation structure
+- better exclusion criteria
+- better qualitative export
+- cleaner factor isolation
+
+Weak examples:
+- cosmetic prompt churn with no measurable consequence
+- fake factor labels that do not change behavior
+- more conditions before the current matrix is validated
