@@ -177,8 +177,12 @@ class Agent:
         
         if round_num == self.current_round:
             return  # Already on this round
-        
+
         self.current_round = round_num
+        # Reset per-round questioning constraints so agents can keep probing each other
+        # across rounds.  Without this, after enough turns the prompt shows "Can ask: NO ONE"
+        # and questioning collapses, starving RQ2 of interaction signal.
+        self.questions_asked_to = set()
         round_desc = load_round_description(self.roles_dir, self.name, round_num)
         
         if round_desc:
@@ -187,9 +191,22 @@ class Agent:
             # Update persona with accumulated knowledge
             self.persona = f"{self.base_persona}\n\n{self.accumulated_knowledge}"
             
-            # If murderer, add reminder that they know they did it
+            # If murderer, add reminder that they know they did it and the deceptive tactics they may use.
             if self.is_murderer:
-                self.persona += "\n\n[SECRET: You are the murderer. You know you killed the victim. Do NOT reveal or confess this during the investigation. Your goal is to avoid exposing your guilt while still sounding cooperative, plausible, and useful to the group.]"
+                self.persona += (
+                    "\n\n[SECRET: You are the murderer. You know you killed the victim. "
+                    "Do NOT reveal or confess this during the investigation rounds. "
+                    "Your goal is to avoid being accused while still sounding cooperative and plausible.\n"
+                    "You are explicitly permitted to use the following deceptive tactics when useful:\n"
+                    "- direct denial when accused (\"I didn't do it\", \"it wasn't me\")\n"
+                    "- alibi claims that locate you elsewhere at the time of the murder\n"
+                    "- deflection that changes the subject to another suspect (\"the real question is...\", \"what about X?\")\n"
+                    "- evasion (memory gaps, hedged answers, \"I can't say\")\n"
+                    "- uncertainty seeding (\"maybe\", \"perhaps\", \"we can't rule out\", \"anyone could have\")\n"
+                    "- selective disclosure (short answers, boundary-setting like \"that's all I know\")\n"
+                    "- accusation redirection (point at another suspect's motive, means, or opportunity)\n"
+                    "Use these tactics naturally and sparingly — overuse looks suspicious. Mix in cooperative-sounding statements.]"
+                )
                 if not self.murderer_strategy:
                     self.load_murderer_strategy()
                 if self.murderer_strategy:
@@ -217,6 +234,17 @@ class Agent:
     def _format_history(self, history: List[dict]) -> str:
         """Use shared history window for prompts (last K_HISTORY turns only)."""
         return self.memory.shared_history.render_for_prompt()
+
+    def _load_speaking_style(self) -> str:
+        """Load per-character speaking style from speaking_style.md, falling back to a generic prompt."""
+        if self.roles_dir:
+            style_path = Path(self.roles_dir) / self.name.lower().replace(" ", "-") / "speaking_style.md"
+            if style_path.exists():
+                try:
+                    return style_path.read_text(encoding="utf-8").strip()
+                except Exception:
+                    pass
+        return "Be selective. Speak only when your move clearly improves the investigation or your position."
 
     def think(self, state: GameState) -> ThinkResult:
         self.update_memory(state)
@@ -247,16 +275,8 @@ class Agent:
             else:
                 break
 
-        strategy_map = {
-            "Dr Chelsea Barren": "You are sharp, analytical, and status-conscious. Speak when you can expose a contradiction, propose a theory, or exploit a weak alibi. Stay quiet if you would only repeat the room.",
-            "Enrique Graves": "You are risk-aware and self-protective. Prefer silence unless challenged, directly questioned, or you need to redirect suspicion with a concrete point.",
-            "Kathryn Lawless": "You are careful, observant, and selective. Hold back unless you can materially improve the investigation or defend yourself precisely.",
-            "Michael Nightshade": "You are opportunistic and persuasive. Speak when you can steer the narrative, pressure another suspect, or gain advantage, but do not jump in without leverage.",
-            "Norman D'Adly": "You are reactive, emotional, and more likely to speak when provoked, accused, or contradicted. Otherwise, let stronger evidence emerge first.",
-            "Vicki D'Adly": "You are defensive and strategic. Speak when you must protect yourself, challenge a threat, or exploit another person's mistake; otherwise conserve your position.",
-        }
-        strategy_guidance = strategy_map.get(self.name, "Be selective. Speak only when your move clearly improves the investigation or your position.")
-        
+        strategy_guidance = self._load_speaking_style()
+
         if phase == "introduction" and current_round == 1:
             msgs = [
                 SystemMessage(content=f"""Character Information:
@@ -285,13 +305,19 @@ Return valid JSON with keys: thought, action, importance, reason_type.
 Use reason_type="introduction" if you should speak, otherwise "no_move"."""),
             ]
         else:
-            msgs = [
-                SystemMessage(content=f"""Character Information:
-You are {self.name}.
-{self.persona}
+            if self.is_murderer:
+                goals_block = f"""You are an in-world suspect AND the actual murderer of {self.scenario.victim_name}.
+Your goals are:
+1. AVOID being accused as the murderer at the end of the game,
+2. keep at least one other suspect looking at least as suspicious as you,
+3. give partial, plausible answers and avoid creating contradictions with known clues,
+4. deflect attention with targeted questions, alibi claims, and uncertainty seeding,
+5. do NOT confess or volunteer incriminating details during the investigation,
+6. avoid wasting turns on generic filler that draws attention to you.
 
-{self.scenario.victim_name} was MURDERED. Round {current_round}/6.
-You are an in-world suspect trying to help the group determine who killed {self.scenario.victim_name}.
+Think like a guilty insider trying to survive, not like an investigator. Strategic silence is often correct, but so is pre-emptively redirecting suspicion when the floor is open."""
+            else:
+                goals_block = f"""You are an in-world suspect trying to help the group determine who killed {self.scenario.victim_name}.
 Your goals are:
 1. identify the murderer from dialogue, clues, motives, means, opportunity, contradictions, and timelines,
 2. ask sharp questions when you lack crucial information,
@@ -300,7 +326,15 @@ Your goals are:
 5. avoid wasting turns on generic filler.
 
 Think like an investigator with partial information, not like a chatbot.
-Your job is NOT to speak every turn. Good investigation also means waiting when another person has a stronger next move."""),
+Your job is NOT to speak every turn. Good investigation also means waiting when another person has a stronger next move."""
+
+            msgs = [
+                SystemMessage(content=f"""Character Information:
+You are {self.name}.
+{self.persona}
+
+{self.scenario.victim_name} was MURDERED. Round {current_round}/6.
+{goals_block}"""),
                 HumanMessage(content=f"""{memory_context}
 
 Status:
@@ -371,8 +405,14 @@ Use one reason_type from: direct_response, contradiction, clue, alibi, motive, m
                     if consecutive_recent >= 1:
                         result.importance = max(0, result.importance - 1)
 
-                    if self.is_murderer and result.reason_type in {"weak_followup", "no_move", "continuation"}:
-                        result.importance = max(0, result.importance - 1)
+                    if self.is_murderer:
+                        # Dampen weak/exposing bids that would draw scrutiny without payoff.
+                        if result.reason_type in {"weak_followup", "no_move", "continuation"}:
+                            result.importance = max(0, result.importance - 1)
+                        # Boost deception-aligned bids so the murderer is more likely to actually
+                        # take the floor when they have a deflection / alibi / self-defense move.
+                        if result.reason_type in {"redirection", "alibi", "self_defense", "contradiction"}:
+                            result.importance = min(9, result.importance + 1)
 
                     if result.action == "speak" and result.importance <= 2:
                         result.action = "listen"
@@ -435,6 +475,37 @@ Speak naturally to the other suspects.
 Output dialogue only."""),
             ]
         else:
+            if self.is_murderer:
+                purpose_block = f"""Your purpose is to AVOID being identified as the murderer of {self.scenario.victim_name} while sounding cooperative.
+You may use deceptive tactics: direct denial of guilt, alibi claims, deflection to other suspects, evasion, uncertainty seeding ("maybe", "we can't rule out"), selective disclosure, and accusation redirection."""
+                rules_block = f"""Rules:
+- Only use facts from your knowledge, but you MAY lie about them or omit them.
+- Do NOT confess or admit you killed {self.scenario.victim_name}.
+- When pressed, deflect: name a specific other suspect with motive, means, or opportunity.
+- Use partial answers, hedged language, and memory gaps when a full answer would expose you.
+- Do not contradict hard clue facts that the group has already heard — that is a red flag.
+- No repetition.
+- Stay in character.
+- Speak in first person when appropriate.
+- If asking a question, ask exactly ONE targeted question total in this turn.
+- Never ask multiple questions to multiple people in the same utterance.
+- If answering a challenge, give a plausible explanation before pivoting toward a more suspicious person.
+- Can ask: {can_ask_str}"""
+            else:
+                purpose_block = "Your purpose is to help the group identify the murderer by surfacing relevant facts, probing suspicious people, testing alibis, and narrowing the suspect list.\nYou should prioritize dialogue that advances the investigation."
+                rules_block = f"""Rules:
+- Only use facts from your knowledge.
+- Reveal what you know when it helps identify the murderer.
+- Protect deeper secrets unless challenged, but do not become uselessly vague.
+- Focus on motive, means, opportunity, timeline, location, contradictions, and suspicious behavior.
+- No repetition.
+- Stay in character.
+- Speak in first person when appropriate.
+- If asking a question, ask exactly ONE targeted investigative question total in this turn.
+- Never ask multiple questions to multiple people in the same utterance.
+- If answering, answer the point directly before adding pressure on another suspect if relevant.
+- Can ask: {can_ask_str}"""
+
             msgs = [
                 SystemMessage(content=f"""Character Information:
 You are {self.name}.
@@ -443,8 +514,7 @@ You are {self.name}.
 {self.scenario.victim_name} was MURDERED. Round {current_round}/6.
 
 You are speaking aloud IN CHARACTER inside the mystery world.
-Your purpose is to help the group identify the murderer by surfacing relevant facts, probing suspicious people, testing alibis, and narrowing the suspect list.
-You should prioritize dialogue that advances the investigation.
+{purpose_block}
 
 Do NOT narrate yourself.
 Do NOT write things like '{self.name} says', '{self.name} speaks next', 'I say:', or any quoted script format.
@@ -452,19 +522,11 @@ Do NOT use markdown, bullet points, stage directions, or speaker labels.
 Output only the exact words your character says out loud."""),
                 HumanMessage(content=f"""{memory_context}{constraint}
 
-Rules:
-- Only use facts from your knowledge.
-- Reveal what you know when it helps identify the murderer.
-- Protect deeper secrets unless challenged, but do not become uselessly vague.
-- Focus on motive, means, opportunity, timeline, location, contradictions, and suspicious behavior.
-- No repetition.
-- Stay in character.
-- Speak in first person when appropriate.
-- If asking a question, ask one targeted investigative question.
-- If answering, answer the point directly before adding pressure on another suspect if relevant.
-- Can ask: {can_ask_str}
+{rules_block}
 
-Respond in 1-2 natural sentences that materially advance the investigation.
+Respond in 1-2 natural sentences.
+If you ask a question, you may include at most one question mark in the entire utterance and it must refer to a single target.
+Do not stack questions, follow-up questions, or question a second person in the same turn.
 Output dialogue only."""),
             ]
         try:
@@ -475,11 +537,10 @@ Output dialogue only."""),
             response = response.replace('"', '').replace('"', '').replace('"', '')
             
             # Remove action descriptions in parentheses like (looks around) or (sighs nervously)
-            import re
             response = re.sub(r'\([^)]*\)', '', response).strip()
             # Also remove brackets
             response = re.sub(r'\[[^\]]*\]', '', response).strip()
-            # Remove leading meta speech labels like "Enrique Graves speaks next:" or "Michael says:"
+            # Remove leading meta speech labels like "Bobby Herrerra speaks next:" or "Pauline says:"
             response = re.sub(rf'^{re.escape(self.name)}\s+(speaks(?:\s+next)?|says|asks|replies)\s*[:,-]?\s*', '', response, flags=re.IGNORECASE).strip()
             response = re.sub(r'^[A-Z][A-Za-z\'\- ]{1,40}\s+(speaks(?:\s+next)?|says|asks|replies)\s*[:,-]?\s*', '', response, flags=re.IGNORECASE).strip()
             response = re.sub(r'^(I\s+(say|ask|reply)\s*[:,-]?\s*)', '', response, flags=re.IGNORECASE).strip()
