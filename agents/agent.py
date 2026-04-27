@@ -56,7 +56,7 @@ def _retry_with_backoff(func, max_retries: int = 5, base_delay: float = 2.0):
                 # Not a rate limit error, re-raise
                 raise
     # If all retries failed, raise the last exception
-    raise Exception(f"Max retries ({max_retries}) exceeded for rate limit")
+    raise Exception(f"Max retries ({max_retries}) exceeded for rate limit") from e
 
 
 class ThinkResult(BaseModel):
@@ -188,9 +188,9 @@ class Agent:
         """Add a game master clue to long-term memory."""
         self.memory.long_term.add_clue(clue)
     
-    def add_fact_to_memory(self, fact: str):
+    def add_fact_to_memory(self, fact: str, turn_id: int = 0):
         """Add an important fact to long-term memory."""
-        self.memory.long_term.add_fact(fact)
+        self.memory.long_term.add_fact(turn_id, fact)
     
     def add_round_summary(self, round_num: int, bullets: List[str]):
         """Store bullet point summary of a round in long-term memory."""

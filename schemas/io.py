@@ -1,10 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Literal, Optional
 
-class ThinkResult(BaseModel):
-    thought: str
-    action: Literal["speak", "listen"]
-    importance: int = Field(ge=0, le=9)
+from agents.agent import ThinkResult  # re-export canonical version (includes reason_type)
 
 class DesignationResult(BaseModel):
     has_first_pair_part: bool

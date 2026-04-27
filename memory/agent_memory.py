@@ -534,8 +534,9 @@ class AgentMemory:
     def add_thought(self, thought: str, action: str = "", importance: int = 0):
         self.short_term.add(thought, action, importance)
     
-    def process_dialogue(self, turn_id: int, speaker: str, text: str):
-        self.shared_history.append(turn_id, speaker, text)
+    def process_dialogue(self, turn_id: int, speaker: str, text: str, update_shared: bool = True):
+        if update_shared:
+            self.shared_history.append(turn_id, speaker, text)
         facts = self.normalizer.normalize(speaker, text, turn_id)
         self.long_term.add_facts_batch(turn_id, facts)
     

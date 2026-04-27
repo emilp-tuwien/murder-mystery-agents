@@ -303,8 +303,10 @@ def update_history(state: GameState, agents: Dict[str, any], ui_store=None):
 
     belief_snapshots = {}
     belief_history = []
+    first = True
     for name, agent in agents.items():
-        agent.memory.process_dialogue(turn_id, speaker, text)
+        agent.memory.process_dialogue(turn_id, speaker, text, update_shared=first)
+        first = False
         snapshot = agent.observe_utterance(u, agent_names)
         belief_snapshots[name] = snapshot
         belief_history.append(snapshot)
@@ -336,11 +338,13 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
     conversations_in_round = state.get("conversations_in_round", 0) + 1
     history = state.get("history", [])
     current_stage = state.get("current_stage", game_master.get_stage_for_round(current_round))
+    # Slice to only this round's utterances so summarizer and gate don't see prior rounds.
+    current_round_history = [u for u in history if u.get("round") == current_round]
 
     def _summarize_current_round():
-        if history:
+        if current_round_history:
             print(f"\n   Summarizing Round {current_round} into bullet points...")
-            bullets = game_master.summarize_round_history(history, current_round)
+            bullets = game_master.summarize_round_history(current_round_history, current_round)
             for _, agent in agents.items():
                 agent.add_round_summary(current_round, bullets)
             print(f"   Summary: {len(bullets)} key facts extracted")
@@ -386,7 +390,6 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
             "conversations_in_round": 0,
             "phase": new_phase,
             "round_gate_status": gate_payload or {},
-            "history": []
         }
 
     if game_master.is_game_complete(current_round, conversations_in_round):
@@ -411,13 +414,10 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
             "done": True,
             "phase": "accusation",
             "current_stage": "accusation",
-            "history": []
         }
 
     if current_round == 1:
         speakers_so_far = set(u["speaker"] for u in history)
-        if state.get("new_utterance"):
-            speakers_so_far.add(state["new_utterance"]["speaker"])
 
         if len(speakers_so_far) >= len(agents):
             return _advance_to_round(
@@ -431,7 +431,7 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
 
         return {"conversations_in_round": conversations_in_round, "current_stage": current_stage}
 
-    assessment = game_master.should_advance_round(history, conversations_in_round, current_round)
+    assessment = game_master.should_advance_round(current_round_history, conversations_in_round, current_round)
     gate_payload = {
         "stage_gate_policy": assessment.gate_policy,
         "stage_name": assessment.stage_name,
