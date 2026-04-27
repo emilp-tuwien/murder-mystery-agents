@@ -30,6 +30,8 @@ load_dotenv()
 
 LOCAL_LLM_API_URL = os.environ.get("LLM_API_URL", "http://192.168.11.11:8080/v1")
 LOCAL_LLM_MODEL = os.environ.get("LLM_MODEL", "local_llm")
+NVIDIA_API_URL = os.environ.get("NVIDIA_API_URL", "https://integrate.api.nvidia.com/v1")
+NVIDIA_MODEL = os.environ.get("NVIDIA_MODEL", "moonshotai/kimi-k2.5")
 
 
 def _normalize_openai_base_url(url: str) -> str:
@@ -56,7 +58,14 @@ def _select_conversations_per_round() -> int:
             return 20
 
 
-def _build_openai_llm(model_name: str, api_key: str, temperature: float, base_url: Optional[str] = None, seed: Optional[int] = None):
+def _build_openai_llm(
+    model_name: str,
+    api_key: str,
+    temperature: float,
+    base_url: Optional[str] = None,
+    seed: Optional[int] = None,
+    extra_model_kwargs: Optional[dict[str, Any]] = None,
+):
     kwargs = {
         "model": model_name,
         "temperature": temperature,
@@ -66,6 +75,8 @@ def _build_openai_llm(model_name: str, api_key: str, temperature: float, base_ur
         kwargs["base_url"] = base_url
     if seed is not None:
         kwargs["seed"] = seed
+    if extra_model_kwargs:
+        kwargs["model_kwargs"] = extra_model_kwargs
     return ChatOpenAI(**kwargs)
 
 
@@ -90,6 +101,25 @@ def _build_llm_from_config(config: RunConfig) -> Any:
         print(f"Using {model_name}")
         return _build_openai_llm(model_name=model_name, api_key=api_key, temperature=config.temperature, seed=config.resolved_seed())
 
+    if config.backend == "nvidia":
+        api_key = os.environ.get(config.api_key_env, "")
+        if not api_key:
+            raise RuntimeError(f"No API key found in environment variable {config.api_key_env}")
+        base_url = _normalize_openai_base_url(config.base_url or NVIDIA_API_URL)
+        model_name = config.model_name or NVIDIA_MODEL
+        print(f"Using NVIDIA-hosted model {model_name} via {base_url}")
+        extra_model_kwargs = None
+        if config.enable_thinking:
+            extra_model_kwargs = {"chat_template_kwargs": {"thinking": True}}
+        return _build_openai_llm(
+            model_name=model_name,
+            api_key=api_key,
+            base_url=base_url,
+            temperature=config.temperature,
+            seed=config.resolved_seed(),
+            extra_model_kwargs=extra_model_kwargs,
+        )
+
     if config.backend == "ollama":
         model_name = config.model_name or _select_ollama_model()
         if model_name is None:
@@ -107,12 +137,13 @@ def _prompt_for_model_choice() -> str:
     print("Select LLM backend:")
     print("  l = Local hosted GPT-OSS (no auth)")
     print("  g = GPT-4o-mini (OpenAI API)")
+    print("  n = NVIDIA-hosted model (OpenAI-compatible API)")
     print("  o = Ollama")
     while True:
-        choice = input("Choice (l/g/o): ").strip().lower()
-        if choice in {"l", "g", "o"}:
+        choice = input("Choice (l/g/n/o): ").strip().lower()
+        if choice in {"l", "g", "n", "o"}:
             return choice
-        print("Please enter l, g, or o.")
+        print("Please enter l, g, n, or o.")
 
 
 def _resolve_model_choice(args) -> str:
@@ -121,11 +152,16 @@ def _resolve_model_choice(args) -> str:
     if args.model == "gpt":
         _ensure_openai_api_key()
         return "g"
+    if args.model == "nvidia":
+        _ensure_openai_api_key(args.api_key_env)
+        return "n"
     if args.model == "ollama":
         return "o"
     choice = _prompt_for_model_choice()
     if choice == "g":
         _ensure_openai_api_key()
+    if choice == "n":
+        _ensure_openai_api_key(args.api_key_env)
     return choice
 
 
@@ -136,7 +172,7 @@ def _resolve_conversations_per_round(args) -> int:
 
 
 def _choice_to_backend(choice: str) -> str:
-    mapping = {"l": "local", "g": "gpt", "o": "ollama"}
+    mapping = {"l": "local", "g": "gpt", "n": "nvidia", "o": "ollama"}
     return mapping[choice]
 
 
@@ -489,10 +525,15 @@ def main():
     parser = argparse.ArgumentParser(description="Run the murder mystery discussion game.")
     parser.add_argument("--ui", action="store_true", help="Start the browser observer UI alongside the console output.")
     parser.add_argument("--ui-port", type=int, default=8000, help="Port for the local browser UI.")
-    parser.add_argument("--model", choices=["prompt", "local", "gpt", "ollama"], default="prompt", help="Model backend to use.")
+    parser.add_argument("--model", choices=["prompt", "local", "gpt", "nvidia", "ollama"], default="prompt", help="Model backend to use.")
+    parser.add_argument("--api-key-env", default="NVIDIA_API_KEY", help="Environment variable to read the NVIDIA/OpenAI-compatible API key from when using --model nvidia.")
+    parser.add_argument("--model-name", default=None, help="Override the model name for the selected backend.")
+    parser.add_argument("--base-url", default=None, help="Override the API base URL for OpenAI-compatible backends.")
+    parser.add_argument("--temperature", type=float, default=0.7, help="Sampling temperature for the selected backend.")
+    parser.add_argument("--enable-thinking", action="store_true", help="Enable provider-specific thinking/reasoning mode when supported (e.g. NVIDIA Kimi via chat_template_kwargs).")
     parser.add_argument("--conversations-per-round", type=int, default=None, help="Number of conversations per round.")
     parser.add_argument("--max-rounds", type=int, default=6, help="Total rounds including accusation round.")
-    parser.add_argument("--scenario-id", default="killingsworth-farm-v1", help="Scenario identifier for logging/display.")
+    parser.add_argument("--scenario-id", default="business-of-murder-v1", help="Scenario identifier for logging/display.")
     parser.add_argument("--scenario-path", default=None, help="Path to scenario.json for alternate scenarios.")
     parser.add_argument("--roles-dir", default=None, help="Override roles directory.")
     parser.add_argument("--clues-dir", default=None, help="Override clues directory.")
@@ -502,6 +543,11 @@ def main():
     conversations_per_round = _resolve_conversations_per_round(args)
     config = RunConfig(
         backend=_choice_to_backend(model_choice),
+        model_name=args.model_name,
+        base_url=args.base_url,
+        api_key_env=args.api_key_env,
+        temperature=args.temperature,
+        enable_thinking=args.enable_thinking,
         conversations_per_round=conversations_per_round,
         enable_ui=args.ui,
         ui_port=args.ui_port,

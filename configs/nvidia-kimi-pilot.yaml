@@ -1,0 +1,21 @@
+experiment_name: nvidia-kimi-pilot
+output_root: outputs
+replicates: 3
+backend: nvidia
+model_name: moonshotai/kimi-k2.5
+base_url: https://integrate.api.nvidia.com/v1
+api_key_env: NVIDIA_API_KEY
+temperature: 0.7
+seed: 4242
+enable_thinking: true
+conversations_per_round: 20
+max_rounds: 6
+enable_ui: false
+prompt_version: thesis-pilot-v1
+turn_policy_version: top2-selective-silence-v1
+memory_version: three-stage-v1
+scenario_id: business-of-murder-v1
+scenario_path: scenarios/business-of-murder/scenario.json
+roles_dir: scenarios/business-of-murder/roles
+clues_dir: scenarios/business-of-murder/clues
+notes: NVIDIA-hosted Kimi pilot configuration for backend switching and comparison runs.

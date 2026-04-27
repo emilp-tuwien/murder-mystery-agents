@@ -21,12 +21,13 @@ class RunConfig(BaseModel):
     interim_ready_runs_per_condition: int = Field(default=10, ge=1)
     final_ready_runs_per_condition: int = Field(default=20, ge=1)
 
-    backend: Literal["local", "gpt", "ollama"] = "local"
+    backend: Literal["local", "gpt", "ollama", "nvidia"] = "local"
     model_name: Optional[str] = None
     base_url: Optional[str] = None
     api_key_env: str = "OPENAI_API_KEY"
     temperature: float = 0.7
     seed: Optional[int] = None
+    enable_thinking: bool = False
 
     conversations_per_round: int = Field(default=20, ge=1)
     max_rounds: int = Field(default=6, ge=2)
@@ -47,7 +48,7 @@ class RunConfig(BaseModel):
     memory_version: str = "three-stage-v1"
     deception_labeling_enabled: bool = True
     deception_labeling_mode: Literal["heuristic", "off"] = "heuristic"
-    scenario_id: str = "killingsworth-farm-v1"
+    scenario_id: str = "business-of-murder-v1"
     notes: Optional[str] = None
 
     scenario_path: Optional[str] = None

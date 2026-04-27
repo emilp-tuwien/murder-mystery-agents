@@ -8,10 +8,7 @@ For the concrete final experiment design, see `THESIS_RUN_PLAN.md` and `configs/
 ## Scenarios
 
 ### Default
-- Killingsworth farm scenario using `agents/roles` and `clues/`
-
-### Alternate
-- Business-school scenario: `scenarios/business-of-murder/`
+- Business of Murder: `scenarios/business-of-murder/`
 
 ## Run an interactive discussion
 
@@ -19,6 +16,29 @@ Default scenario:
 
 ```bash
 python3 run_discussion.py --model local --conversations-per-round 20 --max-rounds 6
+```
+
+NVIDIA / Kimi option:
+
+```bash
+export NVIDIA_API_KEY=your_token_here
+python3 run_discussion.py \
+  --model nvidia \
+  --api-key-env NVIDIA_API_KEY \
+  --model-name moonshotai/kimi-k2.5 \
+  --conversations-per-round 20 \
+  --max-rounds 6
+```
+
+Optional reasoning-enabled NVIDIA run:
+
+```bash
+export NVIDIA_API_KEY=your_token_here
+python3 run_discussion.py \
+  --model nvidia \
+  --api-key-env NVIDIA_API_KEY \
+  --model-name moonshotai/kimi-k2.5 \
+  --enable-thinking
 ```
 
 Business of Murder scenario:
@@ -33,6 +53,22 @@ python3 run_discussion.py \
   --roles-dir scenarios/business-of-murder/roles \
   --clues-dir scenarios/business-of-murder/clues
 ```
+
+## Backends
+
+The project now supports these LLM backends:
+
+- `local` — OpenAI-compatible local endpoint (`LLM_API_URL` / `LLM_MODEL`)
+- `gpt` — OpenAI API
+- `nvidia` — NVIDIA-hosted OpenAI-compatible API (for example `moonshotai/kimi-k2.5`)
+- `ollama` — local Ollama models
+
+For NVIDIA runs:
+
+- default base URL: `https://integrate.api.nvidia.com/v1`
+- default model: `moonshotai/kimi-k2.5`
+- default key env var in the CLI: `NVIDIA_API_KEY`
+- `--enable-thinking` sends `chat_template_kwargs={"thinking": true}`
 
 ## Run pilot experiments
 
