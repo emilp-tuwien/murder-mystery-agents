@@ -484,8 +484,8 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
         thoughts_csv = f"agent_thoughts_{timestamp}.csv"
 
         with open(thoughts_csv, "w", newline="") as csvfile:
-            fieldnames = ["turn", "round", "agent", "action", "importance", "thought"]
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            fieldnames = ["turn", "round", "agent", "action", "importance", "reason_type", "thought"]
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction="ignore")
 
             writer.writeheader()
             for record in thoughts_history:
