@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 from langchain_core.messages import SystemMessage, HumanMessage
 from scenarios import ScenarioConfig
 from schemas.state import GameState
+from utils.dialogue_analysis import extract_mentions, is_question
 
 
 def _retry_with_backoff(func, max_retries: int = 5, base_delay: float = 2.0):
@@ -588,6 +589,53 @@ Output dialogue only."""),
             print(f"Error in speak for {self.name}: {e}", file=__import__('sys').stderr)
             return "I need to think about this."
 
+    def _build_accusation_summary(self, state: GameState, all_agents: List[str]) -> str:
+        history = state.get("history", [])
+        suspicion_scores = {name: 0 for name in all_agents if name != self.name}
+        evidence_lines: List[str] = []
+
+        for message in history:
+            speaker = message.get("speaker", "")
+            text = message.get("text", "")
+            mentioned = extract_mentions(text, all_agents, exclude=speaker)
+            addressed = message.get("addressed_to")
+            question = is_question(text) or bool(message.get("is_question"))
+
+            for target in mentioned:
+                if target == self.name:
+                    continue
+                delta = 0
+                if question:
+                    delta += 2
+                if addressed == target and question:
+                    delta += 2
+                if any(word in text.lower() for word in ["motive", "alibi", "where were", "did you", "why did", "how do you explain", "contradict", "debt", "weapon", "blood", "lied", "suspicious"]):
+                    delta += 2
+                if delta > 0:
+                    suspicion_scores[target] = suspicion_scores.get(target, 0) + delta
+
+            if mentioned and question and len(evidence_lines) < 10:
+                evidence_lines.append(f"- {speaker} pressured {', '.join(mentioned)}: {text[:160]}")
+
+        ranked = sorted(suspicion_scores.items(), key=lambda item: item[1], reverse=True)
+        top_lines = []
+        for idx, (name, score) in enumerate(ranked[:5], 1):
+            top_lines.append(f"  {idx}. {name}: interaction-pressure score {score}")
+
+        if not top_lines:
+            top_lines.append("  No interaction-pressure signals detected.")
+
+        if not evidence_lines:
+            evidence_lines.append("- No targeted pressure turns were detected from the dialogue log.")
+
+        return "\n".join([
+            "Interaction-pressure summary (who the discussion focused on):",
+            *top_lines,
+            "",
+            "Targeted pressure examples:",
+            *evidence_lines,
+        ])
+
     def accuse(self, state: GameState, all_agents: List[str]) -> AccusationResult:
         """Final accusation - who does this agent think is the murderer? Cannot accuse self."""
         self.update_memory(state)
@@ -598,6 +646,7 @@ Output dialogue only."""),
         llm_accuse = self.llm.with_structured_output(AccusationResult, method="json_mode")
         memory_context = self.memory.build_prompt_context()
         suspect_ranking = self.memory.get_suspect_ranking()
+        interaction_summary = self._build_accusation_summary(state, all_agents)
         
         msgs = [
             SystemMessage(content=f"""Character Information:
@@ -611,8 +660,15 @@ Do not give a vague accusation. Build the strongest honest case you can from the
 
 {suspect_ranking}
 
+{interaction_summary}
+
 Choose murderer from: {others_str}
 (Cannot accuse yourself)
+
+Important decision rule:
+- Your final accusation should align with the strongest evidence and the strongest sustained suspicion from the discussion.
+- If one suspect was repeatedly questioned, pressured, challenged, or treated as the main focus, you should usually accuse that suspect unless there is stronger concrete exculpatory evidence.
+- Do not switch to a random lower-attention suspect without explicitly explaining the stronger evidence for that switch.
 
 Return valid JSON with keys:
 - accused
