@@ -24,7 +24,6 @@ NVIDIA / Kimi option:
 export NVIDIA_API_KEY=your_token_here
 python3 run_discussion.py \
   --model nvidia \
-  --api-key-env NVIDIA_API_KEY \
   --model-name moonshotai/kimi-k2.5 \
   --conversations-per-round 20 \
   --max-rounds 6
@@ -36,7 +35,6 @@ Optional reasoning-enabled NVIDIA run:
 export NVIDIA_API_KEY=your_token_here
 python3 run_discussion.py \
   --model nvidia \
-  --api-key-env NVIDIA_API_KEY \
   --model-name moonshotai/kimi-k2.5 \
   --enable-thinking
 ```
@@ -67,7 +65,7 @@ For NVIDIA runs:
 
 - default base URL: `https://integrate.api.nvidia.com/v1`
 - default model: `moonshotai/kimi-k2.5`
-- default key env var in the CLI: `NVIDIA_API_KEY`
+- GPT prompts for `OPENAI_API_KEY`; NVIDIA prompts for `NVIDIA_API_KEY`
 - `--enable-thinking` sends `chat_template_kwargs={"thinking": true}`
 
 ## Run pilot experiments

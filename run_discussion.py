@@ -150,18 +150,18 @@ def _resolve_model_choice(args) -> str:
     if args.model == "local":
         return "l"
     if args.model == "gpt":
-        _ensure_openai_api_key()
+        _ensure_openai_api_key("OPENAI_API_KEY")
         return "g"
     if args.model == "nvidia":
-        _ensure_openai_api_key(args.api_key_env)
+        _ensure_openai_api_key("NVIDIA_API_KEY")
         return "n"
     if args.model == "ollama":
         return "o"
     choice = _prompt_for_model_choice()
     if choice == "g":
-        _ensure_openai_api_key()
+        _ensure_openai_api_key("OPENAI_API_KEY")
     if choice == "n":
-        _ensure_openai_api_key(args.api_key_env)
+        _ensure_openai_api_key("NVIDIA_API_KEY")
     return choice
 
 
@@ -526,7 +526,6 @@ def main():
     parser.add_argument("--ui", action="store_true", help="Start the browser observer UI alongside the console output.")
     parser.add_argument("--ui-port", type=int, default=8000, help="Port for the local browser UI.")
     parser.add_argument("--model", choices=["prompt", "local", "gpt", "nvidia", "ollama"], default="prompt", help="Model backend to use.")
-    parser.add_argument("--api-key-env", default="NVIDIA_API_KEY", help="Environment variable to read the NVIDIA/OpenAI-compatible API key from when using --model nvidia.")
     parser.add_argument("--model-name", default=None, help="Override the model name for the selected backend.")
     parser.add_argument("--base-url", default=None, help="Override the API base URL for OpenAI-compatible backends.")
     parser.add_argument("--temperature", type=float, default=0.7, help="Sampling temperature for the selected backend.")
@@ -541,11 +540,14 @@ def main():
 
     model_choice = _resolve_model_choice(args)
     conversations_per_round = _resolve_conversations_per_round(args)
+    backend = _choice_to_backend(model_choice)
+    api_key_env = "OPENAI_API_KEY" if backend == "gpt" else "NVIDIA_API_KEY" if backend == "nvidia" else "OPENAI_API_KEY"
+
     config = RunConfig(
-        backend=_choice_to_backend(model_choice),
+        backend=backend,
         model_name=args.model_name,
         base_url=args.base_url,
-        api_key_env=args.api_key_env,
+        api_key_env=api_key_env,
         temperature=args.temperature,
         enable_thinking=args.enable_thinking,
         conversations_per_round=conversations_per_round,
