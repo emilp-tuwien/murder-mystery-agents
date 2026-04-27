@@ -135,7 +135,7 @@ class Agent:
         
         # Initialize three-stage memory system
         from memory.agent_memory import AgentMemory, SharedHistory
-        self.memory = AgentMemory(agent_name=name)
+        self.memory = AgentMemory(agent_name=name, scenario=self.scenario)
     
     def _get_own_statements(self, history: List[dict]) -> List[str]:
         """Extract this agent's previous statements from conversation history."""
@@ -178,11 +178,12 @@ class Agent:
     
     def export_memory_snapshot(self) -> dict:
         facts = self.memory.long_term.facts[-24:]
+        evidence_tags = list(getattr(self.scenario, "evidence_tags", ["motive", "means", "opportunity", "contradiction", "timeline", "alibi"]))
         categorized = {}
-        for tag in ["motive", "means", "opportunity", "contradiction", "timeline", "alibi"]:
+        for tag in evidence_tags:
             categorized[tag] = [fact.fact_text for fact in facts if tag in fact.tags][-6:]
 
-        uncategorized = [fact.fact_text for fact in facts if not any(tag in fact.tags for tag in ["motive", "means", "opportunity", "contradiction", "timeline", "alibi"])]
+        uncategorized = [fact.fact_text for fact in facts if not any(tag in fact.tags for tag in evidence_tags)]
         suspicions = []
         for name, level, reasons in self.memory.knowledge_graph.get_ranked_suspects()[:5]:
             suspicions.append({

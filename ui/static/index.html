@@ -209,7 +209,7 @@
                   <div class="table-wrap" id="tableWrap">
                     <div class="table">
                       <div class="table-center">
-                        <div class="title">Killingsworth Farm</div>
+                        <div class="title" id="tableTitle">The Business of Murder</div>
                         <div class="meta" id="tableMeta">Investigation in progress</div>
                       </div>
                     </div>
@@ -329,6 +329,7 @@
       document.getElementById('roundText').textContent = String(snapshot.round ?? '—');
       document.getElementById('turnText').textContent = String(snapshot.turn ?? '—');
       document.getElementById('speakerBadge').textContent = currentSpeaker ? `Current speaker ${currentSpeaker}` : 'Current speaker —';
+      document.getElementById('tableTitle').textContent = snapshot.scenario_title || 'The Business of Murder';
       document.getElementById('tableMeta').textContent = `${titleCase(snapshot.phase || 'unknown')} · Round ${snapshot.round ?? '—'} · Turn ${snapshot.turn ?? '—'}`;
 
       renderSummary(snapshot, currentSpeaker, evidence.length, history.length);

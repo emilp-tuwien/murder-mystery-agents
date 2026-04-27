@@ -16,10 +16,10 @@ Produce a thesis result set that is not just interesting, but **defensible**:
 Use **Business of Murder (`business-of-murder-v1`)** as the main thesis scenario.
 
 Why:
-- clearer clue sequence than the farm baseline,
-- stronger timeline / motive / means / opportunity affordances,
-- better fit for evidence-gated progression,
-- better support for structured accusation analysis.
+- clear clue sequencing for staged investigation,
+- strong timeline / motive / means / opportunity affordances,
+- good fit for evidence-gated progression,
+- good support for structured accusation analysis.
 
 ---
 

@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from utils.dialogue_analysis import detect_direct_address, extract_mentions, is_question, normalize_name
 
 
-STOPWORDS = {
+DEFAULT_STOPWORDS = {
     "the", "and", "that", "with", "from", "into", "this", "they", "their", "about", "there", "which",
     "after", "before", "under", "around", "could", "would", "should", "have", "been", "were", "them",
     "then", "when", "what", "where", "while", "through", "because", "only", "same", "very", "much",
@@ -19,20 +19,20 @@ STOPWORDS = {
     "everyone", "apartment", "office", "party", "bathroom", "found", "dead", "rick", "martin",
 }
 
-EVIDENCE_PATTERNS = [
+DEFAULT_EVIDENCE_PATTERNS = [
     "motive", "means", "opportunity", "timeline", "alibi", "contradiction", "weapon", "note",
     "fire escape", "paperweight", "parking", "arrived", "left", "followed", "before", "after",
     "doesn't add up", "does not add up", "inconsistent", "doesn't fit", "does not fit", "why were you",
     "where were you", "what time", "who saw", "who was with", "key", "wallet", "checkbook", "blood",
 ]
 
-PRESSURE_PATTERNS = [
+DEFAULT_PRESSURE_PATTERNS = [
     "why", "how", "where", "when", "explain", "tell us", "answer", "account for", "doesn't add up",
     "does not add up", "inconsistent", "contradiction", "prove", "justify", "what were you doing",
     "where were you", "who can confirm", "who saw you", "why should we believe", "why would",
 ]
 
-SYNTHESIS_PATTERNS = [
+DEFAULT_SYNTHESIS_PATTERNS = [
     "i think", "i suspect", "the killer", "the murderer", "it points to", "it has to be", "this means",
     "that puts", "narrow", "narrows", "strongest case", "best case", "most likely",
 ]
@@ -72,16 +72,17 @@ def _tokenize(text: str) -> List[str]:
     return re.findall(r"[A-Za-z0-9:']+", text.lower())
 
 
-def extract_clue_keywords(clue_text: str, max_keywords: int = 10) -> List[str]:
+def extract_clue_keywords(clue_text: str, max_keywords: int = 10, stopwords: Optional[Iterable[str]] = None) -> List[str]:
     if not clue_text:
         return []
 
+    resolved_stopwords = set(stopwords or DEFAULT_STOPWORDS)
     counts: Dict[str, int] = {}
     ordered: List[str] = []
     first_seen: Dict[str, int] = {}
     for token in _tokenize(clue_text):
         normalized = token.strip("' ")
-        if len(normalized) < 4 or normalized in STOPWORDS:
+        if len(normalized) < 4 or normalized in resolved_stopwords:
             continue
         if normalized not in counts:
             first_seen[normalized] = len(ordered)
@@ -125,11 +126,19 @@ def assess_round_gate(
     min_pressure_signals: int = 2,
     min_clue_references: int = 1,
     min_synthesis_signals: int = 1,
+    stopwords: Optional[Iterable[str]] = None,
+    evidence_patterns: Optional[Iterable[str]] = None,
+    pressure_patterns: Optional[Iterable[str]] = None,
+    synthesis_patterns: Optional[Iterable[str]] = None,
 ) -> RoundGateAssessment:
     stage_name = stage_name_for_round(current_round, max_rounds)
     resolved_min_conversations = min_conversations or 6
     resolved_hard_cap = hard_cap_conversations or max(resolved_min_conversations + 4, resolved_min_conversations)
-    clue_keywords = extract_clue_keywords(clue_text)
+    resolved_stopwords = list(stopwords or DEFAULT_STOPWORDS)
+    resolved_evidence_patterns = list(evidence_patterns or DEFAULT_EVIDENCE_PATTERNS)
+    resolved_pressure_patterns = list(pressure_patterns or DEFAULT_PRESSURE_PATTERNS)
+    resolved_synthesis_patterns = list(synthesis_patterns or DEFAULT_SYNTHESIS_PATTERNS)
+    clue_keywords = extract_clue_keywords(clue_text, stopwords=resolved_stopwords)
 
     question_targets = set()
     mentioned_suspects = set()
@@ -153,15 +162,15 @@ def assess_round_gate(
         for mention in mentions:
             mentioned_suspects.add(mention)
 
-        if _contains_pattern(text, EVIDENCE_PATTERNS):
+        if _contains_pattern(text, resolved_evidence_patterns):
             evidence_signal_count += 1
-        if _contains_pattern(text, PRESSURE_PATTERNS) or (is_question(text) and addressed_to):
+        if _contains_pattern(text, resolved_pressure_patterns) or (is_question(text) and addressed_to):
             pressure_signal_count += 1
         if clue_keywords and _contains_keywords(text, clue_keywords):
             clue_reference_count += 1
         if utterance.get("response_to_speaker"):
             direct_response_count += 1
-        if _contains_pattern(text, SYNTHESIS_PATTERNS):
+        if _contains_pattern(text, resolved_synthesis_patterns):
             synthesis_signal_count += 1
 
     unique_question_targets = len(question_targets)

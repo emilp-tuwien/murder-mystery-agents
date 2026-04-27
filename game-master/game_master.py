@@ -5,7 +5,7 @@ from pathlib import Path
 import PyPDF2
 
 from scenarios import ScenarioConfig
-from utils.dialogue_analysis import detect_direct_address
+from utils.dialogue_analysis import detect_direct_address, detect_direct_address_llm
 from utils.evidence_gates import RoundGateAssessment, assess_round_gate, stage_name_for_round
 
 
@@ -163,6 +163,10 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
             min_pressure_signals=self.min_pressure_signals_per_round,
             min_clue_references=self.min_clue_references_per_round,
             min_synthesis_signals=self.min_synthesis_signals_final_round,
+            stopwords=getattr(self.scenario, "gate_stopwords", None),
+            evidence_patterns=getattr(self.scenario, "gate_evidence_patterns", None),
+            pressure_patterns=getattr(self.scenario, "gate_pressure_patterns", None),
+            synthesis_patterns=getattr(self.scenario, "gate_synthesis_patterns", None),
         )
 
     def should_advance_round(self, history: List[dict], conversations_in_round: int, current_round: int) -> RoundGateAssessment:
@@ -215,9 +219,18 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
         last_speaker = state.get("last_speaker")
         available = [n for n in self.agent_names if n != last_speaker] if last_speaker else self.agent_names
         
-        # FIRST: Check for direct address using explicit pattern matching
+        # FIRST: Check for direct address using explicit pattern matching, then
+        # fall back to an LLM judgement for ambiguous question + name combinations
+        # (e.g., "Margaret, did you notice anyone slip into the bathroom?").
         if last_utterance:
             directly_addressed = detect_direct_address(last_utterance["text"], available)
+            if not directly_addressed:
+                directly_addressed = detect_direct_address_llm(
+                    self.llm,
+                    last_utterance["text"],
+                    available,
+                    last_speaker=last_speaker,
+                )
             if directly_addressed:
                 return SpeakerDecision(
                     reasoning=f"{directly_addressed} was directly addressed by {last_speaker}",

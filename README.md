@@ -70,13 +70,7 @@ For NVIDIA runs:
 
 ## Run pilot experiments
 
-Farm baseline:
-
-```bash
-python3 experiments/runner.py --config configs/pilot.yaml --replicates 3
-```
-
-Business of Murder:
+Business of Murder pilot:
 
 ```bash
 python3 experiments/runner.py --config configs/business-of-murder-pilot.yaml --replicates 3
@@ -156,6 +150,14 @@ python3 experiments/runner.py --config configs/thesis-final-matrix.yaml --plan-o
 ```
 
 See `docs/THESIS_RUN_PLAN.md` for the rationale and staged execution plan.
+
+## Interactive run artifacts
+
+Ad-hoc `run_discussion.py` runs now write thought exports under:
+
+- `outputs/interactive/agent_thoughts_<timestamp>.csv`
+
+This keeps the repo root clear and avoids mixing stale scratch exports into interpretation.
 
 ## Output structure
 

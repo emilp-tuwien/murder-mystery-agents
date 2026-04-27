@@ -257,6 +257,8 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
                 "agent_names": list(agents.keys()),
                 "murderer_name": murderer_name,
                 "scenario_id": config.scenario_id,
+                "scenario_title": scenario.title,
+                "scenario_location": scenario.location,
                 "prompt_version": config.prompt_version,
                 "turn_policy_version": config.turn_policy_version,
                 "memory_version": config.memory_version,
@@ -348,6 +350,8 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
                 "phase": "introduction",
                 "stage": stage_name_for_round(1, config.max_rounds),
                 "murderer": murderer_name,
+                "scenario_title": scenario.title,
+                "scenario_location": scenario.location,
             },
         )
         runtime_sink.append("utterance", {"utterance": init["history"][0]})
@@ -481,7 +485,9 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
     thoughts_csv = None
     if thoughts_history:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        thoughts_csv = f"agent_thoughts_{timestamp}.csv"
+        interactive_dir = config.resolved_output_root() / "interactive"
+        interactive_dir.mkdir(parents=True, exist_ok=True)
+        thoughts_csv = str(interactive_dir / f"agent_thoughts_{timestamp}.csv")
 
         with open(thoughts_csv, "w", newline="") as csvfile:
             fieldnames = ["turn", "round", "agent", "action", "importance", "reason_type", "thought"]

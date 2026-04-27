@@ -24,32 +24,34 @@ L_LONG = 10      # Top L facts to retrieve from long-term memory
 MAX_LINE_CHARS = 120      # Max chars per line in prompt sections
 MAX_SECTION_CHARS = 600   # Max chars per prompt section
 
-EVIDENCE_TAGS = ["motive", "means", "opportunity", "contradiction", "timeline", "alibi"]
+DEFAULT_EVIDENCE_TAGS = ["motive", "means", "opportunity", "contradiction", "timeline", "alibi"]
 
-CATEGORY_PATTERNS = {
+DEFAULT_CATEGORY_PATTERNS = {
     "motive": [
         "motive", "wanted", "needed", "money", "inherit", "loan", "love", "affair",
-        "jealous", "hate", "profit", "gold", "debt", "fired", "desperate", "freedom"
+        "jealous", "hate", "profit", "debt", "fired", "desperate", "freedom",
+        "promotion", "career", "creditor", "blackmail", "pay up"
     ],
     "means": [
-        "weapon", "corkscrew", "candlestick", "pill", "pills", "poison", "wire", "electric",
-        "switch", "knife", "blood", "gift", "inscribed"
+        "weapon", "paperweight", "blood", "wallet", "checkbook", "note", "key",
+        "fire escape", "office", "bathroom", "injury", "wound", "struck"
     ],
     "opportunity": [
-        "saw", "with", "near", "rose garden", "wine vault", "gazebo", "room", "study",
-        "farmhouse", "vault", "alone", "entered", "followed", "found", "at the scene"
+        "saw", "with", "near", "room", "office", "bathroom", "apartment",
+        "alone", "entered", "followed", "found", "at the scene", "parking",
+        "fire escape", "hallway"
     ],
     "contradiction": [
         "contradict", "odd", "however", "but", "doesn't fit", "does not fit", "lie", "lying",
-        "inconsistent", "different", "surprised", "booming", "opposite"
+        "inconsistent", "different", "surprised", "opposite", "doesn't add up", "does not add up"
     ],
     "timeline": [
         "am", "pm", "around", "at ", ":", "before", "after", "earlier", "later", "when",
-        "from ", "until", "between", "today", "tonight"
+        "from ", "until", "between", "today", "tonight", "arrived", "left"
     ],
     "alibi": [
         "alibi", "i was", "i had been", "i have been", "could not have", "did not kill",
-        "innocent", "was nowhere near", "can attest", "with me", "unconscious", "not there"
+        "innocent", "was nowhere near", "can attest", "with me", "not there", "someone can confirm"
     ],
 }
 
@@ -193,18 +195,31 @@ class LongTermHistory:
     Stores normalized fact entries and retrieves top L_LONG by similarity.
     """
     
-    def __init__(self, embedding_fn: Optional[callable] = None):
+    def __init__(self, embedding_fn: Optional[callable] = None, evidence_tags: Optional[List[str]] = None, category_patterns: Optional[Dict[str, List[str]]] = None):
         self.facts: List[FactEntry] = []
         self._fact_texts: set = set()
         self._embedding_fn = embedding_fn or self._default_embedding
+        self.evidence_tags = list(evidence_tags or DEFAULT_EVIDENCE_TAGS)
+        self.category_patterns = dict(category_patterns or DEFAULT_CATEGORY_PATTERNS)
     
+    _STOPWORDS = frozenset({
+        "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
+        "of", "with", "by", "from", "is", "was", "are", "were", "be", "been",
+        "have", "has", "had", "do", "did", "not", "no", "it", "that", "this",
+        "i", "you", "he", "she", "we", "they", "my", "his", "her", "their",
+    })
+
     def _default_embedding(self, text: str) -> np.ndarray:
-        """Simple hash-based pseudo-embedding (replace with real embeddings in production)."""
-        words = text.lower().split()
-        vec = np.zeros(128)
+        """Random-projection bag-of-words embedding (256-dim, stopwords filtered).
+        Plug in a real sentence-transformer via the embedding_fn constructor arg for
+        higher-quality retrieval."""
+        dim = 256
+        cleaned = re.sub(r"[^a-z0-9\s]", " ", text.lower())
+        words = [w for w in cleaned.split() if w and w not in self._STOPWORDS]
+        vec = np.zeros(dim)
         for w in words:
             h = int(hashlib.md5(w.encode()).hexdigest(), 16)
-            for i in range(128):
+            for i in range(dim):
                 vec[i] += ((h >> i) & 1) * 2 - 1
         norm = np.linalg.norm(vec)
         return vec / norm if norm > 0 else vec
@@ -262,11 +277,11 @@ class LongTermHistory:
         if not facts:
             return ""
         
-        grouped: Dict[str, List[str]] = {tag: [] for tag in EVIDENCE_TAGS}
+        grouped: Dict[str, List[str]] = {tag: [] for tag in self.evidence_tags}
         other_lines: List[str] = []
 
         for fact in facts:
-            primary_tags = [tag for tag in fact.tags if tag in EVIDENCE_TAGS]
+            primary_tags = [tag for tag in fact.tags if tag in self.evidence_tags]
             if primary_tags:
                 tag = primary_tags[0]
                 grouped[tag].append(fact.fact_text)
@@ -276,7 +291,7 @@ class LongTermHistory:
         sections = []
         total_chars = 0
 
-        for tag in EVIDENCE_TAGS:
+        for tag in self.evidence_tags:
             entries = grouped[tag][:3]
             if not entries:
                 continue
@@ -309,13 +324,13 @@ class LongTermHistory:
     def add_clue(self, clue: str):
         if not clue:
             return
-        categorized = categorize_fact_text(f"CLUE: {clue}")
+        categorized = categorize_fact_text(f"CLUE: {clue}", category_patterns=self.category_patterns, default_tags=self.evidence_tags)
         tags = list(dict.fromkeys(["clue"] + categorized))
         self.add_fact(0, f"CLUE: {clue}", tags=tags)
     
     def add_round_summary(self, round_num: int, bullets: List[str]):
         for bullet in bullets:
-            tags = list(dict.fromkeys([f"round{round_num}", "summary"] + categorize_fact_text(bullet)))
+            tags = list(dict.fromkeys([f"round{round_num}", "summary"] + categorize_fact_text(bullet, category_patterns=self.category_patterns, default_tags=self.evidence_tags)))
             self.add_fact(round_num * 100, bullet, tags=tags)
     
     def get_all_clues(self) -> List[str]:
@@ -364,13 +379,20 @@ class KnowledgeGraph:
 # ============================================================================
 # FACT NORMALIZER (LLM-based)
 # ============================================================================
-VALID_TAGS = EVIDENCE_TAGS
+VALID_TAGS = DEFAULT_EVIDENCE_TAGS
 
 
-def categorize_fact_text(text: str) -> List[str]:
+def categorize_fact_text(
+    text: str,
+    category_patterns: Optional[Dict[str, List[str]]] = None,
+    default_tags: Optional[List[str]] = None,
+) -> List[str]:
     text_lower = text.lower()
     tags = []
-    for tag, patterns in CATEGORY_PATTERNS.items():
+    resolved_category_patterns = category_patterns or DEFAULT_CATEGORY_PATTERNS
+    resolved_default_tags = list(default_tags or DEFAULT_EVIDENCE_TAGS)
+
+    for tag, patterns in resolved_category_patterns.items():
         if any(pattern in text_lower for pattern in patterns):
             tags.append(tag)
 
@@ -380,14 +402,17 @@ def categorize_fact_text(text: str) -> List[str]:
         if any(marker in text_lower for marker in ["i was", "with", "could not have", "innocent", "nowhere near"]):
             tags.append("alibi")
 
-    return list(dict.fromkeys(tags)) or ["timeline"]
+    fallback_tag = "timeline" if "timeline" in resolved_default_tags else (resolved_default_tags[0] if resolved_default_tags else "timeline")
+    return list(dict.fromkeys(tags)) or [fallback_tag]
 
 
 class FactNormalizer:
     """Normalizes dialogue into structured facts using LLM or rule-based fallback."""
     
-    def __init__(self, llm: Any = None):
+    def __init__(self, llm: Any = None, valid_tags: Optional[List[str]] = None, category_patterns: Optional[Dict[str, List[str]]] = None):
         self.llm = llm
+        self.valid_tags = list(valid_tags or DEFAULT_EVIDENCE_TAGS)
+        self.category_patterns = dict(category_patterns or DEFAULT_CATEGORY_PATTERNS)
     
     def normalize(self, speaker: str, text: str, turn_id: int) -> List[Dict]:
         """Normalize a dialogue turn into fact entries."""
@@ -400,7 +425,7 @@ Text: {text}
 
 Rules:
 - Each fact_text <= 20 words
-- Tags must come only from: {VALID_TAGS}
+- Tags must come only from: {self.valid_tags}
 - Prefer these categories when supported: motive, means, opportunity, contradiction, timeline, alibi
 - Extract only concrete claims, alibis, timing, means, motives, opportunities, or contradictions
 - Do not invent facts
@@ -421,8 +446,8 @@ JSON:"""
                     fact_text = item.get("fact_text", "").strip()
                     if not fact_text:
                         continue
-                    tags = [tag for tag in item.get("tags", []) if tag in VALID_TAGS]
-                    tags = list(dict.fromkeys(tags + categorize_fact_text(fact_text)))
+                    tags = [tag for tag in item.get("tags", []) if tag in self.valid_tags]
+                    tags = list(dict.fromkeys(tags + categorize_fact_text(fact_text, category_patterns=self.category_patterns, default_tags=self.valid_tags)))
                     normalized.append({"fact_text": fact_text, "tags": tags})
                 if normalized:
                     return normalized
@@ -444,8 +469,9 @@ JSON:"""
             if len(words) > 18:
                 snippet = " ".join(words[:18]) + "..."
             fact_text = f"{speaker}: {snippet}"
-            facts.append({"fact_text": fact_text, "tags": categorize_fact_text(snippet)})
-        return facts or [{"fact_text": f"{speaker}: {text[:80]}", "tags": ["timeline"]}]
+            facts.append({"fact_text": fact_text, "tags": categorize_fact_text(snippet, category_patterns=self.category_patterns, default_tags=self.valid_tags)})
+        fallback_tag = "timeline" if "timeline" in self.valid_tags else (self.valid_tags[0] if self.valid_tags else "timeline")
+        return facts or [{"fact_text": f"{speaker}: {text[:80]}", "tags": [fallback_tag]}]
 
 
 # ============================================================================
@@ -454,13 +480,15 @@ JSON:"""
 class AgentMemory:
     """Complete memory system with all three stages."""
     
-    def __init__(self, agent_name: str, short_term_window: int = K_SHORT, llm: Any = None, embedding_fn: callable = None):
+    def __init__(self, agent_name: str, short_term_window: int = K_SHORT, llm: Any = None, embedding_fn: callable = None, scenario: Any = None):
         self.agent_name = agent_name
         self.shared_history = SharedHistory()
         self.short_term = ShortTermHistory()
-        self.long_term = LongTermHistory(embedding_fn=embedding_fn)
+        evidence_tags = list(getattr(scenario, "evidence_tags", DEFAULT_EVIDENCE_TAGS))
+        category_patterns = dict(getattr(scenario, "memory_category_patterns", DEFAULT_CATEGORY_PATTERNS))
+        self.long_term = LongTermHistory(embedding_fn=embedding_fn, evidence_tags=evidence_tags, category_patterns=category_patterns)
         self.knowledge_graph = KnowledgeGraph()
-        self.normalizer = FactNormalizer(llm=llm)
+        self.normalizer = FactNormalizer(llm=llm, valid_tags=evidence_tags, category_patterns=category_patterns)
     
     def add_thought(self, thought: str, action: str = "", importance: int = 0):
         self.short_term.add(thought, action, importance)
@@ -513,9 +541,6 @@ class AgentMemory:
         
         return "\n\n".join(sections)
     
-    def format_all_for_prompt(self, query: str = "") -> str:
-        return self.build_prompt_context(query)
-    
     def get_suspect_ranking(self) -> str:
         suspects = self.knowledge_graph.get_ranked_suspects()
         if not suspects:
@@ -527,5 +552,3 @@ class AgentMemory:
         return "\n".join(lines)
 
 
-ShortTermMemory = ShortTermHistory
-LongTermMemorySimple = LongTermHistory

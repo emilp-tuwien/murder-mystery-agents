@@ -29,6 +29,8 @@ class GameEventStore:
                 "agent_memory": {},
                 "murderer": None,
                 "verdict": None,
+                "scenario_title": "The Business of Murder",
+                "scenario_location": None,
                 "started_at": None,
                 "updated_at": time.time(),
                 "error": None,
@@ -49,7 +51,10 @@ class GameEventStore:
         return event
 
     def _apply_event(self, event_type: str, payload: Dict[str, Any]):
-        if event_type == "game_started":
+        if event_type == "run_started":
+            self.snapshot["scenario_title"] = payload.get("scenario_title", self.snapshot.get("scenario_title"))
+            self.snapshot["scenario_location"] = payload.get("scenario_location", self.snapshot.get("scenario_location"))
+        elif event_type == "game_started":
             self.snapshot.update({
                 "status": "running",
                 "started_at": payload.get("started_at", time.time()),
@@ -57,6 +62,8 @@ class GameEventStore:
                 "phase": payload.get("phase", "introduction"),
                 "turn": payload.get("turn", 0),
                 "murderer": payload.get("murderer"),
+                "scenario_title": payload.get("scenario_title", self.snapshot.get("scenario_title")),
+                "scenario_location": payload.get("scenario_location", self.snapshot.get("scenario_location")),
                 "history": [],
                 "accusations": {},
                 "verdict": None,

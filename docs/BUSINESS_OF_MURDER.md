@@ -1,6 +1,6 @@
 # Business of Murder scenario
 
-This repo now includes a second selectable scenario adapted from the uploaded `business 3` files.
+**Business of Murder** is the primary and only active thesis scenario in this repo.
 
 ## Scenario assets
 
@@ -8,48 +8,43 @@ This repo now includes a second selectable scenario adapted from the uploaded `b
 - Roles: `scenarios/business-of-murder/roles/`
 - Clues: `scenarios/business-of-murder/clues/`
 - Pilot config: `configs/business-of-murder-pilot.yaml`
+- Final thesis matrix: `configs/thesis-final-matrix.yaml`
 
-## Mapping from source material
+## Scenario-specific runtime vocabulary
 
-- `*.invite.txt` → round 1 role descriptions
-- `*.start.txt` → round 2 role descriptions
-- `Clue1.txt` to `Clue4.txt` → scenario clues 1 to 4
-- Added `clue5.txt` → synthesized timeline clue so the framework's 6-round flow still lands with a final evidence push before accusations
-- Added `confession.txt` per role so end-of-game truth is explicit and comparable to the farm scenario
+Business-of-Murder-specific evidence vocabulary now lives in the scenario manifest itself:
 
-## Run a single pilot discussion
+- memory categorization tags/patterns
+- clue-keyword stopwords
+- evidence/pressure/synthesis gate patterns
+
+That keeps old scenario vocabulary out of the active prompt/memory pipeline.
+
+## Run a single discussion
 
 ```bash
 python3 run_discussion.py --model local --conversations-per-round 20 --max-rounds 6
 ```
 
-That command still uses the default farm setup unless you edit code or load a custom config elsewhere.
+The default runtime already resolves to Business of Murder.
 
-For the business scenario, use the experiment runner:
-
-```bash
-python3 experiments/runner.py --config configs/business-of-murder-pilot.yaml --replicates 1
-```
-
-## Compare against the original farm scenario
-
-Run one or more replicates for each:
+## Run the pilot batch
 
 ```bash
-python3 experiments/runner.py --config configs/pilot.yaml --replicates 3
 python3 experiments/runner.py --config configs/business-of-murder-pilot.yaml --replicates 3
 ```
 
-Then compare these outputs:
+## Run the final thesis matrix
 
-- `outputs/pilot/aggregate_summary.json`
-- `outputs/business-of-murder-pilot/aggregate_summary.json`
-- per-run `metrics.json`, `utterances.csv`, `accusations.csv`, and `agent_metrics.csv`
+```bash
+python3 experiments/runner.py --config configs/thesis-final-matrix.yaml --plan-only
+python3 experiments/runner.py --config configs/thesis-final-matrix.yaml
+```
 
-Recommended first comparison dimensions:
+## Interactive artifacts
 
-- group solve rate
-- murderer vote share
-- murderer attention received
-- total utterances / total turns
-- qualitative coherence from transcripts and confessions
+Interactive thought exports are written to:
+
+- `outputs/interactive/agent_thoughts_<timestamp>.csv`
+
+They are intentionally kept out of the repo root so they do not get mistaken for thesis artifacts.
