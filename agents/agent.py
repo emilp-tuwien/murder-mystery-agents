@@ -75,6 +75,31 @@ class AccusationResult(BaseModel):
     comparative_case: str = Field(default="", description="Why this suspect is a stronger case than the main alternatives")
     uncertainty: str = Field(default="", description="Main remaining uncertainty or weakness in the case")
 
+    @field_validator("confidence", mode="before")
+    @classmethod
+    def normalize_confidence(cls, value):
+        if isinstance(value, (int, float)):
+            return max(0, min(100, int(value)))
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            mapping = {
+                "very low": 10,
+                "low": 25,
+                "medium": 50,
+                "moderate": 50,
+                "medium-high": 65,
+                "medium high": 65,
+                "fairly high": 70,
+                "high": 80,
+                "very high": 95,
+            }
+            if normalized in mapping:
+                return mapping[normalized]
+            digits = re.search(r"\d+", normalized)
+            if digits:
+                return max(0, min(100, int(digits.group(0))))
+        return 50
+
     @field_validator("evidence_items", mode="before")
     @classmethod
     def normalize_evidence_items(cls, value):
@@ -603,6 +628,7 @@ Return valid JSON with keys:
 - uncertainty
 
 Requirements:
+- `confidence` must be an INTEGER from 0 to 100. Do NOT use words like "high", "medium", or "low".
 - `evidence_items` must contain 2 to 4 concise evidence points.
 - Use the structured fields even if some are weak; if a dimension is weak, say so briefly.
 - Keep `reasoning` to 1-3 sentences.
