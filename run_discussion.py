@@ -331,6 +331,8 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
         ],
         "thoughts": {},
         "thoughts_history": [],
+        "belief_snapshots": {},
+        "belief_history": [],
         "last_speaker": "Game Master",
         "pending_obligation": None,
         "next_speaker": None,
@@ -384,6 +386,7 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
 
         accusations[name] = result
         votes[result.accused] = votes.get(result.accused, 0) + 1
+        accusation_context = getattr(agent, "last_accusation_context", {}) or {}
         print(f"accuses {result.accused}")
 
         if runtime_sink is not None:
@@ -404,13 +407,24 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
                         "comparative_case": result.comparative_case,
                         "uncertainty": result.uncertainty,
                     },
+                    "belief_snapshot": accusation_context.get("belief_snapshot", {}),
+                    "belief_alignment": {
+                        "top_n_candidates": accusation_context.get("top_n_candidates", []),
+                        "top_suspect": accusation_context.get("top_suspect"),
+                        "accused_rank": accusation_context.get("accused_rank"),
+                        "accused_in_top_n": accusation_context.get("accused_in_top_n"),
+                        "corrected_to_top_suspect": accusation_context.get("corrected_to_top_suspect", False),
+                    },
                 },
             )
 
     _section("Final accusations")
     for name, result in accusations.items():
+        accusation_context = getattr(agents.get(name), "last_accusation_context", {}) or {}
         print(f"\n{name} accuses {result.accused}:")
         print(f"  Confidence: {result.confidence}/100")
+        if accusation_context.get("top_suspect"):
+            print(f"  Belief state: top suspect was {accusation_context.get('top_suspect')} | rank of accused: {accusation_context.get('accused_rank')} | in top-{len(accusation_context.get('top_n_candidates', [])) or 0}: {accusation_context.get('accused_in_top_n')}")
         print(f"  Primary basis: {result.primary_basis}")
         print(f"  Reasoning: {result.reasoning}")
         if result.evidence_items:

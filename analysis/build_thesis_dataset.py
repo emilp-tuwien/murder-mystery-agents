@@ -122,6 +122,10 @@ def _base_run_context(manifest: Dict[str, Any], metrics: Dict[str, Any], conditi
         "total_utterances": metrics.get("total_utterances"),
         "group_solved": rq3.get("group_solved"),
         "murderer_vote_share": rq3.get("murderer_vote_share"),
+        "belief_top1_alignment_fraction": rq3.get("belief_top1_alignment_fraction"),
+        "belief_top3_alignment_fraction": rq3.get("belief_top3_alignment_fraction"),
+        "mean_belief_uncertainty": rq3.get("mean_belief_uncertainty"),
+        "belief_forced_top_suspect_count": rq3.get("belief_forced_top_suspect_count"),
         "random_vote_share_baseline": rq3.get("random_vote_share_baseline"),
         "random_group_solve_rate_baseline": rq3.get("random_group_solve_rate_baseline"),
         "murderer_attention_received": rq2.get("murderer_attention_received"),
@@ -164,6 +168,7 @@ def build_thesis_dataset(experiment_dir: str | Path) -> Dict[str, Any]:
     utterance_rows: List[Dict[str, Any]] = []
     interaction_rows: List[Dict[str, Any]] = []
     accusation_rows: List[Dict[str, Any]] = []
+    belief_rows: List[Dict[str, Any]] = []
     deception_rows: List[Dict[str, Any]] = []
     event_rows: List[Dict[str, Any]] = []
 
@@ -277,6 +282,9 @@ def build_thesis_dataset(experiment_dir: str | Path) -> Dict[str, Any]:
             for row in _read_csv(run_dir / "accusations.csv"):
                 accusation_rows.append({**context, **row})
 
+            for row in _read_csv(run_dir / "beliefs.csv"):
+                belief_rows.append({**context, **row})
+
             for row in _read_csv(run_dir / "deception_labels.csv"):
                 deception_rows.append({**context, **row})
 
@@ -296,6 +304,7 @@ def build_thesis_dataset(experiment_dir: str | Path) -> Dict[str, Any]:
     _write_csv(dataset_dir / "utterances.csv", utterance_rows)
     _write_csv(dataset_dir / "interactions.csv", interaction_rows)
     _write_csv(dataset_dir / "accusations.csv", accusation_rows)
+    _write_csv(dataset_dir / "beliefs.csv", belief_rows)
     _write_csv(dataset_dir / "deception_labels.csv", deception_rows)
     _write_csv(dataset_dir / "events.csv", event_rows)
 
@@ -307,6 +316,7 @@ def build_thesis_dataset(experiment_dir: str | Path) -> Dict[str, Any]:
         "total_utterances": len(utterance_rows),
         "total_interactions": len(interaction_rows),
         "total_accusations": len(accusation_rows),
+        "total_belief_snapshots": len(belief_rows),
         "total_deception_labels": len(deception_rows),
         "total_events": len(event_rows),
         "files": {
@@ -315,6 +325,7 @@ def build_thesis_dataset(experiment_dir: str | Path) -> Dict[str, Any]:
             "utterances": "thesis_dataset/utterances.csv",
             "interactions": "thesis_dataset/interactions.csv",
             "accusations": "thesis_dataset/accusations.csv",
+            "beliefs": "thesis_dataset/beliefs.csv",
             "deception_labels": "thesis_dataset/deception_labels.csv",
             "events": "thesis_dataset/events.csv",
         },

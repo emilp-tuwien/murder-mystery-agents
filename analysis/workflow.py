@@ -153,6 +153,7 @@ def validate_run_outputs(run_dir: str | Path) -> Dict[str, Any]:
     utterances = _read_csv(run_path / "utterances.csv")
     interactions = _read_csv(run_path / "interactions.csv")
     accusations = _read_csv(run_path / "accusations.csv")
+    beliefs = _read_csv(run_path / "beliefs.csv")
     deception_labels = _read_csv(run_path / "deception_labels.csv")
 
     missing_required_files = [name for name in REQUIRED_RUN_FILES if not (run_path / name).exists()]
@@ -260,6 +261,8 @@ def validate_run_outputs(run_dir: str | Path) -> Dict[str, Any]:
         warnings.append("evidence_gated_rounds_hit_hard_cap")
     if len(round_summaries) == 0:
         warnings.append("no_round_summaries_logged")
+    if len(beliefs) == 0:
+        warnings.append("no_belief_state_trace_logged")
 
     payload = {
         "run_id": manifest.get("run_id", run_path.name),
@@ -275,6 +278,7 @@ def validate_run_outputs(run_dir: str | Path) -> Dict[str, Any]:
             "total_utterances": len(utterances),
             "total_interactions": len(interactions),
             "total_accusations": len(accusations),
+            "total_belief_snapshots": len(beliefs),
             "total_deception_labels": len(deception_labels),
             "clue_reveals": len(clue_reveals),
             "round_changes": len(round_changes),
@@ -288,6 +292,15 @@ def validate_run_outputs(run_dir: str | Path) -> Dict[str, Any]:
             "accusation_reasoning_evidence_backed_fraction": evidence_backed_reasoning_fraction,
             "accusation_structure_fraction": accusation_structure_fraction,
             "accusation_comparative_fraction": accusation_comparative_fraction,
+            "belief_state_snapshots_logged": len(beliefs),
+            "belief_top1_alignment_fraction": _ratio(
+                sum(1 for row in accusations if str(row.get("belief_accused_rank", "")).strip() in {"1", "1.0"}),
+                len(accusations),
+            ) if accusations else 0.0,
+            "belief_top3_alignment_fraction": _ratio(
+                sum(1 for row in accusations if str(row.get("belief_accused_in_top_n", "")).strip().lower() in {"1", "true", "yes"}),
+                len(accusations),
+            ) if accusations else 0.0,
             "suspect_question_coverage_fraction": suspect_question_coverage_fraction,
             "suspects_directly_questioned": sorted(name for name in direct_question_targets if name),
             "murderer_directly_questioned": bool(murderer_direct_questions),

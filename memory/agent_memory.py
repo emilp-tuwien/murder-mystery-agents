@@ -356,24 +356,65 @@ class SuspicionEntry:
 
 
 class KnowledgeGraph:
-    """Track suspicions."""
+    """Track suspicions and expose ranked belief snapshots."""
     
     def __init__(self):
         self.suspicions: Dict[str, SuspicionEntry] = {}
     
+    def ensure_targets(self, candidate_names: List[str]):
+        for name in candidate_names:
+            if name and name not in self.suspicions:
+                self.suspicions[name] = SuspicionEntry()
+    
     def update_suspicion(self, target: str, delta: int, reason: str):
+        if not target:
+            return
         if target not in self.suspicions:
             self.suspicions[target] = SuspicionEntry()
         entry = self.suspicions[target]
-        entry.level = max(-10, min(10, entry.level + delta))
+        entry.level = max(-30, min(30, entry.level + delta))
         if reason and reason not in entry.reasons:
             entry.reasons.append(reason)
     
-    def get_ranked_suspects(self) -> List[tuple]:
+    def get_ranked_suspects(self, candidate_names: Optional[List[str]] = None) -> List[tuple]:
+        if candidate_names:
+            self.ensure_targets(candidate_names)
+            names = list(dict.fromkeys(candidate_names))
+        else:
+            names = list(self.suspicions.keys())
         return sorted(
-            [(name, entry.level, entry.reasons) for name, entry in self.suspicions.items()],
-            key=lambda x: x[1], reverse=True
+            [(name, self.suspicions.get(name, SuspicionEntry()).level, self.suspicions.get(name, SuspicionEntry()).reasons) for name in names],
+            key=lambda x: (-x[1], -len(x[2]), x[0])
         )
+
+    def build_snapshot(self, candidate_names: Optional[List[str]] = None, top_k: int = 5) -> Dict[str, Any]:
+        ranked = self.get_ranked_suspects(candidate_names=candidate_names)
+        top_ranked = ranked[:top_k]
+        top_suspect = top_ranked[0][0] if top_ranked else None
+        top_score = top_ranked[0][1] if top_ranked else 0
+        second_score = top_ranked[1][1] if len(top_ranked) > 1 else 0
+        top_gap = top_score - second_score
+
+        certainty_signal = max(0, top_score) * 4 + max(0, top_gap) * 8
+        uncertainty = 100 if not top_ranked else max(0, 100 - min(100, certainty_signal))
+
+        return {
+            "top_suspect": top_suspect,
+            "top_suspect_score": top_score,
+            "top_gap": top_gap,
+            "uncertainty": int(uncertainty),
+            "ranking": [
+                {
+                    "rank": idx,
+                    "name": name,
+                    "score": level,
+                    "reasons": reasons[:3],
+                }
+                for idx, (name, level, reasons) in enumerate(top_ranked, 1)
+            ],
+            "suspicion_scores": {name: level for name, level, _ in ranked},
+            "top_reasons": {name: reasons[:3] for name, _, reasons in top_ranked if reasons},
+        }
 
 
 # ============================================================================

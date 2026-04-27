@@ -1,4 +1,4 @@
-from typing import Optional, Literal, Any, List
+from typing import Optional, Literal, Any, List, Dict
 from pathlib import Path
 import time
 import re
@@ -7,6 +7,28 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from scenarios import ScenarioConfig
 from schemas.state import GameState
 from utils.dialogue_analysis import extract_mentions, is_question
+
+
+BELIEF_EVIDENCE_MARKERS = [
+    "motive", "alibi", "where were", "did you", "why did", "how do you explain", "contradict",
+    "debt", "weapon", "blood", "lied", "suspicious", "note", "wallet", "checkbook",
+    "paperweight", "fire escape", "money", "arrived", "left", "followed", "argument",
+]
+BELIEF_ACCUSATION_MARKERS = [
+    "killed", "murderer", "murdered", "i suspect", "points to", "did it", "you lied", "lying",
+    "doesn't add up", "does not add up",
+]
+BELIEF_DEFENSIVE_MARKERS = [
+    "i didn't", "i did not", "i was", "i wasn't", "i was with", "with me", "i have an alibi",
+    "innocent", "not there", "could not have", "someone can confirm",
+]
+BELIEF_UNCERTAINTY_MARKERS = [
+    "maybe", "perhaps", "not sure", "can't remember", "cannot remember", "don't recall", "hard to say",
+]
+BELIEF_DEFLECTION_MARKERS = [
+    "what about", "the real question is", "we should ask", "look at", "consider", "focus on",
+]
+TOP_N_ACCUSATION_CANDIDATES = 3
 
 
 def _retry_with_backoff(func, max_retries: int = 5, base_delay: float = 2.0):
@@ -132,6 +154,8 @@ class Agent:
         self.questions_asked_to: set = set()  # Track who we've asked questions to (can only ask each agent once)
         self.facts_revealed: List[str] = []  # Track facts this agent has already revealed
         self.topics_discussed: set = set()  # Track topics to avoid repetition
+        self.last_belief_snapshot: Dict[str, Any] = {}
+        self.last_accusation_context: Dict[str, Any] = {}
         
         # Initialize three-stage memory system
         from memory.agent_memory import AgentMemory, SharedHistory
@@ -174,7 +198,134 @@ class Agent:
     
     def update_suspicion(self, target: str, delta: int, reason: str):
         """Update suspicion level for a person in knowledge graph."""
+        if not target or target == self.name:
+            return
         self.memory.knowledge_graph.update_suspicion(target, delta, reason)
+
+    def _belief_candidate_names(self, all_agents: List[str]) -> List[str]:
+        return [name for name in all_agents if name != self.name]
+
+    def observe_utterance(self, utterance: dict, all_agents: List[str]) -> dict:
+        speaker = utterance.get("speaker", "")
+        if not speaker or speaker == "Game Master":
+            return self.export_belief_snapshot(
+                turn=utterance.get("turn"),
+                round_num=utterance.get("round"),
+                stage=utterance.get("stage"),
+                context="post_utterance",
+                observed_speaker=speaker or None,
+                all_agents=all_agents,
+            )
+
+        candidates = self._belief_candidate_names(all_agents)
+        self.memory.knowledge_graph.ensure_targets(candidates)
+
+        text = utterance.get("text", "")
+        text_lower = text.lower()
+        question = bool(utterance.get("is_question")) or is_question(text)
+        addressed_to = utterance.get("addressed_to")
+        mentioned_agents = list(dict.fromkeys(utterance.get("mentioned_agents") or extract_mentions(text, [name for name in all_agents if name != speaker])))
+        response_to_speaker = utterance.get("response_to_speaker")
+
+        pressure_signal = any(marker in text_lower for marker in BELIEF_EVIDENCE_MARKERS)
+        accusation_signal = any(marker in text_lower for marker in BELIEF_ACCUSATION_MARKERS)
+        defensive_signal = any(marker in text_lower for marker in BELIEF_DEFENSIVE_MARKERS)
+        uncertainty_signal = any(marker in text_lower for marker in BELIEF_UNCERTAINTY_MARKERS)
+        deflection_signal = any(marker in text_lower for marker in BELIEF_DEFLECTION_MARKERS)
+        concrete_alibi_signal = speaker != self.name and (
+            ("i was" in text_lower or "with me" in text_lower or "someone can confirm" in text_lower)
+            and any(token in text_lower for token in ["am", "pm", "before", "after", "with", "saw", "arrived", "left"])
+            and not uncertainty_signal
+        )
+
+        belief_reasons: List[tuple[str, int, str]] = []
+
+        for target in mentioned_agents:
+            if not target or target == self.name:
+                continue
+            delta = 0
+            reason_bits: List[str] = []
+            if question:
+                delta += 2
+                reason_bits.append("was directly questioned")
+            if addressed_to == target and question:
+                delta += 2
+                reason_bits.append("was the focus of a direct response-seeking question")
+            if pressure_signal:
+                delta += 2
+                reason_bits.append("was linked to evidence, motive, or contradiction language")
+            if accusation_signal:
+                delta += 2
+                reason_bits.append("was framed in explicitly accusatory language")
+            if delta > 0:
+                belief_reasons.append((target, delta, f"Turn {utterance.get('turn')}: {speaker} {'; '.join(reason_bits)}."))
+
+        if speaker != self.name:
+            speaker_delta = 0
+            speaker_reasons: List[str] = []
+            if response_to_speaker and defensive_signal:
+                speaker_delta += 2
+                speaker_reasons.append("gave a defensive denial or alibi when challenged")
+            if response_to_speaker and uncertainty_signal:
+                speaker_delta += 1
+                speaker_reasons.append("sounded uncertain while answering pressure")
+            if response_to_speaker and deflection_signal:
+                speaker_delta += 2
+                speaker_reasons.append("deflected instead of answering cleanly")
+            if concrete_alibi_signal:
+                speaker_delta -= 1
+                speaker_reasons.append("offered a more concrete alibi with specifics")
+            if speaker_delta != 0:
+                belief_reasons.append((speaker, speaker_delta, f"Turn {utterance.get('turn')}: {speaker} {'; '.join(speaker_reasons)}."))
+
+        for target, delta, reason in belief_reasons:
+            self.update_suspicion(target, delta, reason)
+
+        return self.export_belief_snapshot(
+            turn=utterance.get("turn"),
+            round_num=utterance.get("round"),
+            stage=utterance.get("stage"),
+            context="post_utterance",
+            observed_speaker=speaker,
+            all_agents=all_agents,
+        )
+
+    def export_belief_snapshot(
+        self,
+        turn: Optional[int] = None,
+        round_num: Optional[int] = None,
+        stage: Optional[str] = None,
+        context: str = "live",
+        observed_speaker: Optional[str] = None,
+        all_agents: Optional[List[str]] = None,
+    ) -> dict:
+        candidates = self._belief_candidate_names(all_agents or [])
+        snapshot = self.memory.knowledge_graph.build_snapshot(candidate_names=candidates or None, top_k=5)
+        belief_snapshot = {
+            "turn": turn,
+            "round": round_num,
+            "stage": stage,
+            "context": context,
+            "observed_speaker": observed_speaker,
+            "agent": self.name,
+            **snapshot,
+        }
+        self.last_belief_snapshot = belief_snapshot
+        return belief_snapshot
+
+    def render_belief_summary(self, all_agents: List[str], top_k: int = 5) -> str:
+        snapshot = self.export_belief_snapshot(all_agents=all_agents, context="prompt")
+        ranking = snapshot.get("ranking", [])[:top_k]
+        if not ranking:
+            return "No stable belief ranking yet."
+
+        lines = ["Belief state:"]
+        for row in ranking:
+            reasons = row.get("reasons") or []
+            reason_text = f" | reasons: {'; '.join(reasons[:2])}" if reasons else ""
+            lines.append(f"  {row.get('rank')}. {row.get('name')} ({row.get('score')}){reason_text}")
+        lines.append(f"Uncertainty level: {snapshot.get('uncertainty', 100)}/100")
+        return "\n".join(lines)
     
     def export_memory_snapshot(self) -> dict:
         facts = self.memory.long_term.facts[-24:]
@@ -196,6 +347,7 @@ class Agent:
             "categories": categorized,
             "other": uncategorized[-6:],
             "suspicions": suspicions,
+            "belief_state": self.last_belief_snapshot or self.export_belief_snapshot(context="memory_snapshot"),
         }
 
     def update_round(self, round_num: int):
@@ -648,6 +800,17 @@ Output dialogue only."""),
         memory_context = self.memory.build_prompt_context()
         suspect_ranking = self.memory.get_suspect_ranking()
         interaction_summary = self._build_accusation_summary(state, all_agents)
+        belief_snapshot = self.export_belief_snapshot(
+            turn=state.get("turn"),
+            round_num=state.get("current_round"),
+            stage=state.get("current_stage"),
+            context="pre_accusation",
+            all_agents=all_agents,
+        )
+        belief_summary = self.render_belief_summary(all_agents)
+        top_ranked = belief_snapshot.get("ranking", [])
+        top_n_candidates = [row.get("name") for row in top_ranked[:TOP_N_ACCUSATION_CANDIDATES] if row.get("name")]
+        top_suspect = top_n_candidates[0] if top_n_candidates else (other_agents[0] if other_agents else "")
         
         msgs = [
             SystemMessage(content=f"""Character Information:
@@ -661,10 +824,18 @@ Do not give a vague accusation. Build the strongest honest case you can from the
 
 {suspect_ranking}
 
+{belief_summary}
+
 {interaction_summary}
 
 Choose murderer from: {others_str}
 (Cannot accuse yourself)
+
+Belief-state constraint:
+- Your accusation MUST come from these top belief candidates unless the evidence is truly overwhelming otherwise: {', '.join(top_n_candidates) if top_n_candidates else others_str}
+- Your current top suspect is: {top_suspect}
+- If you accuse someone other than your current top suspect, `comparative_case` must explicitly explain why the evidence for your chosen suspect is stronger than the evidence for {top_suspect}.
+- If your uncertainty is high, acknowledge that in `uncertainty`, but still choose the strongest candidate from your belief state.
 
 Important decision rule:
 - Your final accusation should align with the strongest evidence and the strongest sustained suspicion from the discussion.
@@ -701,6 +872,21 @@ Requirements:
                         break
                 else:
                     result.accused = other_agents[0]
+
+            corrected_to_top_suspect = False
+            if top_n_candidates and result.accused not in top_n_candidates:
+                corrected_to_top_suspect = True
+                original_accused = result.accused
+                result.accused = top_suspect
+                corrective_note = f"The model selected {original_accused}, which was outside the allowed top-{TOP_N_ACCUSATION_CANDIDATES} belief candidates, so the accusation was constrained back to {top_suspect}."
+                result.comparative_case = (result.comparative_case + " " + corrective_note).strip() if result.comparative_case else corrective_note
+                if not result.uncertainty.strip():
+                    result.uncertainty = "Belief state was diffuse, so the accusation was constrained to the strongest logged suspect."
+
+            accused_rank = next((row.get("rank") for row in top_ranked if row.get("name") == result.accused), None)
+            if result.accused != top_suspect and top_suspect and not result.comparative_case.strip():
+                result.comparative_case = f"I considered {top_suspect} most suspicious overall, but the concrete evidence against {result.accused} is stronger on the decisive point."
+
             if len(result.evidence_items) < 2:
                 fallback_items = [item for item in [result.motive_case, result.means_case, result.opportunity_case, result.contradiction_case, result.comparative_case] if item]
                 if not fallback_items and result.reasoning:
@@ -708,6 +894,9 @@ Requirements:
                 result.evidence_items = (result.evidence_items + fallback_items)[:4]
             if len(result.evidence_items) < 2:
                 result.evidence_items = (result.evidence_items + ["Case is incomplete from available discussion.", "Accusation relies on best available inference."])[:2]
+
+            if not result.uncertainty.strip():
+                result.uncertainty = f"Belief uncertainty remained at {belief_snapshot.get('uncertainty', 100)}/100 going into the accusation phase."
 
             reasoning_parts = [f"I accuse {result.accused}"]
             if result.primary_basis:
@@ -719,14 +908,32 @@ Requirements:
             if result.uncertainty.strip():
                 reasoning_parts.append(f"Main uncertainty: {result.uncertainty.strip()}")
             result.reasoning = ". ".join(part.rstrip(". ") for part in reasoning_parts if part).strip() + "."
+
+            self.last_accusation_context = {
+                "belief_snapshot": belief_snapshot,
+                "top_n_candidates": top_n_candidates,
+                "top_suspect": top_suspect,
+                "accused_rank": accused_rank,
+                "accused_in_top_n": result.accused in top_n_candidates if top_n_candidates else True,
+                "corrected_to_top_suspect": corrected_to_top_suspect,
+            }
             return result
         except Exception as e:
             print(f"Error in accuse for {self.name}: {e}", file=__import__('sys').stderr)
-            return AccusationResult(
+            fallback = AccusationResult(
                 reasoning="Unable to decide from the available discussion.",
-                accused=other_agents[0],
+                accused=top_suspect or other_agents[0],
                 confidence=0,
                 primary_basis="mixed",
                 evidence_items=["Case incomplete.", "Fallback accusation generated after model error."],
                 uncertainty="Model failed during accusation generation.",
             )
+            self.last_accusation_context = {
+                "belief_snapshot": belief_snapshot,
+                "top_n_candidates": top_n_candidates,
+                "top_suspect": top_suspect,
+                "accused_rank": 1 if fallback.accused == top_suspect else None,
+                "accused_in_top_n": fallback.accused in top_n_candidates if top_n_candidates else True,
+                "corrected_to_top_suspect": True,
+            }
+            return fallback

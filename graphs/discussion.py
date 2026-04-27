@@ -2,7 +2,7 @@ from typing import Dict, List, Optional, Any
 from langgraph.graph import StateGraph, END
 from schemas.state import GameState
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from utils.judge import NormanResponseJudge
+from utils.judge import MurdererResponseJudge
 from utils.dialogue_analysis import detect_direct_address, extract_mentions, is_question
 
 
@@ -239,7 +239,7 @@ def game_master_decide(state: GameState, game_master, agents: Dict[str, any], ui
     return {"next_speaker": decision.next_speaker, "pending_obligation": pending}
 
 
-def speak(state: GameState, agents: Dict[str, any], ui_store=None, norman_judge=None):
+def speak(state: GameState, agents: Dict[str, any], ui_store=None, murderer_judge=None, murderer_name: str | None = None):
     """Selected agent speaks"""
     speaker = state.get("next_speaker")
 
@@ -271,15 +271,16 @@ def speak(state: GameState, agents: Dict[str, any], ui_store=None, norman_judge=
     _print_speaker(speaker, text)
     _emit(ui_store, "utterance", {"utterance": u})
 
-    if speaker == "Norman D'Adly" and norman_judge is not None:
+    if murderer_name and speaker == murderer_name and murderer_judge is not None:
         recent_history = "\n".join([
             f"{item['speaker']}: {item['text']}" for item in state.get("history", [])[-5:]
         ])
-        judgement = norman_judge.evaluate(recent_history=recent_history, norman_response=text)
+        judgement = murderer_judge.evaluate(recent_history=recent_history, murderer_response=text)
         if judgement is not None:
-            print(f"\n   Norman Judge: {judgement.verdict.upper()} - {judgement.reasoning}")
+            print(f"\n   Murderer Judge: {judgement.verdict.upper()} - {judgement.reasoning}")
             print(f"     Follow-up: {judgement.follow_up_question}")
-            _emit(ui_store, "norman_judged", {
+            _emit(ui_store, "murderer_judged", {
+                "suspect": speaker,
                 "verdict": judgement.verdict,
                 "reasoning": judgement.reasoning,
                 "follow_up_question": judgement.follow_up_question,
@@ -289,8 +290,8 @@ def speak(state: GameState, agents: Dict[str, any], ui_store=None, norman_judge=
     return {"new_utterance": u, "last_speaker": speaker}
 
 
-def update_history(state: GameState, agents: Dict[str, any]):
-    """Update history and feed dialogue to agent memory systems."""
+def update_history(state: GameState, agents: Dict[str, any], ui_store=None):
+    """Update history, feed dialogue to memory systems, and log belief-state updates."""
     u = state.get("new_utterance")
     if not u:
         return {"history": []}
@@ -298,11 +299,35 @@ def update_history(state: GameState, agents: Dict[str, any]):
     turn_id = u.get("turn", 0)
     speaker = u.get("speaker", "")
     text = u.get("text", "")
+    agent_names = list(agents.keys())
 
-    for agent in agents.values():
+    belief_snapshots = {}
+    belief_history = []
+    for name, agent in agents.items():
         agent.memory.process_dialogue(turn_id, speaker, text)
+        snapshot = agent.observe_utterance(u, agent_names)
+        belief_snapshots[name] = snapshot
+        belief_history.append(snapshot)
 
-    return {"history": [u]}
+    _emit(ui_store, "beliefs_updated", {
+        "turn": turn_id,
+        "round": u.get("round"),
+        "stage": u.get("stage"),
+        "observed_speaker": speaker,
+        "beliefs": belief_snapshots,
+    })
+
+    # Clear any pending direct-response obligation now that the addressee has
+    # actually spoken — otherwise the next think_all will keep boosting them to
+    # importance=9 / reason=direct_response and the GM's continuation fallback
+    # will re-pick the same speaker turn after turn.
+    pending = state.get("pending_obligation")
+    obligation_satisfied = bool(pending and pending.get("addressee") == speaker)
+
+    update = {"history": [u], "belief_snapshots": belief_snapshots, "belief_history": belief_history}
+    if obligation_satisfied:
+        update["pending_obligation"] = None
+    return update
 
 
 def check_round_advance(state: GameState, game_master, agents: Dict[str, any], ui_store=None):
@@ -446,7 +471,8 @@ def route(state: GameState):
 
 def build_graph(agents: Dict[str, any], game_master, max_turns: int = 3, ui_store=None):
 
-    norman_judge = NormanResponseJudge(game_master.llm)
+    murderer_name = next((name for name, agent in agents.items() if getattr(agent, "is_murderer", False)), None)
+    murderer_judge = MurdererResponseJudge(game_master.llm, murderer_name=murderer_name or "the suspect")
 
     def route_fn(state: GameState):
         if state["turn"] >= max_turns or state.get("done", False):
@@ -458,8 +484,8 @@ def build_graph(agents: Dict[str, any], game_master, max_turns: int = 3, ui_stor
 
     g.add_node("think_all", lambda s: think_all(s, agents, ui_store=ui_store))
     g.add_node("game_master_decide", lambda s: game_master_decide(s, game_master, agents, ui_store=ui_store))
-    g.add_node("speak", lambda s: speak(s, agents, ui_store=ui_store, norman_judge=norman_judge))
-    g.add_node("update_history", lambda s: update_history(s, agents))
+    g.add_node("speak", lambda s: speak(s, agents, ui_store=ui_store, murderer_judge=murderer_judge, murderer_name=murderer_name))
+    g.add_node("update_history", lambda s: update_history(s, agents, ui_store=ui_store))
     g.add_node("check_round_advance", lambda s: check_round_advance(s, game_master, agents, ui_store=ui_store))
     g.add_node("advance_turn", lambda s: advance_turn(s, max_turns=max_turns))
 

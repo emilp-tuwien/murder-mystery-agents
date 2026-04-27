@@ -39,16 +39,17 @@ def _write_csv(path: Path, rows: List[Dict[str, Any]]):
         writer.writerows(rows)
 
 
-def _estimate_random_solve_rate(agent_names: List[str], murderer_name: str, trials: int = 5000) -> float:
+def _estimate_random_solve_rate(agent_names: List[str], murderer_name: str, trials: int = 5000, seed: int = 0) -> float:
     if not agent_names or murderer_name not in agent_names:
         return 0.0
 
+    rng = random.Random(seed)
     solved = 0
     for _ in range(trials):
         votes = Counter()
         for accuser in agent_names:
             candidates = [name for name in agent_names if name != accuser]
-            accused = random.choice(candidates)
+            accused = rng.choice(candidates)
             votes[accused] += 1
         max_votes = max(votes.values()) if votes else 0
         winners = [name for name, count in votes.items() if count == max_votes]
@@ -142,6 +143,10 @@ def _extract_accusation_rows(events: List[Dict[str, Any]], murderer_name: str, r
         result = payload.get("result", {})
         accused = result.get("accused")
         evidence_items = result.get("evidence_items") or []
+        belief_snapshot = payload.get("belief_snapshot", {}) or {}
+        belief_alignment = payload.get("belief_alignment", {}) or {}
+        ranking = belief_snapshot.get("ranking", []) or []
+        top_n_candidates = belief_alignment.get("top_n_candidates") or [row.get("name") for row in ranking[:3] if row.get("name")]
         if isinstance(evidence_items, list):
             evidence_items_str = " | ".join(str(item).strip() for item in evidence_items if str(item).strip())
             evidence_item_count = len([item for item in evidence_items if str(item).strip()])
@@ -163,10 +168,50 @@ def _extract_accusation_rows(events: List[Dict[str, Any]], murderer_name: str, r
             "contradiction_case": result.get("contradiction_case", ""),
             "comparative_case": result.get("comparative_case", ""),
             "uncertainty": result.get("uncertainty", ""),
+            "belief_top_suspect": belief_alignment.get("top_suspect") or belief_snapshot.get("top_suspect"),
+            "belief_uncertainty": belief_snapshot.get("uncertainty"),
+            "belief_top_gap": belief_snapshot.get("top_gap"),
+            "belief_accused_rank": belief_alignment.get("accused_rank"),
+            "belief_accused_in_top_n": belief_alignment.get("accused_in_top_n"),
+            "belief_top_n_candidates": "|".join(str(item) for item in top_n_candidates if item),
+            "belief_corrected_to_top_suspect": belief_alignment.get("corrected_to_top_suspect", False),
+            "belief_snapshot": json.dumps(belief_snapshot, ensure_ascii=False, sort_keys=True),
             "correct": accused == murderer_name,
             "accuser_is_murderer": agent == murderer_name,
             "accused_is_murderer": accused == murderer_name,
         })
+    return rows
+
+
+def _extract_belief_rows(events: List[Dict[str, Any]], run_id: str) -> List[Dict[str, Any]]:
+    rows: List[Dict[str, Any]] = []
+    for event in events:
+        if event.get("type") != "beliefs_updated":
+            continue
+        payload = event.get("payload", {}) or {}
+        beliefs = payload.get("beliefs", {}) or {}
+        for agent_name, snapshot in beliefs.items():
+            ranking = snapshot.get("ranking", []) or []
+            scores = snapshot.get("suspicion_scores", {}) or {}
+            rows.append({
+                "run_id": run_id,
+                "turn": payload.get("turn", snapshot.get("turn")),
+                "round": payload.get("round", snapshot.get("round")),
+                "stage": payload.get("stage", snapshot.get("stage")),
+                "context": snapshot.get("context", "post_utterance"),
+                "observed_speaker": payload.get("observed_speaker", snapshot.get("observed_speaker")),
+                "agent": agent_name,
+                "top_suspect": snapshot.get("top_suspect"),
+                "top_suspect_score": snapshot.get("top_suspect_score"),
+                "top_gap": snapshot.get("top_gap"),
+                "uncertainty": snapshot.get("uncertainty"),
+                "top_1": ranking[0].get("name") if len(ranking) >= 1 else None,
+                "top_2": ranking[1].get("name") if len(ranking) >= 2 else None,
+                "top_3": ranking[2].get("name") if len(ranking) >= 3 else None,
+                "ranking_json": json.dumps(ranking, ensure_ascii=False, sort_keys=True),
+                "suspicion_scores_json": json.dumps(scores, ensure_ascii=False, sort_keys=True),
+                "top_reasons_json": json.dumps(snapshot.get("top_reasons", {}), ensure_ascii=False, sort_keys=True),
+            })
     return rows
 
 
@@ -276,14 +321,49 @@ def _compute_rq3(accusations: List[Dict[str, Any]], agent_names: List[str], murd
     max_votes = max(votes.values()) if votes else 0
     winners = [name for name, count in votes.items() if count == max_votes] if max_votes else []
     murderer_vote_share = votes.get(murderer_name, 0) / total_votes
+    group_solved = murderer_name in winners
+    random_solve_rate = _estimate_random_solve_rate(agent_names, murderer_name)
+    random_vote_share = 1 / len(agent_names) if agent_names else 0.0
+
+    top1_alignment = 0
+    topn_alignment = 0
+    uncertainty_values: List[float] = []
+    corrected_to_top = 0
+    for row in accusations:
+        accused_rank = row.get("belief_accused_rank")
+        if accused_rank is not None and str(accused_rank).strip():
+            try:
+                accused_rank_int = int(float(accused_rank))
+                if accused_rank_int == 1:
+                    top1_alignment += 1
+                if accused_rank_int <= 3:
+                    topn_alignment += 1
+            except (TypeError, ValueError):
+                pass
+        if row.get("belief_uncertainty") not in (None, ""):
+            try:
+                uncertainty_values.append(float(row.get("belief_uncertainty")))
+            except (TypeError, ValueError):
+                pass
+        if str(row.get("belief_corrected_to_top_suspect", "")).strip().lower() in {"1", "true", "yes"}:
+            corrected_to_top += 1
+
     return {
         "total_votes": len(accusations),
         "vote_counts": dict(votes),
         "murderer_vote_share": murderer_vote_share,
-        "group_solved": murderer_name in winners,
+        "group_solved": group_solved,
         "winning_suspects": winners,
-        "random_vote_share_baseline": 1 / len(agent_names) if agent_names else 0.0,
-        "random_group_solve_rate_baseline": _estimate_random_solve_rate(agent_names, murderer_name),
+        "belief_top1_alignment_fraction": top1_alignment / total_votes,
+        "belief_top3_alignment_fraction": topn_alignment / total_votes,
+        "mean_belief_uncertainty": (sum(uncertainty_values) / len(uncertainty_values)) if uncertainty_values else 0.0,
+        "belief_forced_top_suspect_count": corrected_to_top,
+        # Escape metrics: RQ3 asks whether the murderer *avoids* accusation above chance.
+        "murderer_escaped": not group_solved,
+        "murderer_escape_rate_this_run": 0.0 if group_solved else 1.0,
+        "random_vote_share_baseline": random_vote_share,
+        "random_group_solve_rate_baseline": random_solve_rate,
+        "random_escape_rate_baseline": 1.0 - random_solve_rate,
     }
 
 
@@ -298,6 +378,7 @@ def analyze_run(run_dir: str | Path) -> Dict[str, Any]:
     turn_rows = _extract_turn_rows(events)
     utterance_rows = _extract_utterance_rows(events, agent_names, run_id)
     accusation_rows = _extract_accusation_rows(events, murderer_name, run_id)
+    belief_rows = _extract_belief_rows(events, run_id)
     agent_rows, question_rows, mention_rows = _compute_agent_metrics(utterance_rows, agent_names, murderer_name)
     attention = build_attention_artifacts(run_path, utterance_rows, agent_names, murderer_name)
     accusation_quality = _compute_accusation_quality(accusation_rows)
@@ -315,6 +396,7 @@ def analyze_run(run_dir: str | Path) -> Dict[str, Any]:
         "murderer_name": murderer_name,
         "total_turns": len(turn_rows),
         "total_utterances": len(utterance_rows),
+        "total_belief_snapshots": len(belief_rows),
         "rq1": rq1,
         "rq2": {
             "murderer_speaker_share": murderer_agent_row["speaker_share"] if murderer_agent_row else 0.0,
@@ -340,6 +422,7 @@ def analyze_run(run_dir: str | Path) -> Dict[str, Any]:
     _write_csv(run_path / "turns.csv", turn_rows)
     _write_csv(run_path / "utterances.csv", utterance_rows)
     _write_csv(run_path / "accusations.csv", accusation_rows)
+    _write_csv(run_path / "beliefs.csv", belief_rows)
     _write_csv(run_path / "agent_metrics.csv", agent_rows)
     _write_csv(run_path / "question_edges.csv", question_rows)
     _write_csv(run_path / "mention_edges.csv", mention_rows)
@@ -366,6 +449,7 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
 
     aggregate_rows = []
     solve_count = 0
+    escape_count = 0
     usable_count = 0
     warning_count = 0
     for summary in summaries:
@@ -374,6 +458,8 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
         validation = _read_json(experiment_path / "runs" / str(run_id) / "run_validation.json") if run_id else {}
         if rq3.get("group_solved"):
             solve_count += 1
+        if rq3.get("murderer_escaped"):
+            escape_count += 1
         if validation.get("run_usable_for_thesis"):
             usable_count += 1
         if validation.get("warnings"):
@@ -384,6 +470,7 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
             "murderer_name": summary.get("murderer_name"),
             "total_turns": summary.get("total_turns"),
             "total_utterances": summary.get("total_utterances"),
+            "total_belief_snapshots": summary.get("total_belief_snapshots", 0),
             "murderer_speaker_share": summary.get("rq2", {}).get("murderer_speaker_share"),
             "murderer_attention_received": summary.get("rq2", {}).get("murderer_attention_received"),
             "murderer_followups_received": summary.get("rq2", {}).get("murderer_followups_received"),
@@ -399,9 +486,15 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
             "structured_accusation_fraction": summary.get("accusation_quality", {}).get("structured_evidence_fraction", 0.0),
             "mean_accusation_evidence_item_count": summary.get("accusation_quality", {}).get("mean_evidence_item_count", 0.0),
             "murderer_vote_share": rq3.get("murderer_vote_share"),
+            "belief_top1_alignment_fraction": rq3.get("belief_top1_alignment_fraction"),
+            "belief_top3_alignment_fraction": rq3.get("belief_top3_alignment_fraction"),
+            "mean_belief_uncertainty": rq3.get("mean_belief_uncertainty"),
+            "belief_forced_top_suspect_count": rq3.get("belief_forced_top_suspect_count"),
             "group_solved": rq3.get("group_solved"),
+            "murderer_escaped": rq3.get("murderer_escaped"),
             "random_vote_share_baseline": rq3.get("random_vote_share_baseline"),
             "random_group_solve_rate_baseline": rq3.get("random_group_solve_rate_baseline"),
+            "random_escape_rate_baseline": rq3.get("random_escape_rate_baseline"),
             "run_usable_for_thesis": validation.get("run_usable_for_thesis"),
             "validation_status": validation.get("validation_status"),
             "validation_warning_count": len(validation.get("warnings", [])),
@@ -418,6 +511,7 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
         "runs_with_quality_warnings": warning_count,
         "mean_total_turns": sum(row["total_turns"] for row in aggregate_rows) / total_runs,
         "mean_total_utterances": sum(row["total_utterances"] for row in aggregate_rows) / total_runs,
+        "mean_total_belief_snapshots": sum((row.get("total_belief_snapshots") or 0) for row in aggregate_rows) / total_runs,
         "mean_murderer_speaker_share": sum(row["murderer_speaker_share"] for row in aggregate_rows) / total_runs,
         "mean_murderer_attention_received": sum(row["murderer_attention_received"] for row in aggregate_rows) / total_runs,
         "mean_murderer_followups_received": sum(row["murderer_followups_received"] for row in aggregate_rows) / total_runs,
@@ -425,17 +519,23 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
         "mean_murderer_pressure_signals_received": sum(row["murderer_pressure_signals_received"] for row in aggregate_rows) / total_runs,
         "mean_question_target_entropy": sum(row["question_target_entropy"] for row in aggregate_rows) / total_runs,
         "mean_pressure_target_gini": sum(row["pressure_target_gini"] for row in aggregate_rows) / total_runs,
-        "mean_murderer_labeled_utterances": sum(row["murderer_labeled_utterances"] for row in aggregate_rows) / total_runs,
-        "mean_murderer_direct_denial_rate": sum(row["murderer_direct_denial_rate"] for row in aggregate_rows) / total_runs,
-        "mean_murderer_deflection_rate": sum(row["murderer_deflection_rate"] for row in aggregate_rows) / total_runs,
-        "mean_murderer_evasion_rate": sum(row["murderer_evasion_rate"] for row in aggregate_rows) / total_runs,
+        "mean_belief_top1_alignment_fraction": sum((row.get("belief_top1_alignment_fraction") or 0.0) for row in aggregate_rows) / total_runs,
+        "mean_belief_top3_alignment_fraction": sum((row.get("belief_top3_alignment_fraction") or 0.0) for row in aggregate_rows) / total_runs,
+        "mean_belief_uncertainty": sum((row.get("mean_belief_uncertainty") or 0.0) for row in aggregate_rows) / total_runs,
+        "mean_belief_forced_top_suspect_count": sum((row.get("belief_forced_top_suspect_count") or 0.0) for row in aggregate_rows) / total_runs,
+        "mean_murderer_labeled_utterances": sum((row["murderer_labeled_utterances"] or 0) for row in aggregate_rows) / total_runs,
+        "mean_murderer_direct_denial_rate": sum((row["murderer_direct_denial_rate"] or 0.0) for row in aggregate_rows) / total_runs,
+        "mean_murderer_deflection_rate": sum((row["murderer_deflection_rate"] or 0.0) for row in aggregate_rows) / total_runs,
+        "mean_murderer_evasion_rate": sum((row["murderer_evasion_rate"] or 0.0) for row in aggregate_rows) / total_runs,
         "mean_accusation_confidence": sum(row["mean_accusation_confidence"] for row in aggregate_rows) / total_runs,
         "mean_structured_accusation_fraction": sum(row["structured_accusation_fraction"] for row in aggregate_rows) / total_runs,
         "mean_accusation_evidence_item_count": sum(row["mean_accusation_evidence_item_count"] for row in aggregate_rows) / total_runs,
-        "mean_murderer_vote_share": sum(row["murderer_vote_share"] for row in aggregate_rows) / total_runs,
+        "mean_murderer_vote_share": sum((row["murderer_vote_share"] or 0.0) for row in aggregate_rows) / total_runs,
         "group_solve_rate": solve_count / total_runs,
-        "random_vote_share_baseline": sum(row["random_vote_share_baseline"] for row in aggregate_rows) / total_runs,
-        "random_group_solve_rate_baseline": sum(row["random_group_solve_rate_baseline"] for row in aggregate_rows) / total_runs,
+        "murderer_escape_rate": escape_count / total_runs,
+        "random_vote_share_baseline": sum((row["random_vote_share_baseline"] or 0.0) for row in aggregate_rows) / total_runs,
+        "random_group_solve_rate_baseline": sum((row["random_group_solve_rate_baseline"] or 0.0) for row in aggregate_rows) / total_runs,
+        "random_escape_rate_baseline": sum((row["random_escape_rate_baseline"] or 0.0) for row in aggregate_rows) / total_runs,
         "rq1": deception_aggregate,
     }
 

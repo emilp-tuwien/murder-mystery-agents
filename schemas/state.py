@@ -29,6 +29,21 @@ class ThoughtRecord(TypedDict):
     reason_type: str
     thought: str
 
+class BeliefRecord(TypedDict, total=False):
+    turn: int
+    round: int
+    stage: str
+    context: str
+    observed_speaker: Optional[str]
+    agent: str
+    top_suspect: Optional[str]
+    top_suspect_score: int
+    top_gap: int
+    uncertainty: int
+    ranking: List[Dict[str, Any]]
+    suspicion_scores: Dict[str, int]
+    top_reasons: Dict[str, List[str]]
+
 class GameState(TypedDict):
     turn: int
     current_round: int  # Current game round (1-6)
@@ -41,6 +56,8 @@ class GameState(TypedDict):
     # per-agent working buffers
     thoughts: Dict[str, Any]                 # ThinkResult per agent
     thoughts_history: Annotated[List[ThoughtRecord], operator.add]  # Track all thoughts for CSV export
+    belief_snapshots: Dict[str, Any]         # Latest belief snapshot per agent
+    belief_history: Annotated[List[BeliefRecord], operator.add]  # Belief trace for RQ3 analysis
     last_speaker: Optional[str]
     next_speaker: Optional[str]
     new_utterance: Optional[Utterance]

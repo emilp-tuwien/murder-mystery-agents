@@ -27,6 +27,7 @@ class GameEventStore:
                 "history": [],
                 "accusations": {},
                 "agent_memory": {},
+                "beliefs": {},
                 "murderer": None,
                 "verdict": None,
                 "scenario_title": "The Business of Murder",
@@ -94,6 +95,10 @@ class GameEventStore:
             memory = payload.get("agent_memory", {})
             if memory:
                 self.snapshot["agent_memory"] = memory
+        elif event_type == "beliefs_updated":
+            beliefs = payload.get("beliefs", {})
+            if beliefs:
+                self.snapshot["beliefs"] = beliefs
         elif event_type == "game_finished":
             self.snapshot["status"] = "finished"
             self.snapshot["verdict"] = payload.get("verdict")
