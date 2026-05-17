@@ -183,6 +183,114 @@ def _extract_accusation_rows(events: List[Dict[str, Any]], murderer_name: str, r
     return rows
 
 
+def _extract_suspicion_rows(events: List[Dict[str, Any]], run_id: str) -> List[Dict[str, Any]]:
+    """Flatten round_suspicion_assessed events into one row per (agent, round, suspect)."""
+    rows: List[Dict[str, Any]] = []
+    for event in events:
+        if event.get("type") != "round_suspicion_assessed":
+            continue
+        payload = event.get("payload", {}) or {}
+        agent = payload.get("agent")
+        round_num = payload.get("round")
+        stage = payload.get("stage")
+        top_suspect = payload.get("top_suspect")
+        overall_uncertainty = payload.get("overall_uncertainty")
+        for sa in payload.get("suspect_assessments", []):
+            cats = sa.get("evidence_categories") or []
+            rows.append({
+                "run_id": run_id,
+                "round": round_num,
+                "stage": stage,
+                "agent": agent,
+                "suspect": sa.get("suspect"),
+                "suspicion_score": sa.get("suspicion_score"),
+                "confidence_score": sa.get("confidence_score"),
+                "primary_reason": sa.get("primary_reason", ""),
+                "evidence_categories": "|".join(cats) if isinstance(cats, list) else str(cats),
+                "strongest_supporting_fact": sa.get("strongest_supporting_fact", ""),
+                "top_suspect": top_suspect,
+                "overall_uncertainty": overall_uncertainty,
+            })
+    return rows
+
+
+def _extract_suspicion_events(events: List[Dict[str, Any]], run_id: str) -> List[Dict[str, Any]]:
+    """Return full round-level suspicion assessment payloads (one per agent-round)."""
+    result = []
+    for event in events:
+        if event.get("type") != "round_suspicion_assessed":
+            continue
+        payload = dict(event.get("payload", {}) or {})
+        payload["run_id"] = run_id
+        result.append(payload)
+    return result
+
+
+def _compute_suspicion_metrics(
+    suspicion_rows: List[Dict[str, Any]], murderer_name: str
+) -> Dict[str, Any]:
+    if not suspicion_rows:
+        return {}
+
+    from collections import defaultdict
+
+    murderer_scores_by_round: Dict[Any, List[float]] = defaultdict(list)
+    non_murderer_assessments = 0
+    murderer_top_count = 0
+
+    for row in suspicion_rows:
+        if row.get("agent") == murderer_name:
+            continue
+        non_murderer_assessments += 1
+        if row.get("top_suspect") == murderer_name:
+            murderer_top_count += 1
+        if row.get("suspect") == murderer_name:
+            r = row.get("round")
+            score = row.get("suspicion_score")
+            if r is not None and score is not None:
+                try:
+                    murderer_scores_by_round[int(r)].append(float(score))
+                except (TypeError, ValueError):
+                    pass
+
+    mean_by_round = {
+        r: sum(scores) / len(scores)
+        for r, scores in sorted(murderer_scores_by_round.items())
+        if scores
+    }
+
+    earliest_top_round = None
+    for row in suspicion_rows:
+        if row.get("agent") != murderer_name and row.get("top_suspect") == murderer_name:
+            r = row.get("round")
+            if r is not None:
+                try:
+                    r_int = int(r)
+                    if earliest_top_round is None or r_int < earliest_top_round:
+                        earliest_top_round = r_int
+                except (TypeError, ValueError):
+                    pass
+
+    suspicion_rises = False
+    rounds = sorted(mean_by_round.keys())
+    if len(rounds) >= 2:
+        mid = len(rounds) // 2
+        first = [mean_by_round[r] for r in rounds[:mid]]
+        second = [mean_by_round[r] for r in rounds[mid:]]
+        suspicion_rises = (sum(second) / len(second)) > (sum(first) / len(first))
+
+    return {
+        "mean_murderer_suspicion_by_round": {str(k): v for k, v in mean_by_round.items()},
+        "earliest_round_murderer_top_suspect": earliest_top_round,
+        "murderer_top_suspect_rate": (
+            murderer_top_count / non_murderer_assessments if non_murderer_assessments else 0.0
+        ),
+        "murderer_suspicion_rises_over_time": suspicion_rises,
+        "total_non_murderer_assessments": non_murderer_assessments,
+        "rounds_assessed": [str(r) for r in rounds],
+    }
+
+
 def _extract_belief_rows(events: List[Dict[str, Any]], run_id: str) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     for event in events:
@@ -379,10 +487,13 @@ def analyze_run(run_dir: str | Path) -> Dict[str, Any]:
     utterance_rows = _extract_utterance_rows(events, agent_names, run_id)
     accusation_rows = _extract_accusation_rows(events, murderer_name, run_id)
     belief_rows = _extract_belief_rows(events, run_id)
+    suspicion_rows = _extract_suspicion_rows(events, run_id)
+    suspicion_events = _extract_suspicion_events(events, run_id)
     agent_rows, question_rows, mention_rows = _compute_agent_metrics(utterance_rows, agent_names, murderer_name)
     attention = build_attention_artifacts(run_path, utterance_rows, agent_names, murderer_name)
     accusation_quality = _compute_accusation_quality(accusation_rows)
     rq3 = _compute_rq3(accusation_rows, agent_names, murderer_name)
+    suspicion_metrics = _compute_suspicion_metrics(suspicion_rows, murderer_name)
     rq1_raw = label_deception_for_run(run_path, utterance_rows, manifest)
     rq1 = {
         "total_murderer_utterances": rq1_raw.get("total_murderer_utterances", 0),
@@ -434,6 +545,7 @@ def analyze_run(run_dir: str | Path) -> Dict[str, Any]:
         },
         "accusation_quality": accusation_quality,
         "rq3": rq3,
+        "suspicion_metrics": suspicion_metrics,
     }
 
     _write_csv(run_path / "turns.csv", turn_rows)
@@ -443,6 +555,10 @@ def analyze_run(run_dir: str | Path) -> Dict[str, Any]:
     _write_csv(run_path / "agent_metrics.csv", agent_rows)
     _write_csv(run_path / "question_edges.csv", question_rows)
     _write_csv(run_path / "mention_edges.csv", mention_rows)
+    _write_csv(run_path / "round_suspicion_assessments.csv", suspicion_rows)
+    with (run_path / "round_suspicion_assessments.jsonl").open("w", encoding="utf-8") as fh:
+        for entry in suspicion_events:
+            fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
     with (run_path / "metrics.json").open("w", encoding="utf-8") as handle:
         json.dump(summary, handle, indent=2, sort_keys=True)

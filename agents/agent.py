@@ -157,7 +157,9 @@ class Agent:
         self.topics_discussed: set = set()  # Track topics to avoid repetition
         self.last_belief_snapshot: Dict[str, Any] = {}
         self.last_accusation_context: Dict[str, Any] = {}
-        
+        # Private per-agent suspicion history — never shared with other agents
+        self.private_suspicion_history: List[Any] = []
+
         # Initialize three-stage memory system
         from memory.agent_memory import AgentMemory, SharedHistory
         self.memory = AgentMemory(agent_name=name, scenario=self.scenario)
@@ -806,6 +808,105 @@ Output dialogue only."""),
         except Exception as e:
             print(f"Error in speak for {self.name}: {e}", file=__import__('sys').stderr)
             return "I need to think about this."
+
+    def generate_round_suspicion_assessment(
+        self,
+        round_num: int,
+        stage: str,
+        all_agents: List[str],
+    ) -> Optional[Any]:
+        """Private end-of-round suspicion assessment. Not public; never added to SharedHistory."""
+        from schemas.suspicion import SuspectAssessment, RoundSuspicionAssessment
+
+        other_agents = [name for name in all_agents if name != self.name]
+        if not other_agents:
+            return None
+
+        llm_suspect = self.llm.with_structured_output(RoundSuspicionAssessment, method="json_mode")
+        memory_context = self.memory.build_prompt_context()
+
+        prior_context = ""
+        if self.private_suspicion_history:
+            lines = ["YOUR PRIOR PRIVATE SUSPICION SNAPSHOTS (for continuity only):"]
+            for prior in self.private_suspicion_history[-3:]:
+                scores = {sa.suspect: sa.suspicion_score for sa in prior.suspect_assessments}
+                scores_str = ", ".join(f"{n}={s}" for n, s in sorted(scores.items()))
+                lines.append(
+                    f"  Round {prior.round}: top={prior.top_suspect}, "
+                    f"uncertainty={prior.overall_uncertainty}/10 | scores: {scores_str}"
+                )
+            prior_context = "\n".join(lines)
+
+        suspects_list = "\n".join(f"- {name}" for name in other_agents)
+        suspects_str = ", ".join(other_agents)
+
+        msgs = [
+            SystemMessage(content=f"""You are {self.name}. This is a PRIVATE internal report to the Game Master only.
+
+Do NOT write in dialogue style. Do NOT address other characters.
+Write as a detective analyst reporting your current private assessment after Round {round_num} ({stage}).
+
+{self.scenario.victim_name} was murdered. Your private task: assess how suspicious each other suspect is based on everything you have observed so far.
+
+This report is confidential. It will never be shown to other suspects."""),
+            HumanMessage(content=f"""{memory_context}
+
+{prior_context}
+
+━━━ PRIVATE SUSPICION ASSESSMENT — Round {round_num} ━━━
+
+Assess EVERY suspect listed below. You must provide one entry for each:
+{suspects_list}
+
+Scoring instructions:
+• suspicion_score 1–10: 1 = almost certainly innocent, 10 = almost certainly the murderer
+• confidence_score 1–10: 1 = you have almost no basis for this score, 10 = strong evidence supports it
+• Distribute scores meaningfully — do NOT assign the same score to everyone unless the evidence is truly indistinguishable
+• Ground each score in specific publicly revealed evidence: motive, means, opportunity, timeline, contradiction, alibi, or suspicious dialogue behaviour
+• Do NOT invent evidence. Base scores only on what has been publicly discussed or revealed by the Game Master
+• Explicitly compare suspects against each other — stronger cases get higher scores
+
+evidence_categories must come from: motive, means, opportunity, contradiction, timeline, alibi, behavior
+
+overall_uncertainty: 1 = you are nearly certain who is guilty, 10 = you have almost no idea
+
+top_suspect: the name of the suspect you currently consider most likely to be the murderer (must be one of: {suspects_str})
+
+Return valid structured JSON only. Cover all suspects: {suspects_str}"""),
+        ]
+
+        try:
+            result = _retry_with_backoff(lambda: llm_suspect.invoke(msgs))
+            result.round = round_num
+            result.stage = stage
+            result.agent = self.name
+
+            assessed = {sa.suspect for sa in result.suspect_assessments}
+            for missing in other_agents:
+                if missing not in assessed:
+                    result.suspect_assessments.append(SuspectAssessment(
+                        suspect=missing,
+                        suspicion_score=5,
+                        confidence_score=1,
+                        primary_reason="No specific evidence observed this round.",
+                        evidence_categories=[],
+                        strongest_supporting_fact="Insufficient evidence observed.",
+                    ))
+
+            if result.top_suspect not in other_agents:
+                result.top_suspect = max(
+                    result.suspect_assessments, key=lambda sa: sa.suspicion_score
+                ).suspect
+
+            self.private_suspicion_history.append(result)
+            return result
+
+        except Exception as e:
+            print(
+                f"  Warning: suspicion assessment failed for {self.name} (round {round_num}): {e}",
+                file=__import__("sys").stderr,
+            )
+            return None
 
     def _build_accusation_summary(self, state: GameState, all_agents: List[str]) -> str:
         history = state.get("history", [])

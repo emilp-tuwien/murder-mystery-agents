@@ -62,6 +62,53 @@ def _emit(ui_store, event_type: str, payload: Optional[Dict[str, Any]] = None):
         ui_store.append(event_type, payload or {})
 
 
+def _collect_suspicion_assessments(
+    current_round: int,
+    current_stage: str,
+    agents: Dict[str, any],
+    ui_store=None,
+) -> None:
+    """Generate private end-of-round suspicion assessments for all agents in parallel.
+
+    Skips round 1 (introductions — no evidence yet).
+    Results are emitted as 'round_suspicion_assessed' events and stored privately
+    on each agent.  They are never added to SharedHistory or spoken aloud.
+    """
+    if current_round == 1:
+        return
+
+    all_agent_names = list(agents.keys())
+    print(f"\n   Generating private suspicion assessments for Round {current_round}...")
+
+    with ThreadPoolExecutor(max_workers=max(1, len(agents))) as executor:
+        future_to_name = {
+            executor.submit(
+                agent.generate_round_suspicion_assessment,
+                current_round,
+                current_stage,
+                all_agent_names,
+            ): name
+            for name, agent in agents.items()
+        }
+        completed = 0
+        for future in as_completed(future_to_name):
+            name = future_to_name[future]
+            try:
+                assessment = future.result()
+                if assessment is not None:
+                    payload = assessment.model_dump()
+                    _emit(ui_store, "round_suspicion_assessed", payload)
+                    completed += 1
+                    print(
+                        f"     {name}: top_suspect={assessment.top_suspect}, "
+                        f"uncertainty={assessment.overall_uncertainty}/10"
+                    )
+            except Exception as exc:
+                print(f"     Warning: suspicion assessment failed for {name}: {exc}")
+
+    print(f"   Private suspicion assessments complete ({completed}/{len(agents)} agents).")
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # GRAPH NODES
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -368,6 +415,7 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
         _emit(ui_store, "round_advance_decision", decision_payload)
 
         _summarize_current_round()
+        _collect_suspicion_assessments(current_round, current_stage, agents, ui_store)
 
         announcement = game_master.announce_round_change(new_round)
         print(announcement)
@@ -413,6 +461,7 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
         print(f"{'═'*70}\n")
 
         _summarize_current_round()
+        _collect_suspicion_assessments(current_round, current_stage, agents, ui_store)
 
         _emit(ui_store, "round_changed", {"round": current_round, "phase": "accusation", "stage": "accusation"})
         return {
