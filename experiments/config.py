@@ -189,6 +189,13 @@ class LoadedExperiment(BaseModel):
 
 def _merge_condition(base: RunConfig, condition: ConditionConfig) -> RunConfig:
     overrides = dict(condition.overrides)
+    valid_fields = set(RunConfig.model_fields.keys())
+    unknown_keys = set(overrides.keys()) - valid_fields
+    if unknown_keys:
+        raise ValueError(
+            f"Condition '{condition.name}' has unknown override keys: {sorted(unknown_keys)}. "
+            f"Check for typos. Valid keys: {sorted(valid_fields)}"
+        )
     merged_factors = dict(base.condition_factors)
     merged_factors.update(condition.factors)
     return base.model_copy(
@@ -227,6 +234,14 @@ def _expand_matrix_conditions(base: RunConfig, matrix: Dict[str, List[MatrixLeve
         if condition_name in seen_names:
             raise ValueError(f"Expanded matrix produced duplicate condition name: {condition_name}")
         seen_names.add(condition_name)
+
+        valid_fields = set(RunConfig.model_fields.keys())
+        unknown_keys = set(merged_overrides.keys()) - valid_fields
+        if unknown_keys:
+            raise ValueError(
+                f"Matrix condition '{condition_name}' has unknown override keys: {sorted(unknown_keys)}. "
+                f"Check for typos. Valid keys: {sorted(valid_fields)}"
+            )
 
         expanded.append(
             base.model_copy(

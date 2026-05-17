@@ -13,6 +13,8 @@ from utils.dialogue_analysis import detect_direct_address, extract_mentions, is_
 
 
 def _read_json(path: Path) -> Dict[str, Any]:
+    if not path.exists():
+        return {}
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
 
@@ -649,13 +651,13 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
         "mean_total_turns": sum(row["total_turns"] for row in aggregate_rows) / total_runs,
         "mean_total_utterances": sum(row["total_utterances"] for row in aggregate_rows) / total_runs,
         "mean_total_belief_snapshots": sum((row.get("total_belief_snapshots") or 0) for row in aggregate_rows) / total_runs,
-        "mean_murderer_speaker_share": sum(row["murderer_speaker_share"] for row in aggregate_rows) / total_runs,
-        "mean_murderer_attention_received": sum(row["murderer_attention_received"] for row in aggregate_rows) / total_runs,
-        "mean_murderer_followups_received": sum(row["murderer_followups_received"] for row in aggregate_rows) / total_runs,
-        "mean_murderer_justification_requests_received": sum(row["murderer_justification_requests_received"] for row in aggregate_rows) / total_runs,
-        "mean_murderer_pressure_signals_received": sum(row["murderer_pressure_signals_received"] for row in aggregate_rows) / total_runs,
-        "mean_question_target_entropy": sum(row["question_target_entropy"] for row in aggregate_rows) / total_runs,
-        "mean_pressure_target_gini": sum(row["pressure_target_gini"] for row in aggregate_rows) / total_runs,
+        "mean_murderer_speaker_share": sum((row["murderer_speaker_share"] or 0.0) for row in aggregate_rows) / total_runs,
+        "mean_murderer_attention_received": sum((row["murderer_attention_received"] or 0.0) for row in aggregate_rows) / total_runs,
+        "mean_murderer_followups_received": sum((row["murderer_followups_received"] or 0) for row in aggregate_rows) / total_runs,
+        "mean_murderer_justification_requests_received": sum((row["murderer_justification_requests_received"] or 0) for row in aggregate_rows) / total_runs,
+        "mean_murderer_pressure_signals_received": sum((row["murderer_pressure_signals_received"] or 0) for row in aggregate_rows) / total_runs,
+        "mean_question_target_entropy": sum((row["question_target_entropy"] or 0.0) for row in aggregate_rows) / total_runs,
+        "mean_pressure_target_gini": sum((row["pressure_target_gini"] or 0.0) for row in aggregate_rows) / total_runs,
         "mean_belief_top1_alignment_fraction": sum((row.get("belief_top1_alignment_fraction") or 0.0) for row in aggregate_rows) / total_runs,
         "mean_belief_top3_alignment_fraction": sum((row.get("belief_top3_alignment_fraction") or 0.0) for row in aggregate_rows) / total_runs,
         "mean_belief_uncertainty": sum((row.get("mean_belief_uncertainty") or 0.0) for row in aggregate_rows) / total_runs,
@@ -667,9 +669,9 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
         "mean_murderer_evasion_rate": sum((row["murderer_evasion_rate"] or 0.0) for row in aggregate_rows) / total_runs,
         "mean_murderer_alibi_construction_rate": sum((row.get("murderer_alibi_construction_rate") or 0.0) for row in aggregate_rows) / total_runs,
         "mean_murderer_accusation_redirection_rate": sum((row.get("murderer_accusation_redirection_rate") or 0.0) for row in aggregate_rows) / total_runs,
-        "mean_accusation_confidence": sum(row["mean_accusation_confidence"] for row in aggregate_rows) / total_runs,
-        "mean_structured_accusation_fraction": sum(row["structured_accusation_fraction"] for row in aggregate_rows) / total_runs,
-        "mean_accusation_evidence_item_count": sum(row["mean_accusation_evidence_item_count"] for row in aggregate_rows) / total_runs,
+        "mean_accusation_confidence": sum((row["mean_accusation_confidence"] or 0.0) for row in aggregate_rows) / total_runs,
+        "mean_structured_accusation_fraction": sum((row["structured_accusation_fraction"] or 0.0) for row in aggregate_rows) / total_runs,
+        "mean_accusation_evidence_item_count": sum((row["mean_accusation_evidence_item_count"] or 0.0) for row in aggregate_rows) / total_runs,
         "mean_murderer_vote_share": sum((row["murderer_vote_share"] or 0.0) for row in aggregate_rows) / total_runs,
         "group_solve_rate": solve_count / total_runs,
         "murderer_escape_rate": escape_count / total_runs,

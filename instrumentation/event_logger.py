@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 import json
 import subprocess
+import threading
 
 
 def utc_now_iso() -> str:
@@ -31,6 +32,7 @@ class EventLogger:
         self.events_path = self.run_dir / "events.jsonl"
         self.manifest_path = self.run_dir / "run_manifest.json"
         self.index = 0
+        self._lock = threading.Lock()
         self.manifest: Dict[str, Any] = dict(manifest)
         self.manifest.setdefault("started_at", utc_now_iso())
         self.manifest.setdefault("status", "running")
@@ -41,17 +43,18 @@ class EventLogger:
             json.dump(self.manifest, handle, indent=2, sort_keys=True)
 
     def append(self, event_type: str, payload: Optional[Dict[str, Any]] = None):
-        event = {
-            "index": self.index,
-            "timestamp": utc_now_iso(),
-            "type": event_type,
-            "run_id": self.manifest.get("run_id"),
-            "payload": payload or {},
-        }
-        with self.events_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(event, ensure_ascii=False) + "\n")
-        self.index += 1
-        return event
+        with self._lock:
+            event = {
+                "index": self.index,
+                "timestamp": utc_now_iso(),
+                "type": event_type,
+                "run_id": self.manifest.get("run_id"),
+                "payload": payload or {},
+            }
+            with self.events_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(event, ensure_ascii=False) + "\n")
+            self.index += 1
+            return event
 
     def finalize(self, status: str = "finished", extra: Optional[Dict[str, Any]] = None):
         self.manifest["status"] = status
@@ -68,5 +71,8 @@ class MultiEventSink:
     def append(self, event_type: str, payload: Optional[Dict[str, Any]] = None):
         result = None
         for sink in self.sinks:
-            result = sink.append(event_type, payload or {})
+            try:
+                result = sink.append(event_type, payload or {})
+            except Exception as e:
+                print(f"Warning: event sink {type(sink).__name__} failed for '{event_type}': {e}")
         return result

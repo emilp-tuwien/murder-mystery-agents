@@ -40,7 +40,7 @@ def load_character_descriptions(roles_dir: Path) -> Dict[str, str]:
         
         try:
             pdf = PdfReader(str(pdf_path))
-            text = "\n".join([page.extract_text() for page in pdf.pages])
+            text = "\n".join([page.extract_text() or "" for page in pdf.pages])
             descriptions[character_name.replace("-", " ").title()] = text
         except Exception as e:
             print(f"Error loading {pdf_path}: {e}")

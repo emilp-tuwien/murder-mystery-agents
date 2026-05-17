@@ -375,7 +375,8 @@ def run_experiment_plan(
                 _handle_condition_result(result, config)
             except Exception as exc:
                 _handle_condition_error(exc, config)
-                raise
+                if fail_fast:
+                    raise
 
     experiment_dir = experiment.base.resolved_experiment_dir()
     experiment_summary = aggregate_experiment_conditions(experiment_dir)

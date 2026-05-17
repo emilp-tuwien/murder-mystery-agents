@@ -23,7 +23,7 @@ def _format_history(history: List[Dict[str, str]]) -> str:
     rows = [f"IDX | TURN | SPEAKER             | TEXT",
             f"----+------+---------------------+--------------------------------------------------"]
     for idx, u in enumerate(history, start=1):
-        turn = u.get("turn", idx)
+        turn = int(u.get("turn", idx))
         speaker = u.get("speaker", "Unknown")[:21]
         text = u.get("text", "").strip()
         rows.append(f"{idx:03d} | T{turn:02d} | {speaker:<21} | {text}")
