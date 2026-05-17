@@ -20,6 +20,7 @@ REQUIRED_RUN_FILES = [
     "accusations.csv",
     "attention_summary.json",
     "deception_labels.csv",
+    "deception_summary.json",
 ]
 
 EVIDENCE_BACKED_REASONING_PATTERNS = [
@@ -225,6 +226,33 @@ def validate_run_outputs(run_dir: str | Path) -> Dict[str, Any]:
         if event.get("payload", {}).get("advance_reason") == "evidence_gate_satisfied"
     )
 
+    # ------------------------------------------------------------------
+    # Deception-label quality checks
+    # ------------------------------------------------------------------
+    deception_summary = _read_json(run_path / "deception_summary.json")
+    requested_mode = manifest.get("deception_labeling_mode", "heuristic")
+    actual_mode = deception_summary.get("judge_method") or deception_summary.get("labeling_mode", "heuristic")
+
+    try:
+        from schemas.deception import CANONICAL_STRATEGY_LABELS as _VALID_LABELS
+        _valid_label_set = set(_VALID_LABELS) | {"none"}
+    except ImportError:
+        _valid_label_set = None
+
+    invalid_strategy_labels = []
+    missing_evidence_spans = []
+    missing_reasoning = []
+    if deception_labels:
+        for _row in deception_labels:
+            sl = str(_row.get("strategy_label", "")).strip()
+            if _valid_label_set and sl and sl not in _valid_label_set:
+                invalid_strategy_labels.append(sl)
+            if _as_bool(_row.get("is_deceptive_instance", True)):
+                if not str(_row.get("evidence_span_text", "")).strip():
+                    missing_evidence_spans.append(str(_row.get("turn", "?")))
+                if not str(_row.get("reasoning", "")).strip():
+                    missing_reasoning.append(str(_row.get("turn", "?")))
+
     exclusion_reasons: List[str] = []
     warnings: List[str] = []
 
@@ -263,6 +291,16 @@ def validate_run_outputs(run_dir: str | Path) -> Dict[str, Any]:
         warnings.append("no_round_summaries_logged")
     if len(beliefs) == 0:
         warnings.append("no_belief_state_trace_logged")
+    if not deception_summary:
+        warnings.append("deception_summary_missing")
+    elif requested_mode == "llm_rubric" and actual_mode not in ("llm_rubric",):
+        warnings.append(f"deception_labeling_mode_mismatch:requested={requested_mode},actual={actual_mode}")
+    if invalid_strategy_labels:
+        warnings.append(f"deception_labels_unknown_strategy:{','.join(sorted(set(invalid_strategy_labels)))}")
+    if missing_evidence_spans:
+        warnings.append(f"deception_labels_missing_evidence_span_turns:{','.join(missing_evidence_spans[:5])}")
+    if missing_reasoning:
+        warnings.append(f"deception_labels_missing_reasoning_turns:{','.join(missing_reasoning[:5])}")
 
     payload = {
         "run_id": manifest.get("run_id", run_path.name),

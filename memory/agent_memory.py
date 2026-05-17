@@ -22,7 +22,7 @@ K_SHORT = 10     # Short-term thought window size
 L_LONG = 10      # Top L facts to retrieve from long-term memory
 
 MAX_LINE_CHARS = 120      # Max chars per line in prompt sections
-MAX_SECTION_CHARS = 600   # Max chars per prompt section
+MAX_SECTION_CHARS = 2400  # Max chars per prompt section
 
 DEFAULT_EVIDENCE_TAGS = ["motive", "means", "opportunity", "contradiction", "timeline", "alibi"]
 
@@ -96,33 +96,29 @@ class SharedHistory:
     
     def render_for_prompt(self) -> str:
         """
-        Compact render for prompts.
-        Format: "1) <speaker>: <text>" per line.
-        Enforces truncation per line and total section length.
+        Compact render for prompts. Iterates newest-first so recent context
+        is always visible when the section cap is hit.
         """
         window = self.get_window()
         if not window:
             return "(no conversation yet)"
-        
+
         lines = []
         total_chars = 0
-        
-        for i, entry in enumerate(window, 1):
+
+        for entry in reversed(window):
             speaker = entry["speaker_id"]
             text = entry["text"]
-            
             if len(text) > MAX_LINE_CHARS - 20:
                 text = text[:MAX_LINE_CHARS - 23] + "..."
-            
-            line = f"{i}) {speaker}: {text}"
-            
+            line = f"{speaker}: {text}"
             if total_chars + len(line) > MAX_SECTION_CHARS:
                 lines.append("...")
                 break
-            
             lines.append(line)
             total_chars += len(line) + 1
-        
+
+        lines.reverse()
         return "\n".join(lines)
 
 
@@ -324,9 +320,47 @@ class LongTermHistory:
     def add_clue(self, clue: str):
         if not clue:
             return
-        categorized = categorize_fact_text(f"CLUE: {clue}", category_patterns=self.category_patterns, default_tags=self.evidence_tags)
-        tags = list(dict.fromkeys(["clue"] + categorized))
-        self.add_fact(0, f"CLUE: {clue}", tags=tags)
+        # Split the clue into individual facts (paragraphs / bullet points) so that
+        # the 20-word truncation in add_fact doesn't discard bullet-point details like
+        # the checkbook, wallet, or timeline items.
+        # Continuation lines (tab-indented after a bullet) are joined into their parent.
+        chunks: List[str] = []
+        current: List[str] = []
+
+        def _flush():
+            joined = " ".join(current).strip()
+            if len(joined) >= 6:
+                chunks.append(joined)
+            current.clear()
+
+        for raw_line in clue.splitlines():
+            stripped = raw_line.strip()
+            is_separator = not stripped or re.match(r'^[=\-_|+#]{3,}$', stripped)
+            is_bullet = raw_line.lstrip().startswith(("->", "-", "•", "*"))
+            is_continuation = raw_line.startswith(("\t", "  ")) and not is_bullet and stripped
+
+            if is_separator:
+                _flush()
+                continue
+
+            if is_bullet:
+                _flush()
+                current.append(stripped.lstrip("->•* \t"))
+            elif is_continuation:
+                # Tab-indented continuation of the previous bullet/prose block
+                current.append(stripped)
+            else:
+                # New prose sentence; flush previous content first
+                _flush()
+                current.append(stripped)
+
+        _flush()
+
+        for chunk in chunks:
+            fact_text = f"CLUE: {chunk}"
+            categorized = categorize_fact_text(fact_text, category_patterns=self.category_patterns, default_tags=self.evidence_tags)
+            tags = list(dict.fromkeys(["clue"] + categorized))
+            self.add_fact(0, fact_text, tags=tags)
     
     def add_round_summary(self, round_num: int, bullets: List[str]):
         for bullet in bullets:

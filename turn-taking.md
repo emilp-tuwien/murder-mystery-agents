@@ -34,15 +34,7 @@ In a realistic social investigation scene, not everyone should jump in constantl
 
 ### 1. Added character-specific strategic speaking guidance
 In `agents/agent.py`, the thinking step now includes explicit strategy guidance per character.
-
-Examples:
-- **Dr Chelsea Barren**: analytical, more likely to speak when she can expose contradictions or push a theory
-- **Enrique Graves**: risk-aware and self-protective, prefers silence unless challenged or able to redirect suspicion
-- **Kathryn Lawless**: selective and careful, should not speak without a meaningful gain
-- **Michael Nightshade**: opportunistic, speaks when he can steer the narrative
-- **Norman D'Adly**: more reactive and emotional, more likely to speak when provoked
-- **Vicki D'Adly**: defensive and strategic, speaks when protecting herself or exploiting a mistake
-
+Each character's guidance is loaded from `speaking_style.md` in their roles directory.
 This makes speaking behavior depend more on role/personality and less on a generic “contribute now” instinct.
 
 ---

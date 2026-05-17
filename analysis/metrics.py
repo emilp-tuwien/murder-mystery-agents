@@ -383,7 +383,24 @@ def analyze_run(run_dir: str | Path) -> Dict[str, Any]:
     attention = build_attention_artifacts(run_path, utterance_rows, agent_names, murderer_name)
     accusation_quality = _compute_accusation_quality(accusation_rows)
     rq3 = _compute_rq3(accusation_rows, agent_names, murderer_name)
-    rq1 = label_deception_for_run(run_path, utterance_rows, manifest)
+    rq1_raw = label_deception_for_run(run_path, utterance_rows, manifest)
+    rq1 = {
+        "total_murderer_utterances": rq1_raw.get("total_murderer_utterances", 0),
+        "labeled_murderer_utterances": rq1_raw.get("labeled_murderer_utterances", 0),
+        "deceptive_instance_count": rq1_raw.get("deceptive_instance_count", rq1_raw.get("total_labeled_utterances", 0)),
+        "proportion_murderer_utterances_deceptive": rq1_raw.get("proportion_murderer_utterances_deceptive", 0.0),
+        "counts_by_strategy": rq1_raw.get("counts_by_strategy", rq1_raw.get("strategy_counts", {})),
+        "rates_by_strategy": rq1_raw.get("rates_by_strategy", rq1_raw.get("strategy_rates", {})),
+        "strategies_present": rq1_raw.get("strategies_present", sorted((rq1_raw.get("strategy_counts") or {}).keys())),
+        "judge_method": rq1_raw.get("judge_method", "heuristic"),
+        "judge_model": rq1_raw.get("judge_model", "n/a"),
+        "judge_temperature": rq1_raw.get("judge_temperature", "n/a"),
+        # Legacy keys for backward-compat with aggregation code
+        "total_labeled_instances": rq1_raw.get("total_labeled_instances", 0),
+        "total_labeled_utterances": rq1_raw.get("total_labeled_utterances", 0),
+        "strategy_counts": rq1_raw.get("counts_by_strategy", rq1_raw.get("strategy_counts", {})),
+        "strategy_rates": rq1_raw.get("rates_by_strategy", rq1_raw.get("strategy_rates", {})),
+    }
 
     murderer_agent_row = next((row for row in agent_rows if row["agent"] == murderer_name), None)
     attention_summary = attention.get("summary", {})
@@ -478,10 +495,14 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
             "murderer_pressure_signals_received": summary.get("rq2", {}).get("murderer_pressure_signals_received"),
             "question_target_entropy": summary.get("rq2", {}).get("question_target_entropy"),
             "pressure_target_gini": summary.get("rq2", {}).get("pressure_target_gini"),
-            "murderer_labeled_utterances": summary.get("rq1", {}).get("total_labeled_utterances"),
-            "murderer_direct_denial_rate": summary.get("rq1", {}).get("strategy_rates", {}).get("direct_denial", 0.0),
-            "murderer_deflection_rate": summary.get("rq1", {}).get("strategy_rates", {}).get("deflection", 0.0),
-            "murderer_evasion_rate": summary.get("rq1", {}).get("strategy_rates", {}).get("evasion", 0.0),
+            "murderer_labeled_utterances": summary.get("rq1", {}).get("deceptive_instance_count", summary.get("rq1", {}).get("total_labeled_utterances")),
+            "murderer_proportion_deceptive": summary.get("rq1", {}).get("proportion_murderer_utterances_deceptive", 0.0),
+            "murderer_judge_method": summary.get("rq1", {}).get("judge_method", "heuristic"),
+            "murderer_direct_denial_rate": summary.get("rq1", {}).get("rates_by_strategy", summary.get("rq1", {}).get("strategy_rates", {})).get("direct_denial", 0.0),
+            "murderer_deflection_rate": summary.get("rq1", {}).get("rates_by_strategy", summary.get("rq1", {}).get("strategy_rates", {})).get("deflection", 0.0),
+            "murderer_evasion_rate": summary.get("rq1", {}).get("rates_by_strategy", summary.get("rq1", {}).get("strategy_rates", {})).get("evasion_nonanswer", 0.0),
+            "murderer_alibi_construction_rate": summary.get("rq1", {}).get("rates_by_strategy", {}).get("alibi_construction", 0.0),
+            "murderer_accusation_redirection_rate": summary.get("rq1", {}).get("rates_by_strategy", {}).get("accusation_redirection", 0.0),
             "mean_accusation_confidence": summary.get("accusation_quality", {}).get("mean_confidence", 0.0),
             "structured_accusation_fraction": summary.get("accusation_quality", {}).get("structured_evidence_fraction", 0.0),
             "mean_accusation_evidence_item_count": summary.get("accusation_quality", {}).get("mean_evidence_item_count", 0.0),
@@ -524,9 +545,12 @@ def aggregate_experiment(experiment_dir: str | Path) -> Dict[str, Any]:
         "mean_belief_uncertainty": sum((row.get("mean_belief_uncertainty") or 0.0) for row in aggregate_rows) / total_runs,
         "mean_belief_forced_top_suspect_count": sum((row.get("belief_forced_top_suspect_count") or 0.0) for row in aggregate_rows) / total_runs,
         "mean_murderer_labeled_utterances": sum((row["murderer_labeled_utterances"] or 0) for row in aggregate_rows) / total_runs,
+        "mean_murderer_proportion_deceptive": sum((row.get("murderer_proportion_deceptive") or 0.0) for row in aggregate_rows) / total_runs,
         "mean_murderer_direct_denial_rate": sum((row["murderer_direct_denial_rate"] or 0.0) for row in aggregate_rows) / total_runs,
         "mean_murderer_deflection_rate": sum((row["murderer_deflection_rate"] or 0.0) for row in aggregate_rows) / total_runs,
         "mean_murderer_evasion_rate": sum((row["murderer_evasion_rate"] or 0.0) for row in aggregate_rows) / total_runs,
+        "mean_murderer_alibi_construction_rate": sum((row.get("murderer_alibi_construction_rate") or 0.0) for row in aggregate_rows) / total_runs,
+        "mean_murderer_accusation_redirection_rate": sum((row.get("murderer_accusation_redirection_rate") or 0.0) for row in aggregate_rows) / total_runs,
         "mean_accusation_confidence": sum(row["mean_accusation_confidence"] for row in aggregate_rows) / total_runs,
         "mean_structured_accusation_fraction": sum(row["structured_accusation_fraction"] for row in aggregate_rows) / total_runs,
         "mean_accusation_evidence_item_count": sum(row["mean_accusation_evidence_item_count"] for row in aggregate_rows) / total_runs,

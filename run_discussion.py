@@ -236,7 +236,7 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
         if is_murderer:
             murderer_name = name
             print(f"  [Detected murderer: {name}]")
-        agents[name] = Agent(name, descriptions[name], llm, roles_dir, is_murderer=is_murderer, scenario=scenario)
+        agents[name] = Agent(name, descriptions[name], llm, roles_dir, is_murderer=is_murderer, scenario=scenario, murderer_behavior_mode=config.murderer_behavior_mode)
         agents[name].update_round(1)
 
     if runtime_sink is not None:
@@ -262,6 +262,7 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
                 "prompt_version": config.prompt_version,
                 "turn_policy_version": config.turn_policy_version,
                 "memory_version": config.memory_version,
+                "murderer_behavior_mode": config.murderer_behavior_mode,
             },
         )
 

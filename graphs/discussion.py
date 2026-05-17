@@ -196,7 +196,7 @@ def game_master_decide(state: GameState, game_master, agents: Dict[str, any], ui
     if current_round == 1:
         agent_names = list(agents.keys())
         history = state.get("history", [])
-        speakers_so_far = set(u["speaker"] for u in history)
+        speakers_so_far = set(u["speaker"] for u in history if u.get("speaker") != "Game Master")
         remaining = [name for name in agent_names if name not in speakers_so_far]
 
         if remaining:
@@ -374,6 +374,12 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
 
         clue = game_master.get_clue_for_round(new_round)
 
+        if clue:
+            # Inject the clue into SharedHistory as a Game Master message so every agent
+            # sees it in their [CONVERSATION] section on the next think/speak call.
+            from memory.agent_memory import SharedHistory
+            SharedHistory().append(state.get("turn", 0), "Game Master", f"[NEW EVIDENCE] {clue}")
+
         print(f"\n   Updating agent knowledge for Round {new_round}...")
         for _, agent in agents.items():
             agent.update_round(new_round)
@@ -417,7 +423,7 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
         }
 
     if current_round == 1:
-        speakers_so_far = set(u["speaker"] for u in history)
+        speakers_so_far = set(u["speaker"] for u in history if u.get("speaker") != "Game Master")
 
         if len(speakers_so_far) >= len(agents):
             return _advance_to_round(

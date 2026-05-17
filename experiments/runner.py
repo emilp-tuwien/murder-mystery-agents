@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 import argparse
 import json
 import sys
+import threading
 import traceback
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -60,8 +62,17 @@ def _build_manifest(config: RunConfig, run_id: str) -> Dict:
         "prompt_version": config.prompt_version,
         "turn_policy_version": config.turn_policy_version,
         "memory_version": config.memory_version,
+        "murderer_behavior_mode": config.murderer_behavior_mode,
         "deception_labeling_enabled": config.deception_labeling_enabled,
         "deception_labeling_mode": config.deception_labeling_mode,
+        "deception_judge_backend": config.deception_judge_backend,
+        "deception_judge_model_name": config.deception_judge_model_name,
+        "deception_judge_base_url": config.deception_judge_base_url,
+        "deception_judge_api_key_env": config.deception_judge_api_key_env,
+        "deception_judge_temperature": config.deception_judge_temperature,
+        "deception_judge_context_before_turns": config.deception_judge_context_before_turns,
+        "deception_judge_context_after_turns": config.deception_judge_context_after_turns,
+        "deception_judge_max_retries": config.deception_judge_max_retries,
         "roles_dir": str(config.resolved_roles_dir()),
         "clues_dir": str(config.resolved_clues_dir()),
         "repo_root": str(REPO_ROOT),
@@ -270,7 +281,17 @@ def run_batch(config: RunConfig, fail_fast: bool = False) -> Dict:
     }
 
 
-def run_experiment_plan(experiment: LoadedExperiment, fail_fast: bool = False) -> Dict:
+def _run_batch_worker(args: tuple) -> Dict:
+    """Top-level wrapper for ProcessPoolExecutor — must be picklable."""
+    config, fail_fast = args
+    return run_batch(config, fail_fast=fail_fast)
+
+
+def run_experiment_plan(
+    experiment: LoadedExperiment,
+    fail_fast: bool = False,
+    max_workers: Optional[int] = None,
+) -> Dict:
     _write_experiment_plan(experiment)
     configs = experiment.expand()
     experiment_status = {
@@ -281,6 +302,7 @@ def run_experiment_plan(experiment: LoadedExperiment, fail_fast: bool = False) -
         "finished_at": None,
         "status": "running",
         "fail_fast": fail_fast,
+        "max_workers": max_workers,
         "planned_conditions": [
             {
                 "condition_name": summary["condition_name"],
@@ -295,12 +317,13 @@ def run_experiment_plan(experiment: LoadedExperiment, fail_fast: bool = False) -
         "failed_conditions": [],
     }
     _write_experiment_batch_status(experiment, experiment_status)
+    status_lock = threading.Lock()
 
     condition_results: List[Dict] = []
-    for config in configs:
-        try:
-            result = run_batch(config, fail_fast=fail_fast)
-            condition_results.append(result)
+
+    def _handle_condition_result(result: Dict, config) -> None:
+        condition_results.append(result)
+        with status_lock:
             experiment_status["completed_conditions"].append(
                 {
                     "condition_name": config.condition_name,
@@ -310,20 +333,49 @@ def run_experiment_plan(experiment: LoadedExperiment, fail_fast: bool = False) -
                     "validation_summary": result.get("validation_summary", {}),
                 }
             )
-            experiment_status["progress_report"] = write_experiment_progress(experiment.base.resolved_experiment_dir())
-        except Exception as exc:
-            failure = {
-                "condition_name": config.condition_name,
-                "condition_dir": str(config.resolved_condition_dir()),
-                "error_summary": str(exc),
-            }
-            experiment_status["failed_conditions"].append(failure)
+            experiment_status["progress_report"] = write_experiment_progress(
+                experiment.base.resolved_experiment_dir()
+            )
+            _write_experiment_batch_status(experiment, experiment_status)
+
+    def _handle_condition_error(exc: Exception, config) -> None:
+        with status_lock:
+            experiment_status["failed_conditions"].append(
+                {
+                    "condition_name": config.condition_name,
+                    "condition_dir": str(config.resolved_condition_dir()),
+                    "error_summary": str(exc),
+                }
+            )
             experiment_status["status"] = "error"
             experiment_status["finished_at"] = utc_now_iso()
             _write_experiment_batch_status(experiment, experiment_status)
-            raise
-        finally:
-            _write_experiment_batch_status(experiment, experiment_status)
+
+    if max_workers and max_workers > 1 and len(configs) > 1:
+        workers = min(max_workers, len(configs))
+        print(f"Running {len(configs)} conditions in parallel (max_workers={workers})")
+        with ProcessPoolExecutor(max_workers=workers) as executor:
+            future_to_config = {
+                executor.submit(_run_batch_worker, (cfg, fail_fast)): cfg
+                for cfg in configs
+            }
+            for future in as_completed(future_to_config):
+                cfg = future_to_config[future]
+                try:
+                    result = future.result()
+                    _handle_condition_result(result, cfg)
+                except Exception as exc:
+                    _handle_condition_error(exc, cfg)
+                    if fail_fast:
+                        raise
+    else:
+        for config in configs:
+            try:
+                result = run_batch(config, fail_fast=fail_fast)
+                _handle_condition_result(result, config)
+            except Exception as exc:
+                _handle_condition_error(exc, config)
+                raise
 
     experiment_dir = experiment.base.resolved_experiment_dir()
     experiment_summary = aggregate_experiment_conditions(experiment_dir)
@@ -334,7 +386,10 @@ def run_experiment_plan(experiment: LoadedExperiment, fail_fast: bool = False) -
 
     experiment_status["finished_at"] = utc_now_iso()
     had_failed_runs = any(result.get("failed_runs") for result in condition_results)
-    experiment_status["status"] = "finished_with_errors" if had_failed_runs else "finished"
+    had_failed_conditions = bool(experiment_status["failed_conditions"])
+    experiment_status["status"] = (
+        "finished_with_errors" if (had_failed_runs or had_failed_conditions) else "finished"
+    )
     experiment_status["experiment_summary"] = experiment_summary
     experiment_status["dataset_manifest"] = dataset_manifest
     experiment_status["qualitative_samples"] = qualitative_samples
@@ -359,6 +414,19 @@ def main():
     parser.add_argument("--replicates", type=int, default=None, help="Override replicate count from config.")
     parser.add_argument("--fail-fast", action="store_true", help="Stop the batch immediately when a run fails.")
     parser.add_argument(
+        "--only-condition",
+        metavar="NAME",
+        default=None,
+        help="Run only the named condition (exact match). Useful for manual parallelism across terminals.",
+    )
+    parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Run up to N conditions in parallel using separate processes. Each condition still runs its replicates sequentially. Default: 1 (sequential).",
+    )
+    parser.add_argument(
         "--plan-only",
         action="store_true",
         help="Validate config expansion, write experiment_plan.json, and print the planned conditions/runs without executing them.",
@@ -376,6 +444,18 @@ def main():
         experiment = LoadedExperiment(
             base=experiment.base.model_copy(update={"replicates": args.replicates}),
             conditions=[cfg.model_copy(update={"replicates": args.replicates}) for cfg in experiment.conditions],
+            source_path=experiment.source_path,
+        )
+
+    if args.only_condition is not None:
+        matched = [cfg for cfg in experiment.conditions if cfg.condition_name == args.only_condition]
+        if not matched:
+            available = [cfg.condition_name for cfg in experiment.conditions]
+            print(f"ERROR: condition '{args.only_condition}' not found. Available: {available}", file=sys.stderr)
+            sys.exit(1)
+        experiment = LoadedExperiment(
+            base=experiment.base,
+            conditions=matched,
             source_path=experiment.source_path,
         )
 
@@ -404,7 +484,7 @@ def main():
         print(json.dumps(payload, indent=2, sort_keys=True))
         return
 
-    result = run_experiment_plan(experiment, fail_fast=args.fail_fast)
+    result = run_experiment_plan(experiment, fail_fast=args.fail_fast, max_workers=args.max_workers)
     print(f"Experiment outputs written to: {result['experiment_dir']}")
     print(json.dumps({
         "batch_status": result["batch_status"],

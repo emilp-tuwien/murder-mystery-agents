@@ -27,40 +27,73 @@ Why:
 
 The final matrix is a **2 × 2 design** over the factors that the code now genuinely manipulates:
 
-1. **Progression policy**
-   - `round_budget`
-   - `evidence_gated`
+1. **Factor A — murderer_behavior_mode**
+   - `passive_concealment`: The murderer is instructed to avoid accusation and appear cooperative, but receives no explicit coaching in named deceptive tactics. Acts as an innocent person would.
+   - `active_deception`: The murderer receives the same base instructions plus explicit permission to use named deceptive tactics (direct denial, deflection, uncertainty seeding, selective disclosure, accusation redirection, evidence reframing).
 
-2. **Dialogue budget**
-   - `standard`
-   - `extended`
+2. **Factor B — progression_policy**
+   - `round_budget`: Rounds advance after a fixed conversation budget is reached.
+   - `evidence_gated`: Rounds advance only after the group has demonstrated sufficient evidence coverage, question breadth, and pressure signals.
 
 ### Conditions
-1. `round-budget__standard-budget`
-2. `round-budget__extended-budget`
-3. `evidence-gated__standard-budget`
-4. `evidence-gated__extended-budget`
 
-### Why this is the right final matrix
-This matrix allows the thesis to separate:
-- the effect of giving the agents **more turns**,
-- from the effect of requiring **more evidence before progression**.
+| Condition ID | murderer_behavior_mode | progression_policy | cell_role |
+|---|---|---|---|
+| `passive-concealment__round-budget` | passive_concealment | round_budget | control |
+| `passive-concealment__evidence-gated` | passive_concealment | evidence_gated | gate_treatment |
+| `active-deception__round-budget` | active_deception | round_budget | deception_treatment |
+| `active-deception__evidence-gated` | active_deception | evidence_gated | full_treatment |
 
-That is much stronger than comparing one loose baseline against one stronger condition.
+### Why this matrix is the right final design
+
+This matrix directly manipulates **the murderer's instructed behavior** — the core object of study — while preserving progression policy as a dialogue-structure moderator. Compared with the previous dialogue-budget matrix, it is:
+
+- More directly aligned with all three RQs (see below).
+- Easier to explain: "the murderer was / was not coached in deceptive tactics."
+- More interpretable: any difference in deception rates, attention patterns, or accusation outcomes can be attributed to explicit tactic coaching rather than conversation volume alone.
+- The dialogue budget is controlled (held at the standard 20 conversations/round) rather than manipulated, which eliminates a confound between quantity of speech and quality of deception.
+
+### Why dialogue budget is no longer the main manipulated factor
+
+The previous matrix compared standard (20 conv/round) versus extended (28 conv/round) budgets. While this is a valid manipulation, it does not directly answer the thesis RQs:
+
+- More turns do not tell us which deceptive strategies were used (RQ1).
+- More turns may increase total interactions without changing who the attention concentrates on (RQ2).
+- A larger conversation budget does not cleanly predict whether the murderer avoids accusation (RQ3).
+
+`murderer_behavior_mode` is a cleaner and more theoretically motivated factor because it controls the murderer's instructed strategy directly, which is what RQ1 through RQ3 are studying.
+
+### Why progression policy is still in the matrix
+
+Evidence-gated progression forces the group to ask more targeted questions before advancing, which should:
+- create more observable pressure on the murderer (RQ2),
+- produce more evidence-rich accusations (RQ3),
+- and potentially surface more deceptive responses when the murderer is under sustained pressure (RQ1).
+
+Keeping progression policy as a second factor allows the thesis to separate the effect of the murderer's own behavior from the effect of the dialogue structure that surrounds them.
+
+### Why memory is held constant
+
+The repo tracks `memory_version` but does not expose a second implemented memory policy that changes runtime behavior in a clean, auditable way. A factor should only be manipulated if it actually changes the system. Memory remains fixed at `three-stage-v1`.
 
 ---
 
-## Why memory is held constant
-The current repo tracks `memory_version`, but it does not yet expose a second implemented memory policy that changes runtime behavior in a clean, auditable way.
+## How the matrix aligns with the research questions
 
-For an outstanding thesis, a factor should only be manipulated if it **actually changes the system**.
+### RQ1 — Deception strategies
+**Primary factor: murderer_behavior_mode**
 
-So for now:
-- `memory_version: three-stage-v1` stays fixed,
-- memory is treated as part of the stable system,
-- and a future thesis extension can add a real memory comparison once implemented.
+Comparing `passive_concealment` vs `active_deception` directly tests whether explicit tactic coaching changes the frequency and variety of labeled deceptive behaviors. Expected finding: `active_deception` produces more labeled strategies per run, more diverse strategy types, and higher-confidence labels.
 
-This is more honest and scientifically stronger than claiming a factor that is only a label.
+### RQ2 — Attention distribution
+**Primary factor: progression_policy; secondary: murderer_behavior_mode**
+
+Evidence-gated progression should concentrate more follow-up questions and pressure signals on the murderer. Active deception may also attract more scrutiny as other agents react to evasive behavior. The 2×2 design lets the thesis separate these effects.
+
+### RQ3 — Accusation outcomes
+**Primary comparison: passive-concealment__round-budget vs active-deception__round-budget**
+
+This is the cleanest estimate of whether explicit tactic coaching helps the murderer escape accusation, without confounding from the gate structure. The evidence-gated conditions add a secondary question: does gate structure reduce the murderer's advantage even when they are coached?
 
 ---
 
@@ -74,7 +107,7 @@ This is more honest and scientifically stronger than claiming a factor that is o
 ### Total planned runs
 - 4 conditions × 24 replicates = **96 planned runs**
 
-This is large enough to move beyond anecdotal observations, while still remaining operationally realistic.
+At a realistic ~15% exclusion rate, this yields approximately 20–22 usable runs per condition — enough for stable condition means and modest statistical power on binary outcomes (e.g., group solve rate).
 
 ---
 
@@ -89,8 +122,9 @@ Goal:
 - confirm every run produces complete artifacts,
 - inspect `run_validation.json`,
 - inspect `progress_report.md`,
+- verify `murderer_behavior_mode` is correctly recorded in manifests,
 - verify the structured accusation schema is being filled reliably,
-- verify evidence-gated rounds are logging `stage_gate_evaluated` and `hard_cap_fallback` vs `evidence_gate_satisfied` decisions.
+- verify evidence-gated rounds log `stage_gate_evaluated` and `evidence_gate_satisfied` / `hard_cap_fallback` decisions.
 
 Do **not** interpret thesis results yet.
 
@@ -101,8 +135,8 @@ Run until:
 
 Goal:
 - detect obviously broken or weak conditions,
-- inspect whether evidence-gated runs actually surface more targeted questioning,
-- inspect whether accusation structure is consistently stronger.
+- inspect whether `active_deception` runs produce more labeled deceptive behaviors,
+- inspect whether evidence-gated runs log more targeted questioning.
 
 ### Phase 3 — Interim analysis
 Run until:
@@ -111,8 +145,8 @@ Run until:
 
 Goal:
 - compare trends with enough stability to discuss them in working notes,
-- inspect pairwise differences,
-- inspect whether progression policy affects solve rate, murderer vote share, and accusation structure.
+- inspect pairwise differences across all four cells,
+- inspect whether the murderer_behavior_mode × progression_policy interaction pattern is visible.
 
 ### Phase 4 — Final thesis batch
 Run until:
@@ -142,7 +176,8 @@ A run should ideally have:
 - murderer directly questioned in at least some runs,
 - acceptable suspect question coverage,
 - round summaries present,
-- evidence-gate events present for evidence-gated conditions.
+- evidence-gate events present for evidence-gated conditions,
+- `murderer_behavior_mode` correctly recorded in `run_manifest.json`.
 
 ### Warning patterns to watch
 Investigate quickly if you see too many:
@@ -157,30 +192,23 @@ If those warnings dominate, fix the system before scaling further.
 
 ## Primary thesis comparisons
 
-### Main causal comparison
-**`round-budget__standard-budget` vs `evidence-gated__standard-budget`**
+### Main deception effect
+**`passive-concealment__round-budget` vs `active-deception__round-budget`**
 
-This is the cleanest estimate of whether evidence-gated progression changes:
-- murderer attention,
-- accusation quality,
-- and solve outcomes,
-without changing the standard dialogue budget.
+Cleanest estimate of whether explicit tactic coaching changes deception rates (RQ1), murderer attention (RQ2), and accusation outcomes (RQ3) without confounding from gate structure.
 
-### Budget-only comparison
-**`round-budget__standard-budget` vs `round-budget__extended-budget`**
+### Gate structure effect (within passive concealment)
+**`passive-concealment__round-budget` vs `passive-concealment__evidence-gated`**
 
-Tests whether more discussion alone improves results.
+Tests whether gate structure alone concentrates more attention and pressure on the murderer, independent of coaching.
 
-### Robustness comparison
-**`evidence-gated__standard-budget` vs `evidence-gated__extended-budget`**
+### Gate structure effect (within active deception)
+**`active-deception__round-budget` vs `active-deception__evidence-gated`**
 
-Tests whether the gating effect persists or saturates when more turns are available.
+Tests whether gate structure reduces the murderer's advantage even when they are explicitly coached. If the murderer escapes at equal rates under both progression policies, gate structure does not override tactic coaching.
 
-### Full factorial comparison
-Inspect interaction-like patterns across all four cells:
-- if extended budget helps only under evidence gating,
-- or if evidence gating helps even without extra turns,
-- or if more turns alone are enough.
+### Interaction inspection
+Look across all four cells for whether the deception effect is larger or smaller under gate structure — this would be a meaningful interaction finding for the thesis discussion.
 
 ---
 
@@ -192,12 +220,14 @@ Use:
 - `runs.csv`
 - `utterances.csv`
 - selected qualitative excerpts from high-deception runs
+- compare strategy frequency and variety between `passive_concealment` and `active_deception` conditions
 
 ### RQ2 — Attention distribution
 Use:
 - `interactions.csv`
 - `attention_summary.json`
 - condition summaries for murderer attention, follow-ups, and pressure
+- compare follow-up and pressure signals between progression policies
 
 ### RQ3 — Accusation outcomes
 Use:
@@ -205,6 +235,7 @@ Use:
 - `metrics.json`
 - `condition_report.md`
 - `condition_chance_baseline.csv`
+- compare group solve rate and murderer vote share across all four cells
 
 ### Workflow / validity chapter support
 Use:
@@ -220,26 +251,29 @@ Use:
 ### Results chapter structure
 1. **System validity / workflow quality**
    - How many runs were planned, excluded, and retained
+   - Whether `murderer_behavior_mode` was correctly recorded and the prompt difference was stable
    - Whether evidence-gated conditions actually satisfied gates or hit hard caps
 
 2. **RQ1 — Deception strategy findings**
-   - recurring strategy categories
-   - qualitative examples from structured transcript evidence
+   - Strategy frequency and variety by `murderer_behavior_mode`
+   - Qualitative examples from structured transcript evidence
+   - Expected finding: `active_deception` produces more diverse labeled strategies
 
 3. **RQ2 — Attention distribution findings**
-   - whether attention and pressure concentrate on the murderer differently by condition
+   - Whether attention and pressure concentrate on the murderer differently by `progression_policy`
+   - Whether `active_deception` attracts more scrutiny from innocent agents
+   - Condition-level comparison of follow-up and pressure signal rates
 
 4. **RQ3 — Accusation outcome findings**
-   - solve rate,
-   - murderer vote share,
-   - chance baseline comparison,
-   - accusation structure quality
+   - Solve rate and murderer vote share by condition
+   - Chance baseline comparison
+   - Accusation structure quality
+   - Whether tactic coaching or gate structure has a stronger effect on escape rate
 
 5. **Interpretation / mechanism discussion**
-   - whether improved outcomes arise from more evidence integration,
-   - more pressure,
-   - more turns,
-   - or some interaction of these.
+   - Whether deception coaching helps the murderer (RQ3 effect of Factor A)
+   - Whether gate structure partially counteracts coaching (interaction of A × B)
+   - Whether the mechanisms proposed in the thesis (deceptive tactics → misleading attention → incorrect accusation) are visible in the data
 
 ---
 
@@ -275,11 +309,12 @@ Refresh workflow reports manually if needed:
 
 ## Standard for success
 A strong thesis result here is not merely:
-- “one condition solved more murders.”
+- "one condition solved more murders."
 
 A strong thesis result is:
 - a condition difference backed by usable runs,
-- evidence that the discussion process changed,
+- evidence that `murderer_behavior_mode` changed labeled deception behavior,
+- evidence that `progression_policy` changed the distribution of investigative attention,
 - and accusation outputs that show what the agents thought the case actually was.
 
 That is the standard this run plan is aiming for.

@@ -12,84 +12,89 @@ base:
   seed: 4242
   conversations_per_round: 20
   max_rounds: 6
-  stage_gate_policy: evidence_gated
+  stage_gate_policy: round_budget
   min_round_gate_conversations: 10
-  max_round_gate_conversations: 24
+  max_round_gate_conversations: 20
   min_unique_question_targets_per_round: 3
   min_question_coverage_fraction_per_round: 0.5
   min_evidence_signals_per_round: 3
   min_pressure_signals_per_round: 2
   min_clue_references_per_round: 1
   min_synthesis_signals_final_round: 1
+  murderer_behavior_mode: passive_concealment
   enable_ui: false
   prompt_version: thesis-final-v2
   turn_policy_version: top2-selective-silence-v1
   memory_version: three-stage-v1
   deception_labeling_enabled: true
-  deception_labeling_mode: heuristic
+  deception_labeling_mode: llm_rubric
+  deception_judge_temperature: 0.0
+  deception_judge_context_before_turns: 4
+  deception_judge_context_after_turns: 2
+  deception_judge_max_retries: 2
   scenario_id: business-of-murder-v1
   scenario_path: scenarios/business-of-murder/scenario.json
   roles_dir: scenarios/business-of-murder/roles
   clues_dir: scenarios/business-of-murder/clues
   notes: >-
-    Final thesis matrix. Uses only factors that now produce real runtime differences:
-    progression policy (round budget vs evidence-gated) and dialogue budget
-    (standard vs extended). Memory is held constant until a second implemented
-    memory policy exists, so the thesis does not claim a fake manipulation.
+    Final thesis matrix. 2x2 design over murderer_behavior_mode
+    (passive_concealment vs active_deception) and progression_policy
+    (round_budget vs evidence_gated). Dialogue budget is held constant
+    at the standard value across all four cells.
 
 conditions:
-  - name: round-budget__standard-budget
+  - name: passive-concealment__round-budget
     description: >-
-      Baseline control. Fixed round-budget progression with the current standard
-      dialogue budget.
+      Control cell. Murderer receives no explicit tactic coaching and progression
+      advances by fixed round budget. Establishes the baseline concealment rate
+      without active deception instructions.
     overrides:
+      murderer_behavior_mode: passive_concealment
       stage_gate_policy: round_budget
-      conversations_per_round: 20
-      min_round_gate_conversations: 10
       max_round_gate_conversations: 20
     factors:
+      murderer_behavior: passive_concealment
       progression_policy: round_budget
-      dialogue_budget: standard
       cell_role: control
 
-  - name: round-budget__extended-budget
+  - name: passive-concealment__evidence-gated
     description: >-
-      Dialogue-budget control. Fixed round-budget progression with more turns,
-      isolating the effect of giving the discussion more space without gate logic.
+      Progression treatment. Murderer receives no explicit tactic coaching but
+      rounds are evidence-gated, forcing more thorough questioning before
+      advancement. Isolates the effect of gate structure without deception coaching.
     overrides:
-      stage_gate_policy: round_budget
-      conversations_per_round: 28
-      min_round_gate_conversations: 12
-      max_round_gate_conversations: 28
-    factors:
-      progression_policy: round_budget
-      dialogue_budget: extended
-      cell_role: budget_control
-
-  - name: evidence-gated__standard-budget
-    description: >-
-      Primary treatment. Evidence-gated progression with the standard dialogue
-      budget to test whether gating improves evidence integration and accusation quality.
-    overrides:
+      murderer_behavior_mode: passive_concealment
       stage_gate_policy: evidence_gated
-      conversations_per_round: 20
-      min_round_gate_conversations: 10
       max_round_gate_conversations: 24
     factors:
+      murderer_behavior: passive_concealment
       progression_policy: evidence_gated
-      dialogue_budget: standard
-      cell_role: primary_treatment
+      cell_role: gate_treatment
 
-  - name: evidence-gated__extended-budget
+  - name: active-deception__round-budget
     description: >-
-      Robustness and mechanism cell. Evidence-gated progression plus more turns,
-      testing whether gating still matters when the group is given a larger budget.
+      Deception treatment. Murderer receives explicit coaching in named deceptive
+      tactics with fixed round-budget progression. Isolates the effect of tactic
+      coaching without gate structure.
     overrides:
-      stage_gate_policy: evidence_gated
-      conversations_per_round: 28
-      min_round_gate_conversations: 12
-      max_round_gate_conversations: 32
+      murderer_behavior_mode: active_deception
+      stage_gate_policy: round_budget
+      max_round_gate_conversations: 20
     factors:
+      murderer_behavior: active_deception
+      progression_policy: round_budget
+      cell_role: deception_treatment
+
+  - name: active-deception__evidence-gated
+    description: >-
+      Full treatment cell. Murderer receives explicit deception coaching and
+      progression is evidence-gated. Tests whether gate structure reduces the
+      murderer's advantage even when they are actively coached.
+    overrides:
+      murderer_behavior_mode: active_deception
+      stage_gate_policy: evidence_gated
+      max_round_gate_conversations: 24
+    factors:
+      murderer_behavior: active_deception
       progression_policy: evidence_gated
-      dialogue_budget: extended
-      cell_role: robustness_treatment
+      cell_role: full_treatment

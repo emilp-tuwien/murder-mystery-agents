@@ -12,4 +12,4 @@ enable_ui: false
 prompt_version: thesis-pilot-v1
 turn_policy_version: top2-selective-silence-v1
 memory_version: three-stage-v1
-scenario_id: killingsworth-farm-v1
+scenario_id: business-of-murder-v1

@@ -46,8 +46,19 @@ class RunConfig(BaseModel):
     prompt_version: str = "v1"
     turn_policy_version: str = "top2-selective-silence-v1"
     memory_version: str = "three-stage-v1"
+    murderer_behavior_mode: Literal["passive_concealment", "active_deception"] = "passive_concealment"
     deception_labeling_enabled: bool = True
-    deception_labeling_mode: Literal["heuristic", "off"] = "heuristic"
+    deception_labeling_mode: Literal["off", "heuristic", "llm_rubric"] = "llm_rubric"
+
+    # Judge config — all optional; fall back to game-backend fields when None
+    deception_judge_backend: Optional[str] = None
+    deception_judge_model_name: Optional[str] = None
+    deception_judge_base_url: Optional[str] = None
+    deception_judge_api_key_env: str = "OPENAI_API_KEY"
+    deception_judge_temperature: float = 0.0
+    deception_judge_context_before_turns: int = Field(default=4, ge=0)
+    deception_judge_context_after_turns: int = Field(default=2, ge=0)
+    deception_judge_max_retries: int = Field(default=2, ge=0)
     scenario_id: str = "business-of-murder-v1"
     notes: Optional[str] = None
 

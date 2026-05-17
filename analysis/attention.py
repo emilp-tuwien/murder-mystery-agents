@@ -122,6 +122,9 @@ def build_attention_artifacts(
     mentions_asked = Counter()
     mentions_received = Counter()
 
+    # Pre-compute a list of recent non-None speakers for temporal follow-up detection.
+    recent_speakers: List[str] = []
+
     for row in utterances:
         speaker = row.get("speaker")
         text = str(row.get("text", ""))
@@ -132,14 +135,20 @@ def build_attention_artifacts(
         mentioned = [name for name in str(row.get("mentioned_agents", "")).split("|") if name]
         targets = _collect_targets(row)
 
-        is_followup = bool(response_to and addressed_to and response_to == addressed_to and is_question)
+        # A follow-up is a question addressed to someone who spoke within the last 3 turns.
+        # This catches both game-master-enforced responses and organic follow-up questions.
+        is_followup = bool(
+            is_question
+            and addressed_to
+            and addressed_to in recent_speakers[-3:]
+        )
         is_justification_request = bool(is_question and _contains_any(normalized, JUSTIFICATION_PATTERNS))
         is_pressure = bool(_contains_any(normalized, PRESSURE_PATTERNS))
 
         for target in targets:
             is_direct_target = target == addressed_to
             target_question = bool(is_question and is_direct_target)
-            target_followup = bool(is_followup and target == response_to)
+            target_followup = bool(is_followup and target == addressed_to)
             target_justification = bool(is_justification_request and is_direct_target)
             target_pressure = bool(is_pressure and target in mentioned + ([addressed_to] if addressed_to else []))
             target_mention = bool(target in mentioned)
@@ -180,6 +189,9 @@ def build_attention_artifacts(
                 "is_mention": target_mention,
                 "text": text,
             })
+
+        if speaker:
+            recent_speakers.append(speaker)
 
     agent_rows: List[Dict[str, Any]] = []
     for agent in agent_names:

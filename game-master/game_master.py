@@ -232,10 +232,11 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
                     last_speaker=last_speaker,
                 )
             if directly_addressed:
+                question_text = last_utterance.get("text", "")[:300]
                 return SpeakerDecision(
                     reasoning=f"{directly_addressed} was directly addressed by {last_speaker}",
                     next_speaker=directly_addressed,
-                    response_constraint=f"Respond to {last_speaker}'s question/statement",
+                    response_constraint=f"{last_speaker} asked you: \"{question_text}\" — answer this specific question first, then you may add anything else.",
                     is_direct_address=True
                 )
         

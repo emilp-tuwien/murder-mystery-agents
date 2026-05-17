@@ -16,9 +16,15 @@ from analysis.metrics import aggregate_experiment_conditions
 METRIC_SPECS = [
     {
         "key": "group_solve_rate",
-        "label": "Group solve rate (RQ3)",
+        "label": "Group solve rate (RQ3 — detection)",
         "higher_is_better_for_detection": True,
         "baseline_key": "random_group_solve_rate_baseline",
+    },
+    {
+        "key": "murderer_escape_rate",
+        "label": "Murderer escape rate (RQ3 — avoidance)",
+        "higher_is_better_for_detection": False,
+        "baseline_key": "random_escape_rate_baseline",
     },
     {
         "key": "mean_murderer_vote_share",
@@ -142,6 +148,24 @@ def _two_proportion_z_test(success_a: int, total_a: int, success_b: int, total_b
     return {"z": z, "p_value": p_value}
 
 
+def _one_sample_proportion_z_test(observed: int, total: int, null_p: float) -> Dict[str, float | None]:
+    """One-sample proportion z-test against a known null probability.
+
+    The two-proportion test is wrong here because the chance baseline is a
+    theoretical probability (not an independently sampled count), so its variance
+    is zero.  The correct standard error is sqrt(p0*(1-p0)/n).
+    """
+    if total <= 0 or null_p <= 0 or null_p >= 1:
+        return {"z": None, "p_value": None}
+    p_obs = observed / total
+    se = math.sqrt(null_p * (1 - null_p) / total)
+    if se <= 0:
+        return {"z": None, "p_value": None}
+    z = (p_obs - null_p) / se
+    p_value = 2 * (1 - _normal_cdf(abs(z)))
+    return {"z": z, "p_value": p_value}
+
+
 def _load_condition_rows(experiment_dir: Path) -> List[Dict[str, Any]]:
     summary = aggregate_experiment_conditions(experiment_dir)
     return list(summary.get("conditions", []))
@@ -180,24 +204,37 @@ def _baseline_assessment(condition_rows: List[Dict[str, Any]]) -> List[Dict[str,
         condition_name = row.get("condition_name")
         total_runs = int(row.get("total_runs") or 0)
         group_solve_rate = _safe_float(row.get("group_solve_rate")) or 0.0
-        baseline = _safe_float(row.get("random_group_solve_rate_baseline")) or 0.0
+        solve_baseline = _safe_float(row.get("random_group_solve_rate_baseline")) or 0.0
         solved_runs = int(round(group_solve_rate * total_runs)) if total_runs else 0
-        expected_random_solves = baseline * total_runs if total_runs else 0.0
-        ci = _wilson_interval(solved_runs, total_runs) if total_runs else {"lower": 0.0, "upper": 0.0}
-        test = _two_proportion_z_test(solved_runs, total_runs, int(round(expected_random_solves)), total_runs) if total_runs else {"z": None, "p_value": None}
+        solve_ci = _wilson_interval(solved_runs, total_runs) if total_runs else {"lower": 0.0, "upper": 0.0}
+        solve_test = _one_sample_proportion_z_test(solved_runs, total_runs, solve_baseline) if total_runs else {"z": None, "p_value": None}
+
+        escape_rate = _safe_float(row.get("murderer_escape_rate")) or 0.0
+        escape_baseline = _safe_float(row.get("random_escape_rate_baseline")) or 0.0
+        escaped_runs = int(round(escape_rate * total_runs)) if total_runs else 0
+        escape_ci = _wilson_interval(escaped_runs, total_runs) if total_runs else {"lower": 0.0, "upper": 0.0}
+        escape_test = _one_sample_proportion_z_test(escaped_runs, total_runs, escape_baseline) if total_runs else {"z": None, "p_value": None}
 
         assessments.append(
             {
                 "condition_name": condition_name,
                 "total_runs": total_runs,
+                # Detection perspective (group accuracy)
                 "observed_group_solves": solved_runs,
                 "observed_group_solve_rate": group_solve_rate,
-                "observed_group_solve_rate_ci95": ci,
-                "chance_group_solve_rate": baseline,
-                "expected_random_solves": expected_random_solves,
-                "lift_over_chance": group_solve_rate - baseline,
-                "z_statistic_vs_chance": test.get("z"),
-                "p_value_vs_chance": test.get("p_value"),
+                "observed_group_solve_rate_ci95": solve_ci,
+                "chance_group_solve_rate": solve_baseline,
+                "lift_over_chance": group_solve_rate - solve_baseline,
+                "z_statistic_vs_chance": solve_test.get("z"),
+                "p_value_vs_chance": solve_test.get("p_value"),
+                # Avoidance perspective (RQ3 — murderer success)
+                "observed_escapes": escaped_runs,
+                "observed_escape_rate": escape_rate,
+                "observed_escape_rate_ci95": escape_ci,
+                "chance_escape_rate": escape_baseline,
+                "escape_lift_over_chance": escape_rate - escape_baseline,
+                "escape_z_statistic_vs_chance": escape_test.get("z"),
+                "escape_p_value_vs_chance": escape_test.get("p_value"),
             }
         )
 
@@ -287,6 +324,14 @@ def write_condition_report(experiment_dir: Path) -> Dict[str, Any]:
                 "lift_over_chance": row.get("lift_over_chance"),
                 "z_statistic_vs_chance": row.get("z_statistic_vs_chance"),
                 "p_value_vs_chance": row.get("p_value_vs_chance"),
+                "observed_escapes": row.get("observed_escapes"),
+                "observed_escape_rate": row.get("observed_escape_rate"),
+                "observed_escape_rate_ci95_lower": row.get("observed_escape_rate_ci95", {}).get("lower"),
+                "observed_escape_rate_ci95_upper": row.get("observed_escape_rate_ci95", {}).get("upper"),
+                "chance_escape_rate": row.get("chance_escape_rate"),
+                "escape_lift_over_chance": row.get("escape_lift_over_chance"),
+                "escape_z_statistic_vs_chance": row.get("escape_z_statistic_vs_chance"),
+                "escape_p_value_vs_chance": row.get("escape_p_value_vs_chance"),
             }
         )
     if baseline_rows:
@@ -305,16 +350,24 @@ def write_condition_report(experiment_dir: Path) -> Dict[str, Any]:
             )
 
     summary_lines.append("")
-    summary_lines.append("Chance baseline checks (RQ3):")
+    summary_lines.append("RQ3 — chance baseline checks (detection & avoidance):")
     for row in report.get("chance_baseline_assessment", []):
-        ci = row.get("observed_group_solve_rate_ci95", {})
+        solve_ci = row.get("observed_group_solve_rate_ci95", {})
+        escape_ci = row.get("observed_escape_rate_ci95", {})
         summary_lines.append(
             "- "
-            f"{row.get('condition_name')}: observed={_format_float(row.get('observed_group_solve_rate'))} "
-            f"(95% CI {_format_float(ci.get('lower'))}–{_format_float(ci.get('upper'))}), "
-            f"chance={_format_float(row.get('chance_group_solve_rate'))}, "
-            f"lift={_format_float(row.get('lift_over_chance'))}, "
-            f"p={_format_float(row.get('p_value_vs_chance'))}"
+            f"{row.get('condition_name')}: "
+            f"solve={_format_float(row.get('observed_group_solve_rate'))} "
+            f"(95% CI {_format_float(solve_ci.get('lower'))}–{_format_float(solve_ci.get('upper'))}), "
+            f"chance_solve={_format_float(row.get('chance_group_solve_rate'))}, "
+            f"solve_lift={_format_float(row.get('lift_over_chance'))}, p={_format_float(row.get('p_value_vs_chance'))}"
+        )
+        summary_lines.append(
+            "  "
+            f"escape={_format_float(row.get('observed_escape_rate'))} "
+            f"(95% CI {_format_float(escape_ci.get('lower'))}–{_format_float(escape_ci.get('upper'))}), "
+            f"chance_escape={_format_float(row.get('chance_escape_rate'))}, "
+            f"escape_lift={_format_float(row.get('escape_lift_over_chance'))}, p={_format_float(row.get('escape_p_value_vs_chance'))}"
         )
 
     markdown_path = experiment_dir / "condition_report.md"

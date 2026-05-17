@@ -70,7 +70,7 @@ def load_character_descriptions(roles_dir: Path) -> Dict[str, str]:
 
 def load_round_description(roles_dir: Path, character_name: str, round_num: int) -> str:
     """Load round-specific description for a character."""
-    # Convert character name to folder format (e.g., "Michael Nightshade" -> "michael-nightshade")
+    # Convert character name to folder format (e.g., "Bobby Herrerra" -> "bobby-herrerra")
     # Handle special characters like apostrophes
     folder_name = character_name.lower().replace(" ", "-")
     
