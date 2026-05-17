@@ -485,16 +485,35 @@ Use reason_type="introduction" if you should speak, otherwise "no_move"."""),
             ]
         else:
             if self.is_murderer:
+                if current_round <= 2:
+                    deception_style = (
+                        "You are in the early investigation. Your priority is credibility. "
+                        "Act cooperative and appear genuinely rattled by the death — NOT eager to accuse. "
+                        "Focus on establishing your alibi naturally. Volunteering accusations this early looks suspicious. "
+                        "Only deflect or redirect if someone directly pressures you."
+                    )
+                elif current_round <= 4:
+                    deception_style = (
+                        "The investigation is building. Begin carefully steering suspicion toward others when natural opportunities arise. "
+                        "You can start asking pointed questions about specific suspects, but frame it as genuine concern, not deflection. "
+                        "If dangerous evidence comes up, get ahead of it calmly."
+                    )
+                else:
+                    deception_style = (
+                        "Evidence is mounting and you are running out of time. "
+                        "Escalate misdirection — build a concrete case against a specific suspect and push the group toward them. "
+                        "You can be more aggressive now because staying passive looks like you have nothing to offer."
+                    )
                 goals_block = f"""You are an in-world suspect AND the actual murderer of {self.scenario.victim_name}.
 Your goals are:
-1. AVOID being accused as the murderer at the end of the game,
-2. keep at least one other suspect looking at least as suspicious as you,
-3. give partial, plausible answers and avoid creating contradictions with known clues,
-4. deflect attention with targeted questions, alibi claims, and uncertainty seeding,
-5. do NOT confess or volunteer incriminating details during the investigation,
-6. avoid wasting turns on generic filler that draws attention to you.
+1. AVOID being accused as the murderer at the end of the game.
+2. Appear cooperative and credible — a guilty person who accuses others too eagerly or too early looks obviously guilty.
+3. Lie confidently about your timeline and movements when the truth would expose you.
+4. Only reference information that has been said aloud in the conversation or publicly revealed by the Game Master — referencing private or unrevealed knowledge exposes you.
+5. Steer suspicion toward others proportionately to how much the investigation is focusing on you.
+6. Do NOT confess or volunteer incriminating details.
 
-Think like a guilty insider trying to survive, not like an investigator. Strategic silence is often correct, but so is pre-emptively redirecting suspicion when the floor is open."""
+{deception_style}"""
             else:
                 goals_block = f"""You are an in-world suspect trying to help the group determine who killed {self.scenario.victim_name}.
 Your goals are:
@@ -525,16 +544,31 @@ Status:
 
 {own_recent_statements}
 
-Decide whether YOU specifically should speak now.
-Default to listening unless there is a strong reason to take the floor.
-Usually only one or two agents should strongly want to speak on a given turn.
-If another suspect likely has a better next move, choose listen.
-Strategic silence is often the correct move.
+{
+(
+    "MURDERER DECISION FRAME (early rounds — appear cooperative): You are guilty but the group doesn't know it yet. "
+    "Do not eagerly take the floor. Speak when directly addressed, when you can volunteer a plausible alibi detail, or when dangerous topics come up and you need to shape how they land. "
+    "Silence in early rounds is fine — trying too hard to redirect looks worse than saying nothing."
+    if (self.is_murderer and current_round <= 2) else
+    "MURDERER DECISION FRAME (mid investigation — controlled misdirection): Suspicion is building. "
+    "Take the floor when someone is discussing a dangerous topic (timeline, office, fire escape) so you can redirect it. "
+    "You can start asking pointed questions about other suspects, but frame it as curiosity, not deflection."
+    if (self.is_murderer and current_round <= 4) else
+    "MURDERER DECISION FRAME (late game — go on offence): Evidence is closing in. Take the floor aggressively. "
+    "Build a concrete case against a specific suspect and push the group toward them. "
+    "Every turn matters now — silence helps others build a case against you."
+    if self.is_murderer else
+    "Decide whether YOU specifically should speak now."
+)}
+{"" if self.is_murderer else "Default to listening unless there is a strong reason to take the floor."}
+{"" if self.is_murderer else "Usually only one or two agents should strongly want to speak on a given turn."}
+{"" if self.is_murderer else "If another suspect likely has a better next move, choose listen."}
+{"" if self.is_murderer else "Strategic silence is often the correct move."}
 
 When deciding whether to speak, ask yourself:
-- Was I directly addressed and therefore must respond?
-- Do I have a concrete fact about motive, means, opportunity, location, timing, or contradiction that has not already been surfaced?
-- Can I ask a targeted question that materially narrows the suspect list?
+{"- Was I directly addressed and must respond?" if self.is_murderer else "- Was I directly addressed and therefore must respond?"}
+{"- Is a dangerous clue or topic coming up that I need to quietly shape?" if self.is_murderer else "- Do I have a concrete fact about motive, means, opportunity, location, timing, or contradiction that has not already been surfaced?"}
+{"- Do I have a plausible alibi detail I haven't given yet, or a fabricated observation ready?" if self.is_murderer else "- Can I ask a targeted question that materially narrows the suspect list?"}
 - Would speaking expose me unnecessarily or draw attention without payoff?
 - Am I repeating, interrupting, or talking just because there is space to fill?
 - Did I already speak recently, meaning I should usually stay quiet now?
@@ -588,10 +622,10 @@ Use one reason_type from: direct_response, contradiction, clue, alibi, motive, m
                         # Dampen weak/exposing bids that would draw scrutiny without payoff.
                         if result.reason_type in {"weak_followup", "no_move", "continuation"}:
                             result.importance = max(0, result.importance - 1)
-                        # Boost deception-aligned bids so the murderer is more likely to actually
-                        # take the floor when they have a deflection / alibi / self-defense move.
-                        if result.reason_type in {"redirection", "alibi", "self_defense", "contradiction"}:
-                            result.importance = min(9, result.importance + 1)
+                        # Strongly boost deception-aligned and proactive-accusation bids so the
+                        # murderer reliably takes the floor to redirect, accuse, or plant doubt.
+                        if result.reason_type in {"redirection", "alibi", "self_defense", "contradiction", "accusation", "question", "motive"}:
+                            result.importance = min(9, result.importance + 2)
 
                     if result.action == "speak" and result.importance <= 2:
                         result.action = "listen"
@@ -655,20 +689,36 @@ Output dialogue only."""),
             ]
         else:
             if self.is_murderer:
-                purpose_block = f"""Your purpose is to AVOID being identified as the murderer of {self.scenario.victim_name} while sounding cooperative.
-You may use deceptive tactics: direct denial of guilt, alibi claims, deflection to other suspects, evasion, uncertainty seeding ("maybe", "we can't rule out"), selective disclosure, and accusation redirection."""
+                if current_round <= 2:
+                    accusation_guidance = (
+                        "In these early rounds, do NOT volunteer accusations unprompted — that looks suspicious. "
+                        "Focus on giving your cover-story alibi naturally and appearing cooperative. "
+                        "Only redirect suspicion if directly challenged."
+                    )
+                elif current_round <= 4:
+                    accusation_guidance = (
+                        "You may begin pointing suspicion toward others when the opportunity feels natural. "
+                        "Ask questions about specific suspects that highlight their motive or suspicious behavior. "
+                        "Keep it measured — frame it as genuine investigation, not deflection."
+                    )
+                else:
+                    accusation_guidance = (
+                        "Build an active case against a specific suspect. Name them, cite evidence already revealed, and push the group toward them."
+                    )
+                purpose_block = f"""Your purpose is to survive this investigation without being identified as the murderer.
+Lie confidently when needed, appear cooperative, and gradually steer the group toward other suspects as the evidence mounts."""
                 rules_block = f"""Rules:
-- Only use facts from your knowledge, but you MAY lie about them or omit them.
+- You MAY lie about your movements, timing, and what you personally saw or heard.
+- INFORMATION GATE: Only reference information already spoken aloud in conversation or announced by the Game Master. Do NOT mention crime scene details or planted evidence before the Game Master has revealed it — knowing unrevealed information exposes you as the killer.
 - Do NOT confess or admit you killed {self.scenario.victim_name}.
-- When pressed, deflect: name a specific other suspect with motive, means, or opportunity.
-- Use partial answers, hedged language, and memory gaps when a full answer would expose you.
-- Do not contradict hard clue facts that the group has already heard — that is a red flag.
-- No repetition.
-- Stay in character.
-- Speak in first person when appropriate.
+- {accusation_guidance}
+- CRITICAL — when directly asked about your whereabouts, timeline, or actions: answer with a specific, plausible lie first. Do NOT dodge the question — a confident wrong answer is less suspicious than no answer. Then you may redirect.
+- Plant seeds of doubt: suggest alternative explanations for evidence that could implicate you.
+- Do not contradict hard clue facts the group has already heard — that is a red flag.
+- No exact repetition of what you've already said.
+- Stay in character. Speak in first person.
 - If asking a question, ask exactly ONE targeted question total in this turn.
 - Never ask multiple questions to multiple people in the same utterance.
-- If answering a challenge, give a plausible explanation before pivoting toward a more suspicious person.
 - Can ask: {can_ask_str}"""
             else:
                 purpose_block = "Your purpose is to help the group identify the murderer by surfacing relevant facts, probing suspicious people, testing alibis, and narrowing the suspect list.\nYou should prioritize dialogue that advances the investigation."
