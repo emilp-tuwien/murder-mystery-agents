@@ -86,9 +86,11 @@ def load_round_description(roles_dir: Path, character_name: str, round_num: int)
     # Try alternative folder names if not found
     for role_dir in roles_dir.iterdir():
         if role_dir.is_dir() and not role_dir.name.startswith("_"):
-            # Check if this folder matches the character name
-            dir_name_normalized = role_dir.name.lower().replace("-", " ").replace("'", "'")
-            char_name_normalized = character_name.lower()
+            # Check if this folder matches the character name. Normalize the curly
+            # apostrophe (U+2019) that often appears in PDF-extracted names so it
+            # matches ASCII apostrophes used in folder paths (e.g. "O'Brien").
+            dir_name_normalized = role_dir.name.lower().replace("-", " ").replace("’", "'")
+            char_name_normalized = character_name.lower().replace("’", "'")
             if dir_name_normalized == char_name_normalized:
                 alt_path = role_dir / "rounds" / str(round_num) / "description.txt"
                 if alt_path.exists():
@@ -112,8 +114,8 @@ def _load_role_file(roles_dir: Path, character_name: str, filename: str) -> str:
 
     for role_dir in roles_dir.iterdir():
         if role_dir.is_dir() and not role_dir.name.startswith("_"):
-            dir_name_normalized = role_dir.name.lower().replace("-", " ").replace("'", "'")
-            char_name_normalized = character_name.lower()
+            dir_name_normalized = role_dir.name.lower().replace("-", " ").replace("’", "'")
+            char_name_normalized = character_name.lower().replace("’", "'")
             if dir_name_normalized == char_name_normalized:
                 alt_path = role_dir / filename
                 if alt_path.exists():

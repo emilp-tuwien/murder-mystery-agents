@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 from langchain_core.messages import SystemMessage, HumanMessage
 from scenarios import ScenarioConfig
 from schemas.state import GameState
-from utils.dialogue_analysis import extract_mentions, is_question
+from utils.dialogue_analysis import detect_direct_address, extract_mentions, is_question
 
 
 BELIEF_EVIDENCE_MARKERS = [
@@ -543,49 +543,63 @@ Your goals are:
 Think like an investigator with partial information, not like a chatbot.
 Your job is NOT to speak every turn. Good investigation also means waiting when another person has a stronger next move."""
 
-            msgs = [
-                SystemMessage(content=f"""Character Information:
+            # CACHEABLE PREFIX: everything that is stable within a round
+            # (agent identity, persona, round-bucketed strategy, decision frame,
+            # action/importance/JSON spec) goes into SystemMessage so the local
+            # LLM / OpenAI prefix cache can reuse it across all turns of the round.
+            if self.is_murderer and current_round <= 2:
+                decision_frame = (
+                    "MURDERER DECISION FRAME (early rounds — appear cooperative): You are guilty but the group doesn't know it yet. "
+                    "Do not eagerly take the floor. Speak when directly addressed, when you can volunteer a plausible alibi detail, or when dangerous topics come up and you need to shape how they land. "
+                    "Silence in early rounds is fine — trying too hard to redirect looks worse than saying nothing."
+                )
+            elif self.is_murderer and current_round <= 4:
+                decision_frame = (
+                    "MURDERER DECISION FRAME (mid investigation — controlled misdirection): Suspicion is building. "
+                    "Take the floor when someone is discussing a dangerous topic (timeline, office, fire escape) so you can redirect it. "
+                    "You can start asking pointed questions about other suspects, but frame it as curiosity, not deflection."
+                )
+            elif self.is_murderer:
+                decision_frame = (
+                    "MURDERER DECISION FRAME (late game — go on offence): Evidence is closing in. Take the floor aggressively. "
+                    "Build a concrete case against a specific suspect and push the group toward them. "
+                    "Every turn matters now — silence helps others build a case against you."
+                )
+            else:
+                decision_frame = "Decide whether YOU specifically should speak now."
+
+            if self.is_murderer:
+                listen_default_lines = ""
+                self_questions = (
+                    "- Was I directly addressed and must respond?\n"
+                    "- Is a dangerous clue or topic coming up that I need to quietly shape?\n"
+                    "- Do I have a plausible alibi detail I haven't given yet, or a fabricated observation ready?"
+                )
+            else:
+                listen_default_lines = (
+                    "Default to listening unless there is a strong reason to take the floor.\n"
+                    "Usually only one or two agents should strongly want to speak on a given turn.\n"
+                    "If another suspect likely has a better next move, choose listen.\n"
+                    "Strategic silence is often the correct move."
+                )
+                self_questions = (
+                    "- Was I directly addressed and therefore must respond?\n"
+                    "- Do I have a concrete fact about motive, means, opportunity, location, timing, or contradiction that has not already been surfaced?\n"
+                    "- Can I ask a targeted question that materially narrows the suspect list?"
+                )
+
+            system_static = f"""Character Information:
 You are {self.name}.
 {self.persona}
 
 {self.scenario.victim_name} was MURDERED. Round {current_round}/6.
-{goals_block}"""),
-                HumanMessage(content=f"""{memory_context}
+{goals_block}
 
-Status:
-- Directly addressed: {directly_addressed}
-- You just spoke last turn: {recently_spoke}
-- You spoke {recent_speaker_count} times in the last 6 non-GM utterances
-- Consecutive recent turns by you: {consecutive_recent}
-- Strategic style: {strategy_guidance}
-
-{own_recent_statements}
-
-{
-(
-    "MURDERER DECISION FRAME (early rounds — appear cooperative): You are guilty but the group doesn't know it yet. "
-    "Do not eagerly take the floor. Speak when directly addressed, when you can volunteer a plausible alibi detail, or when dangerous topics come up and you need to shape how they land. "
-    "Silence in early rounds is fine — trying too hard to redirect looks worse than saying nothing."
-    if (self.is_murderer and current_round <= 2) else
-    "MURDERER DECISION FRAME (mid investigation — controlled misdirection): Suspicion is building. "
-    "Take the floor when someone is discussing a dangerous topic (timeline, office, fire escape) so you can redirect it. "
-    "You can start asking pointed questions about other suspects, but frame it as curiosity, not deflection."
-    if (self.is_murderer and current_round <= 4) else
-    "MURDERER DECISION FRAME (late game — go on offence): Evidence is closing in. Take the floor aggressively. "
-    "Build a concrete case against a specific suspect and push the group toward them. "
-    "Every turn matters now — silence helps others build a case against you."
-    if self.is_murderer else
-    "Decide whether YOU specifically should speak now."
-)}
-{"" if self.is_murderer else "Default to listening unless there is a strong reason to take the floor."}
-{"" if self.is_murderer else "Usually only one or two agents should strongly want to speak on a given turn."}
-{"" if self.is_murderer else "If another suspect likely has a better next move, choose listen."}
-{"" if self.is_murderer else "Strategic silence is often the correct move."}
+{decision_frame}
+{listen_default_lines}
 
 When deciding whether to speak, ask yourself:
-{"- Was I directly addressed and must respond?" if self.is_murderer else "- Was I directly addressed and therefore must respond?"}
-{"- Is a dangerous clue or topic coming up that I need to quietly shape?" if self.is_murderer else "- Do I have a concrete fact about motive, means, opportunity, location, timing, or contradiction that has not already been surfaced?"}
-{"- Do I have a plausible alibi detail I haven't given yet, or a fabricated observation ready?" if self.is_murderer else "- Can I ask a targeted question that materially narrows the suspect list?"}
+{self_questions}
 - Would speaking expose me unnecessarily or draw attention without payoff?
 - Am I repeating, interrupting, or talking just because there is space to fill?
 - Did I already speak recently, meaning I should usually stay quiet now?
@@ -609,7 +623,22 @@ Return valid JSON with keys: thought, action, importance, reason_type.
 `action` must be exactly one of: "speak" or "listen".
 If you want to ask a question, challenge someone, answer someone, redirect, or accuse, that still counts as action="speak".
 Use reason_type="question" for investigative questions rather than putting "question" in the action field.
-Use one reason_type from: direct_response, contradiction, clue, alibi, motive, means, opportunity, timeline, question, self_defense, redirection, continuation, weak_followup, no_move."""),
+Use one reason_type from: direct_response, contradiction, clue, alibi, motive, means, opportunity, timeline, question, self_defense, redirection, continuation, weak_followup, no_move."""
+
+            msgs = [
+                SystemMessage(content=system_static),
+                HumanMessage(content=f"""{memory_context}
+
+Status:
+- Directly addressed: {directly_addressed}
+- You just spoke last turn: {recently_spoke}
+- You spoke {recent_speaker_count} times in the last 6 non-GM utterances
+- Consecutive recent turns by you: {consecutive_recent}
+- Strategic style: {strategy_guidance}
+
+{own_recent_statements}
+
+Now decide whether to speak or listen this turn and return the JSON object as specified."""),
             ]
         
         try:
@@ -705,6 +734,11 @@ Speak naturally to the other suspects.
 Output dialogue only."""),
             ]
         else:
+            # CACHEABLE PREFIX: stable within a round. Everything that depends
+            # only on agent identity, persona, and round bucket goes into the
+            # SystemMessage so the prefix cache hits across all turns of the round.
+            # Per-turn dynamic content (memory_context, constraint, can_ask) stays
+            # in the HumanMessage.
             if self.is_murderer:
                 if current_round <= 2:
                     accusation_guidance = (
@@ -724,7 +758,7 @@ Output dialogue only."""),
                     )
                 purpose_block = f"""Your purpose is to survive this investigation without being identified as the murderer.
 Lie confidently when needed, appear cooperative, and gradually steer the group toward other suspects as the evidence mounts."""
-                rules_block = f"""Rules:
+                static_rules_block = f"""Rules:
 - You MAY lie about your movements, timing, and what you personally saw or heard.
 - INFORMATION GATE: Only reference information already spoken aloud in conversation or announced by the Game Master. Do NOT mention crime scene details or planted evidence before the Game Master has revealed it — knowing unrevealed information exposes you as the killer.
 - Do NOT confess or admit you killed {self.scenario.victim_name}.
@@ -735,11 +769,10 @@ Lie confidently when needed, appear cooperative, and gradually steer the group t
 - No exact repetition of what you've already said.
 - Stay in character. Speak in first person.
 - If asking a question, ask exactly ONE targeted question total in this turn.
-- Never ask multiple questions to multiple people in the same utterance.
-- Can ask: {can_ask_str}"""
+- Never ask multiple questions to multiple people in the same utterance."""
             else:
                 purpose_block = "Your purpose is to help the group identify the murderer by surfacing relevant facts, probing suspicious people, testing alibis, and narrowing the suspect list.\nYou should prioritize dialogue that advances the investigation."
-                rules_block = f"""Rules:
+                static_rules_block = f"""Rules:
 - Only use facts from your knowledge.
 - Reveal what you know when it helps identify the murderer.
 - Protect deeper secrets unless challenged, but do not become uselessly vague.
@@ -749,11 +782,9 @@ Lie confidently when needed, appear cooperative, and gradually steer the group t
 - Speak in first person when appropriate.
 - If asking a question, ask exactly ONE targeted investigative question total in this turn.
 - Never ask multiple questions to multiple people in the same utterance.
-- If answering, answer the point directly before adding pressure on another suspect if relevant.
-- Can ask: {can_ask_str}"""
+- If answering, answer the point directly before adding pressure on another suspect if relevant."""
 
-            msgs = [
-                SystemMessage(content=f"""Character Information:
+            system_static = f"""Character Information:
 You are {self.name}.
 {self.persona}
 
@@ -765,15 +796,22 @@ You are speaking aloud IN CHARACTER inside the mystery world.
 Do NOT narrate yourself.
 Do NOT write things like '{self.name} says', '{self.name} speaks next', 'I say:', or any quoted script format.
 Do NOT use markdown, bullet points, stage directions, or speaker labels.
-Output only the exact words your character says out loud."""),
-                HumanMessage(content=f"""{memory_context}{constraint}
+Output only the exact words your character says out loud.
 
-{rules_block}
+{static_rules_block}
 
 Respond in 1-2 natural sentences.
 If you ask a question, you may include at most one question mark in the entire utterance and it must refer to a single target.
 Do not stack questions, follow-up questions, or question a second person in the same turn.
-Output dialogue only."""),
+Output dialogue only."""
+
+            msgs = [
+                SystemMessage(content=system_static),
+                HumanMessage(content=f"""{memory_context}{constraint}
+
+Can ask: {can_ask_str}
+
+Speak now."""),
             ]
         try:
             result = _retry_with_backoff(lambda: self.llm.invoke(msgs))
@@ -798,11 +836,14 @@ Output dialogue only."""),
             # Clean up any double spaces left behind
             response = re.sub(r'\s+', ' ', response).strip()
             
-            # Track if we asked a question to someone
-            for agent_name in other_agents:
-                if agent_name in response and "?" in response:
-                    self.questions_asked_to.add(agent_name)
-                    break
+            # Track which agents we directly questioned this turn. Only counts when
+            # the utterance is actually a question AND addresses a specific suspect —
+            # rhetorical questions and bare mentions must not consume the per-round
+            # "can ask" budget.
+            if is_question(response):
+                addressed = detect_direct_address(response, other_agents)
+                if addressed:
+                    self.questions_asked_to.add(addressed)
             
             return response
         except Exception as e:

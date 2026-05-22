@@ -19,7 +19,7 @@ from analysis.metrics import aggregate_experiment, aggregate_experiment_conditio
 from analysis.workflow import summarize_condition_validation, validate_run_outputs, write_experiment_progress
 from experiments.config import REPO_ROOT, LoadedExperiment, RunConfig, load_experiment_config
 from instrumentation.event_logger import EventLogger, resolve_git_commit, utc_now_iso
-from run_discussion import run_game_from_config
+from run_discussion import _ensure_openai_api_key, run_game_from_config
 
 
 def _timestamp_slug() -> str:
@@ -484,6 +484,17 @@ def main():
         }
         print(json.dumps(payload, indent=2, sort_keys=True))
         return
+
+    required_key_envs: set[str] = set()
+    for cfg in experiment.expand():
+        if cfg.backend in ("gpt", "nvidia"):
+            required_key_envs.add(cfg.api_key_env)
+        if cfg.deception_labeling_enabled and cfg.deception_labeling_mode == "llm_rubric":
+            judge_backend = cfg.deception_judge_backend or cfg.backend
+            if judge_backend in ("gpt", "nvidia"):
+                required_key_envs.add(cfg.deception_judge_api_key_env)
+    for key_env in sorted(required_key_envs):
+        _ensure_openai_api_key(key_env)
 
     result = run_experiment_plan(experiment, fail_fast=args.fail_fast, max_workers=args.max_workers)
     print(f"Experiment outputs written to: {result['experiment_dir']}")
