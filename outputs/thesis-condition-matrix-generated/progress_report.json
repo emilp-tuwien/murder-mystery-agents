@@ -1,0 +1,77 @@
+{
+  "conditions": [
+    {
+      "condition_description": "protocol_strictness=Default dialogue protocol.; memory_mode=Current default memory policy.",
+      "condition_dir": "outputs/thesis-condition-matrix-generated/conditions/baseline__three-stage-v1",
+      "condition_name": "baseline__three-stage-v1",
+      "invalid_runs": 0,
+      "planned_runs": 3,
+      "planned_runs_remaining": 3,
+      "remaining_to_final": 20,
+      "remaining_to_interim": 10,
+      "remaining_to_pilot": 3,
+      "runs_with_warnings": 0,
+      "total_runs": 0,
+      "usable_runs": 0
+    },
+    {
+      "condition_description": "protocol_strictness=Default dialogue protocol.; memory_mode=Same memory policy with reduced temperature.",
+      "condition_dir": "outputs/thesis-condition-matrix-generated/conditions/baseline__three-stage-v1-low-temp",
+      "condition_name": "baseline__three-stage-v1-low-temp",
+      "invalid_runs": 0,
+      "planned_runs": 3,
+      "planned_runs_remaining": 3,
+      "remaining_to_final": 20,
+      "remaining_to_interim": 10,
+      "remaining_to_pilot": 3,
+      "runs_with_warnings": 0,
+      "total_runs": 0,
+      "usable_runs": 0
+    },
+    {
+      "condition_description": "protocol_strictness=More conversations per round.; memory_mode=Current default memory policy.",
+      "condition_dir": "outputs/thesis-condition-matrix-generated/conditions/extended__three-stage-v1",
+      "condition_name": "extended__three-stage-v1",
+      "invalid_runs": 0,
+      "planned_runs": 3,
+      "planned_runs_remaining": 3,
+      "remaining_to_final": 20,
+      "remaining_to_interim": 10,
+      "remaining_to_pilot": 3,
+      "runs_with_warnings": 0,
+      "total_runs": 0,
+      "usable_runs": 0
+    },
+    {
+      "condition_description": "protocol_strictness=More conversations per round.; memory_mode=Same memory policy with reduced temperature.",
+      "condition_dir": "outputs/thesis-condition-matrix-generated/conditions/extended__three-stage-v1-low-temp",
+      "condition_name": "extended__three-stage-v1-low-temp",
+      "invalid_runs": 0,
+      "planned_runs": 3,
+      "planned_runs_remaining": 3,
+      "remaining_to_final": 20,
+      "remaining_to_interim": 10,
+      "remaining_to_pilot": 3,
+      "runs_with_warnings": 0,
+      "total_runs": 0,
+      "usable_runs": 0
+    }
+  ],
+  "experiment_dir": "outputs/thesis-condition-matrix-generated",
+  "experiment_name": "thesis-condition-matrix-generated",
+  "invalid_runs": 0,
+  "minimum_usable_runs_per_condition": 0,
+  "planned_total_runs": 12,
+  "recommendations": [
+    "No usable runs yet; start with a small sanity batch and confirm that every run reaches accusation with complete artifacts."
+  ],
+  "thresholds": {
+    "final_ready_runs_per_condition": 20,
+    "interim_ready_runs_per_condition": 10,
+    "pilot_ready_runs_per_condition": 3
+  },
+  "total_conditions": 4,
+  "total_runs": 0,
+  "usable_runs": 0,
+  "workflow_stage": "planned"
+}

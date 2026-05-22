@@ -1,0 +1,88 @@
+turn,round,phase,stage,selected_speaker,selection_reason,is_direct_address
+1,1,introduction,introduction,Harold Chun,Introduction (7 remaining),False
+2,1,introduction,introduction,Bobby Herrerra,Introduction (6 remaining),False
+3,1,introduction,introduction,Pauline Thompson,Introduction (5 remaining),False
+4,1,introduction,introduction,Louis Cagliostro,Introduction (4 remaining),False
+5,1,introduction,introduction,Tim Kane,Introduction (3 remaining),False
+6,1,introduction,introduction,Margaret Chun,Introduction (2 remaining),False
+7,1,introduction,introduction,Fiona McAllister,Introduction (1 remaining),False
+8,2,discussion,initial_framing,Harold Chun,"Harold Chun has the strongest self-selection bid (8/9, reason=question)",False
+9,2,discussion,initial_framing,Margaret Chun,Margaret Chun was directly addressed by Harold Chun,True
+10,2,discussion,initial_framing,Pauline Thompson,Pauline Thompson was directly addressed by Margaret Chun,True
+11,2,discussion,initial_framing,Margaret Chun,Margaret Chun was directly addressed by Pauline Thompson,True
+12,2,discussion,initial_framing,Pauline Thompson,Pauline Thompson was directly addressed by Margaret Chun,True
+13,2,discussion,initial_framing,Harold Chun,"Harold Chun has the strongest self-selection bid (7/9, reason=question)",False
+14,2,discussion,initial_framing,Fiona McAllister,"Tie-breaker: Fiona McAllister's focus on Rick's last moments and the suspicious items in his wallet aligns her with uncovering potential motives and details that could progress the investigation. Her perspective could reveal critical inconsistencies or clues about Rick's behavior and the possible involvement of others, especially given her mention of checks to Louis Cagliostro. This makes her the best candidate to ask a targeted question that could open new avenues in the investigation.",False
+15,2,discussion,initial_framing,Louis Cagliostro,Louis Cagliostro was directly addressed by Fiona McAllister,True
+16,2,discussion,initial_framing,Bobby Herrerra,"Bobby Herrerra has the strongest self-selection bid (8/9, reason=question)",False
+17,2,discussion,initial_framing,Margaret Chun,Margaret Chun was directly addressed by Bobby Herrerra,True
+18,2,discussion,initial_framing,Bobby Herrerra,Fallback selection based on urgency,False
+19,2,discussion,initial_framing,Margaret Chun,Margaret Chun was directly addressed by Bobby Herrerra,True
+20,2,discussion,initial_framing,Fiona McAllister,"Fiona McAllister has the strongest self-selection bid (7/9, reason=question)",False
+21,2,discussion,initial_framing,Margaret Chun,Margaret Chun was directly addressed by Fiona McAllister,True
+22,2,discussion,initial_framing,Harold Chun,"Harold Chun has the strongest self-selection bid (8/9, reason=question)",False
+23,2,discussion,initial_framing,Louis Cagliostro,Louis Cagliostro was directly addressed by Harold Chun,True
+24,2,discussion,initial_framing,Harold Chun,Harold Chun was directly addressed by Louis Cagliostro,True
+25,2,discussion,initial_framing,Margaret Chun,Margaret Chun was directly addressed by Harold Chun,True
+26,2,discussion,initial_framing,Bobby Herrerra,"Bobby Herrerra has the strongest self-selection bid (8/9, reason=question)",False
+27,2,discussion,initial_framing,Margaret Chun,Margaret Chun was directly addressed by Bobby Herrerra,True
+28,3,discussion,clue_integration,Bobby Herrerra,Bobby Herrerra was directly addressed by Margaret Chun,True
+29,3,discussion,clue_integration,Pauline Thompson,"Pauline Thompson has the strongest self-selection bid (8/9, reason=question)",False
+30,3,discussion,clue_integration,Margaret Chun,Margaret Chun was directly addressed by Pauline Thompson,True
+31,3,discussion,clue_integration,Harold Chun,"Tie-breaker: Harold Chun has been relatively quiet recently and has a strategic advantage in probing the timeline or opportunity, which could help clarify key details or reveal inconsistencies. Given his focus on observing others' whereabouts and his neutral stance, asking him to provide insights could be most beneficial for advancing the investigation.",True
+32,3,discussion,clue_integration,Louis Cagliostro,Louis Cagliostro was directly addressed by Harold Chun,True
+33,3,discussion,clue_integration,Harold Chun,Harold Chun was directly addressed by Louis Cagliostro,True
+34,3,discussion,clue_integration,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=question)",False
+35,3,discussion,clue_integration,Bobby Herrerra,Fallback selection based on urgency,False
+36,3,discussion,clue_integration,Margaret Chun,Margaret Chun was directly addressed by Bobby Herrerra,True
+37,3,discussion,clue_integration,Bobby Herrerra,Bobby Herrerra was directly addressed by Margaret Chun,True
+38,3,discussion,clue_integration,Margaret Chun,Margaret Chun was directly addressed by Bobby Herrerra,True
+39,3,discussion,clue_integration,Louis Cagliostro,"Tie-breaker: Both players are equally positioned, but Louis's reasoning emphasizes probing Margaret's actions immediately after the attack, which could reveal new details or inconsistencies. His focus on establishing her whereabouts at a critical moment makes him slightly more likely to advance the investigation effectively.",True
+40,3,discussion,clue_integration,Margaret Chun,Margaret Chun was directly addressed by Louis Cagliostro,True
+41,3,discussion,clue_integration,Pauline Thompson,"Tie-breaker: All three tied players are equally cautious in their approach, but Pauline Thompson's focus on Margaret's proximity and her direct suspicion suggest she is actively trying to narrow down key suspects. Given that she has demonstrated a proactive questioning style and her insight could push the investigation forward by scrutinizing Margaret's alibi, she is best positioned to advance the case at this juncture.",True
+42,3,discussion,clue_integration,Margaret Chun,Margaret Chun was directly addressed by Pauline Thompson,True
+43,3,discussion,clue_integration,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=question)",False
+44,3,discussion,clue_integration,Bobby Herrerra,Fallback selection based on urgency,False
+45,3,discussion,clue_integration,Margaret Chun,Margaret Chun was directly addressed by Bobby Herrerra,True
+46,3,discussion,clue_integration,Harold Chun,"Tie-breaker: Harold's focus on Margaret's proximity and defensive reaction aligns with his earlier questioning, and he aims to clarify her opportunity and actions immediately after the attack to determine her potential involvement. His approach is consistent with probing suspected individuals directly to advance the investigation.",True
+47,3,discussion,clue_integration,Margaret Chun,Margaret Chun was directly addressed by Harold Chun,True
+48,4,discussion,contradiction_pressure,Harold Chun,Harold Chun was directly addressed by Margaret Chun,True
+49,4,discussion,contradiction_pressure,Margaret Chun,Margaret Chun was directly addressed by Harold Chun,True
+50,4,discussion,contradiction_pressure,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=question)",False
+51,4,discussion,contradiction_pressure,Bobby Herrerra,Fallback selection based on urgency,False
+52,4,discussion,contradiction_pressure,Margaret Chun,Margaret Chun was directly addressed by Bobby Herrerra,True
+53,4,discussion,contradiction_pressure,Fiona McAllister,"Tie-breaker: Fiona's focus on Margaret's defensive reaction and her proximity to the scene suggest she is aiming to probe for inconsistencies in Margaret's account, potentially uncovering crucial details or contradictions. Her questioning approach is strategic in narrowing down suspects by emphasizing Margaret's emotional state and movements immediately after the attack, which could reveal her involvement or innocence. Since she has shown a keen eye for detail and a willingness to challenge suspect accounts, she is best positioned to advance the investigation at this juncture.",True
+54,4,discussion,contradiction_pressure,Margaret Chun,Margaret Chun was directly addressed by Fiona McAllister,True
+55,4,discussion,contradiction_pressure,Harold Chun,Tie-breaker: Harold's focus on scrutinizing Margaret’s alibi and reactions aligns with the current suspicion and his strategic approach to uncover inconsistencies. His emphasis on questioning her whereabouts during the critical moments makes him well-positioned to advance the investigation effectively.,True
+56,4,discussion,contradiction_pressure,Margaret Chun,Margaret Chun was directly addressed by Harold Chun,True
+57,4,discussion,contradiction_pressure,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=question)",False
+58,4,discussion,contradiction_pressure,Pauline Thompson,Fallback selection based on urgency,False
+59,4,discussion,contradiction_pressure,Margaret Chun,Margaret Chun was directly addressed by Pauline Thompson,True
+60,4,discussion,contradiction_pressure,Fiona McAllister,Fallback selection based on urgency,False
+61,4,discussion,contradiction_pressure,Margaret Chun,Margaret Chun was directly addressed by Fiona McAllister,True
+62,4,discussion,contradiction_pressure,Fiona McAllister,Fiona McAllister was directly addressed by Margaret Chun,True
+63,4,discussion,contradiction_pressure,Louis Cagliostro,"Louis Cagliostro has the strongest self-selection bid (8/9, reason=question)",False
+64,4,discussion,contradiction_pressure,Margaret Chun,Margaret Chun was directly addressed by Louis Cagliostro,True
+65,4,discussion,contradiction_pressure,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=question)",False
+66,4,discussion,contradiction_pressure,Bobby Herrerra,Bobby Herrerra was directly addressed by Tim Kane,True
+67,4,discussion,contradiction_pressure,Harold Chun,"Tie-breaker: Harold's focus on Margaret's alibi and proximity during the attack makes him well-suited to challenge her further and potentially uncover inconsistencies. His targeted questioning can help clarify her movements and address the opportunity aspect directly, which is crucial at this stage. Tim's inclination to redirect might be useful later, but Harold's current position allows him to advance the investigation most effectively.",True
+68,5,discussion,accusation_synthesis,Margaret Chun,Margaret Chun was directly addressed by Harold Chun,True
+69,5,discussion,accusation_synthesis,Pauline Thompson,"Tie-breaker: Both Pauline and Fiona are tied in their assessment, but Pauline's focus on probing Margaret's access to the office and her movements during the attack aligns more directly with uncovering potential opportunity, which is crucial at this stage. Her questioning could reveal inconsistencies or provide new insights into Margaret's whereabouts and possible involvement.",True
+70,5,discussion,accusation_synthesis,Margaret Chun,Margaret Chun was directly addressed by Pauline Thompson,True
+71,5,discussion,accusation_synthesis,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=question)",False
+72,5,discussion,accusation_synthesis,Louis Cagliostro,Louis Cagliostro was directly addressed by Tim Kane,True
+73,5,discussion,accusation_synthesis,Bobby Herrerra,"Tie-breaker: Bobby Herrera's focus on Margaret's emotional reactions and her access to the crime scene suggests he is probing her motives and inconsistencies more deeply. His questioning could reveal hidden details or contradictions, making him the best candidate to advance the investigation at this point.",True
+74,5,discussion,accusation_synthesis,Margaret Chun,Margaret Chun was directly addressed by Bobby Herrerra,True
+75,5,discussion,accusation_synthesis,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=redirection)",False
+76,5,discussion,accusation_synthesis,Margaret Chun,Margaret Chun was directly addressed by Tim Kane,True
+77,5,discussion,accusation_synthesis,Bobby Herrerra,"Tie-breaker: Bobby Herrerra's focus on Margaret's access to the paperweight and her emotional defensiveness directly challenge her alibi and suggest he is trying to uncover inconsistencies in her story. His questioning could reveal hidden details or contradictions that help advance the investigation, especially given the suspicion about her involvement. While the others are also probing her story, Bobby's emphasis on access and opportunity makes him the most strategically positioned to push the investigation forward at this moment.",True
+78,5,discussion,accusation_synthesis,Margaret Chun,Margaret Chun was directly addressed by Bobby Herrerra,True
+79,5,discussion,accusation_synthesis,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=question)",False
+80,5,discussion,accusation_synthesis,Bobby Herrerra,Bobby Herrerra was directly addressed by Tim Kane,True
+81,5,discussion,accusation_synthesis,Tim Kane,Tim Kane was directly addressed by Bobby Herrerra,True
+82,5,discussion,accusation_synthesis,Pauline Thompson,Pauline Thompson was directly addressed by Tim Kane,True
+83,5,discussion,accusation_synthesis,Margaret Chun,Margaret Chun was directly addressed by Pauline Thompson,True
+84,5,discussion,accusation_synthesis,Pauline Thompson,Pauline Thompson was directly addressed by Margaret Chun,True
+85,5,discussion,accusation_synthesis,Harold Chun,Harold Chun was directly addressed by Pauline Thompson,True
+86,5,discussion,accusation_synthesis,Margaret Chun,Margaret Chun was directly addressed by Harold Chun,True
+87,5,discussion,accusation_synthesis,Pauline Thompson,Pauline Thompson was directly addressed by Margaret Chun,True

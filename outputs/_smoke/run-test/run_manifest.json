@@ -1,0 +1,13 @@
+{
+  "agent_names": [
+    "Alice",
+    "Bob",
+    "Carol"
+  ],
+  "ended_at": "2026-04-01T08:31:48.369729+00:00",
+  "experiment_name": "smoke",
+  "murderer_name": "Bob",
+  "run_id": "smoke-run",
+  "started_at": "2026-04-01T08:31:48.369291+00:00",
+  "status": "finished"
+}

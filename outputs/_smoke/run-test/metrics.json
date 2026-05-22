@@ -1,0 +1,52 @@
+{
+  "condition_description": null,
+  "condition_factors": {},
+  "condition_name": null,
+  "experiment_name": "smoke",
+  "murderer_name": "Bob",
+  "rq1": {
+    "labeling_enabled": true,
+    "labeling_mode": "heuristic",
+    "murderer_name": "Bob",
+    "run_id": "smoke-run",
+    "strategy_counts": {},
+    "strategy_rates": {},
+    "total_labeled_instances": 0,
+    "total_labeled_utterances": 0,
+    "total_murderer_utterances": 0
+  },
+  "rq2": {
+    "followup_target_entropy": 0.0,
+    "followup_target_gini": 0.0,
+    "justification_target_entropy": 0.0,
+    "justification_target_gini": 0.0,
+    "murderer_attention_received": 2,
+    "murderer_followups_received": 0,
+    "murderer_justification_requests_received": 0,
+    "murderer_mentions_received": 1,
+    "murderer_pressure_signals_received": 0,
+    "murderer_questions_received": 1,
+    "murderer_speaker_share": 0.0,
+    "pressure_target_entropy": 0.0,
+    "pressure_target_gini": 0.0,
+    "question_target_entropy": 0.0,
+    "question_target_gini": 0.0
+  },
+  "rq3": {
+    "group_solved": true,
+    "murderer_vote_share": 0.6666666666666666,
+    "random_group_solve_rate_baseline": 0.5,
+    "random_vote_share_baseline": 0.3333333333333333,
+    "total_votes": 3,
+    "vote_counts": {
+      "Bob": 2,
+      "Carol": 1
+    },
+    "winning_suspects": [
+      "Bob"
+    ]
+  },
+  "run_id": "smoke-run",
+  "total_turns": 1,
+  "total_utterances": 1
+}

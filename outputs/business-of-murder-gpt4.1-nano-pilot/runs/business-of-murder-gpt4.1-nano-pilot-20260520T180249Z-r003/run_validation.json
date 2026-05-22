@@ -1,0 +1,56 @@
+{
+  "artifact_counts": {
+    "clue_reveals": 4,
+    "round_advance_decisions": 5,
+    "round_changes": 5,
+    "round_summaries": 5,
+    "stage_gate_evaluations": 0,
+    "total_accusations": 7,
+    "total_belief_snapshots": 609,
+    "total_deception_labels": 17,
+    "total_events": 477,
+    "total_interactions": 60,
+    "total_utterances": 88
+  },
+  "condition_name": null,
+  "exclusion_reasons": [],
+  "experiment_name": "business-of-murder-gpt4.1-nano-pilot",
+  "missing_required_files": [],
+  "process_quality": {
+    "accusation_comparative_fraction": 0.0,
+    "accusation_completed": true,
+    "accusation_reasoning_evidence_backed_fraction": 0.0,
+    "accusation_reasoning_nonempty_fraction": 1.0,
+    "accusation_structure_fraction": 0.0,
+    "belief_state_snapshots_logged": 609,
+    "belief_top1_alignment_fraction": 1.0,
+    "belief_top3_alignment_fraction": 1.0,
+    "clue_reveals_count": 4,
+    "evidence_gate_satisfied_transitions": 0,
+    "hard_cap_fallback_transitions": 0,
+    "investigation_completed_events": 1,
+    "murderer_directly_challenged": true,
+    "murderer_directly_questioned": false,
+    "murderer_pressure_signals_received": 1,
+    "round_budget_transitions": 3,
+    "round_summary_count": 5,
+    "stage_gate_evaluation_count": 0,
+    "suspect_question_coverage_fraction": 0.7142857142857143,
+    "suspects_directly_questioned": [
+      "Bobby Herrerra",
+      "Harold Chun",
+      "Louis Cagliostro",
+      "Margaret Chun",
+      "Pauline Thompson"
+    ]
+  },
+  "run_id": "business-of-murder-gpt4.1-nano-pilot-20260520T180249Z-r003",
+  "run_usable_for_thesis": true,
+  "validation_status": "valid",
+  "warnings": [
+    "murderer_never_directly_questioned",
+    "accusation_reasoning_often_not_evidence_backed",
+    "accusation_structure_often_incomplete",
+    "accusations_often_missing_comparative_case"
+  ]
+}

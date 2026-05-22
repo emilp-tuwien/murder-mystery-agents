@@ -1,0 +1,26 @@
+{
+  "condition_description": null,
+  "condition_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/business-of-murder-pilot",
+  "condition_name": null,
+  "config_fingerprint": "cd5d57a473a8",
+  "experiment_name": "business-of-murder-pilot",
+  "fail_fast": false,
+  "finished_at": null,
+  "replicates_completed": 0,
+  "replicates_failed": 0,
+  "replicates_planned": 2,
+  "runs": [
+    {
+      "ended_at": null,
+      "error_summary": null,
+      "replicate_id": 1,
+      "resolved_seed": 4242,
+      "run_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/business-of-murder-pilot/runs/business-of-murder-pilot-20260520T210621Z-r001",
+      "run_id": "business-of-murder-pilot-20260520T210621Z-r001",
+      "started_at": "2026-05-20T21:06:21.910152+00:00",
+      "status": "running"
+    }
+  ],
+  "started_at": "2026-05-20T21:06:21.903245+00:00",
+  "status": "running"
+}

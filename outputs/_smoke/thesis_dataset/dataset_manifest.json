@@ -1,0 +1,20 @@
+{
+  "dataset_dir": "outputs/_smoke/thesis_dataset",
+  "experiment_dir": "outputs/_smoke",
+  "files": {
+    "accusations": "thesis_dataset/accusations.csv",
+    "conditions": "thesis_dataset/conditions.csv",
+    "deception_labels": "thesis_dataset/deception_labels.csv",
+    "events": "thesis_dataset/events.csv",
+    "interactions": "thesis_dataset/interactions.csv",
+    "runs": "thesis_dataset/runs.csv",
+    "utterances": "thesis_dataset/utterances.csv"
+  },
+  "total_accusations": 3,
+  "total_conditions": 1,
+  "total_deception_labels": 0,
+  "total_events": 6,
+  "total_interactions": 1,
+  "total_runs": 1,
+  "total_utterances": 1
+}

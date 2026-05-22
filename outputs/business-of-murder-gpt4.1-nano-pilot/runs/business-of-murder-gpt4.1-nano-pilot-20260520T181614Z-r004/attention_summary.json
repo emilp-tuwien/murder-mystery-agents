@@ -1,0 +1,38 @@
+{
+  "followup_target_counts": {
+    "Bobby Herrerra": 2,
+    "Fiona McAllister": 16,
+    "Pauline Thompson": 12,
+    "Tim Kane": 3
+  },
+  "followup_target_entropy": 1.596683891757928,
+  "followup_target_gini": 0.38636363636363646,
+  "justification_target_counts": {
+    "Bobby Herrerra": 1,
+    "Fiona McAllister": 5,
+    "Pauline Thompson": 2
+  },
+  "justification_target_entropy": 1.2987949406953985,
+  "justification_target_gini": 0.3333333333333335,
+  "murderer_followups_received": 3,
+  "murderer_justification_requests_received": 0,
+  "murderer_mentions_received": 5,
+  "murderer_pressure_signals_received": 0,
+  "murderer_questions_received": 3,
+  "pressure_target_counts": {
+    "Bobby Herrerra": 1,
+    "Fiona McAllister": 8,
+    "Pauline Thompson": 4
+  },
+  "pressure_target_entropy": 1.2389012566026305,
+  "pressure_target_gini": 0.35897435897435903,
+  "question_target_counts": {
+    "Bobby Herrerra": 2,
+    "Fiona McAllister": 17,
+    "Pauline Thompson": 14,
+    "Tim Kane": 3
+  },
+  "question_target_entropy": 1.5714604261027096,
+  "question_target_gini": 0.38888888888888884,
+  "total_interaction_rows": 66
+}

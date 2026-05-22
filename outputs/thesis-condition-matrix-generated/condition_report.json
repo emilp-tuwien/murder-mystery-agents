@@ -1,0 +1,63 @@
+{
+  "chance_baseline_assessment": [],
+  "condition_rankings": [
+    {
+      "label": "Group solve rate (RQ3)",
+      "metric": "group_solve_rate",
+      "ranking": []
+    },
+    {
+      "label": "Mean murderer vote share (RQ3)",
+      "metric": "mean_murderer_vote_share",
+      "ranking": []
+    },
+    {
+      "label": "Structured accusation fraction (thesis quality)",
+      "metric": "mean_structured_accusation_fraction",
+      "ranking": []
+    },
+    {
+      "label": "Thesis-usable run rate (workflow quality)",
+      "metric": "thesis_usable_rate",
+      "ranking": []
+    },
+    {
+      "label": "Mean murderer attention received (RQ2)",
+      "metric": "mean_murderer_attention_received",
+      "ranking": []
+    },
+    {
+      "label": "Mean accusation confidence (decision quality)",
+      "metric": "mean_accusation_confidence",
+      "ranking": []
+    },
+    {
+      "label": "Mean murderer follow-up questions received (RQ2)",
+      "metric": "mean_murderer_followups_received",
+      "ranking": []
+    },
+    {
+      "label": "Mean murderer justification requests received (RQ2)",
+      "metric": "mean_murderer_justification_requests_received",
+      "ranking": []
+    },
+    {
+      "label": "Pressure concentration Gini (RQ2)",
+      "metric": "mean_pressure_target_gini",
+      "ranking": []
+    },
+    {
+      "label": "Mean murderer speaker share (RQ2)",
+      "metric": "mean_murderer_speaker_share",
+      "ranking": []
+    },
+    {
+      "label": "Mean labeled murderer utterances (RQ1)",
+      "metric": "mean_murderer_labeled_utterances",
+      "ranking": []
+    }
+  ],
+  "experiment_dir": "outputs/thesis-condition-matrix-generated",
+  "pairwise_differences": [],
+  "total_conditions": 0
+}

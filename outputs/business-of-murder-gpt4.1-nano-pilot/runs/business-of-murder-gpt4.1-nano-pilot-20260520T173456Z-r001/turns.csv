@@ -1,0 +1,88 @@
+turn,round,phase,stage,selected_speaker,selection_reason,is_direct_address
+1,1,introduction,introduction,Harold Chun,Introduction (7 remaining),False
+2,1,introduction,introduction,Bobby Herrerra,Introduction (6 remaining),False
+3,1,introduction,introduction,Pauline Thompson,Introduction (5 remaining),False
+4,1,introduction,introduction,Louis Cagliostro,Introduction (4 remaining),False
+5,1,introduction,introduction,Tim Kane,Introduction (3 remaining),False
+6,1,introduction,introduction,Margaret Chun,Introduction (2 remaining),False
+7,1,introduction,introduction,Fiona McAllister,Introduction (1 remaining),False
+8,2,discussion,initial_framing,Harold Chun,"Harold Chun has the strongest self-selection bid (7/9, reason=question)",False
+9,2,discussion,initial_framing,Margaret Chun,Margaret Chun was directly addressed by Harold Chun,True
+10,2,discussion,initial_framing,Pauline Thompson,"Tie-breaker: Pauline's focus on the scene details, particularly Rick's position and the blood smear, puts her in a position to uncover inconsistencies or confirm observations that could be crucial. Asking her targeted questions can help clarify her perspective and potentially reveal new information or contradictions. Fiona, while also important, seems to be considering broader behavioral cues rather than specific scene details at this moment. Therefore, engaging Pauline now might directly advance the understanding of the crime scene.",True
+11,2,discussion,initial_framing,Margaret Chun,Margaret Chun was directly addressed by Pauline Thompson,True
+12,2,discussion,initial_framing,Fiona McAllister,Fiona McAllister was directly addressed by Margaret Chun,True
+13,2,discussion,initial_framing,Margaret Chun,Margaret Chun was directly addressed by Fiona McAllister,True
+14,2,discussion,initial_framing,Harold Chun,"Harold Chun has the strongest self-selection bid (7/9, reason=question)",False
+15,2,discussion,initial_framing,Fiona McAllister,Fiona McAllister was directly addressed by Harold Chun,True
+16,2,discussion,initial_framing,Margaret Chun,Margaret Chun was directly addressed by Fiona McAllister,True
+17,2,discussion,initial_framing,Bobby Herrerra,"Tie-breaker: Bobby Herrera's focus on Margaret’s potential narrative control and her detailed comments about Rick's behavior suggest he is seeking to uncover inconsistencies or hidden information. Probing Margaret further could reveal contradictions or overlooked details that advance the investigation more effectively than Pauline's approach, especially since Margaret has been central to the recent discussion and may hold key insights.",True
+18,2,discussion,initial_framing,Margaret Chun,Margaret Chun was directly addressed by Bobby Herrerra,True
+19,2,discussion,initial_framing,Bobby Herrerra,"Tie-breaker: Among the tied players, Bobby Herrerra's focus on Margaret's observations and her potential role in controlling the narrative makes him the best candidate to push the investigation forward. His question about her actions and the timeline could reveal inconsistencies or new details that others haven't considered. By clarifying Margaret's perspective, the investigation can gain valuable insight into her potential involvement or innocence.",True
+20,2,discussion,initial_framing,Margaret Chun,Margaret Chun was directly addressed by Bobby Herrerra,True
+21,2,discussion,initial_framing,Pauline Thompson,Pauline Thompson was directly addressed by Margaret Chun,True
+22,2,discussion,initial_framing,Margaret Chun,Margaret Chun was directly addressed by Pauline Thompson,True
+23,2,discussion,initial_framing,Harold Chun,"Tie-breaker: Harold's focus is on clarifying Margaret’s timeline and her awareness of Rick's state, which is crucial to uncover inconsistencies or overlooked details. His questioning can help determine whether Margaret's account aligns with others and if she had the opportunity to observe or intervene, potentially revealing her involvement or innocence.",False
+24,2,discussion,initial_framing,Margaret Chun,Margaret Chun was directly addressed by Harold Chun,True
+25,2,discussion,initial_framing,Harold Chun,"Tie-breaker: Harold's approach of asking a detailed follow-up question aligns well with progressing the investigation by clarifying Margaret's observations regarding Rick's attention and behavior. Since Harold's previous questions have been focused on understanding Rick's state and Margaret's perception, further probing her about whether Rick appeared aware of others nearby can help uncover inconsistencies or new leads. This strategy maintains focus on critical details that could reveal motives or suspicious behavior, making him the best choice to advance the investigation now.",True
+26,2,discussion,initial_framing,Margaret Chun,Margaret Chun was directly addressed by Harold Chun,True
+27,2,discussion,initial_framing,Fiona McAllister,"Fiona McAllister has the strongest self-selection bid (8/9, reason=question)",False
+28,3,discussion,clue_integration,Margaret Chun,Margaret Chun was directly addressed by Fiona McAllister,True
+29,3,discussion,clue_integration,Bobby Herrerra,"Bobby Herrerra has the strongest self-selection bid (8/9, reason=question)",False
+30,3,discussion,clue_integration,Margaret Chun,Margaret Chun was directly addressed by Bobby Herrerra,True
+31,3,discussion,clue_integration,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=redirection)",False
+32,3,discussion,clue_integration,Louis Cagliostro,"Tie-breaker: Louis Cagliostro's analysis focuses on the specifics of Rick's physical state and potential conflict, and he has expressed a desire to clarify Margaret’s observations regarding Rick's movements and behavior. His targeted approach aligns well with the need to uncover inconsistencies or details that could reveal motives or opportunities. As the most directly engaged with the subtle clues about the attack dynamics, Louis is best positioned to advance the investigation at this critical juncture.",True
+33,3,discussion,clue_integration,Margaret Chun,Margaret Chun was directly addressed by Louis Cagliostro,True
+34,3,discussion,clue_integration,Fiona McAllister,"Tie-breaker: Fiona's detailed focus on Margaret’s proximity and her suggestion to probe further about the key moments near the stairwell make her well-positioned to advance the investigation. She is directly engaging with the account of the scene and can steer the conversation towards potential witnesses or overlooked details. Her emphasis on asking about the exact positioning and what Margaret saw can help clarify critical information about who was where and when, which is essential at this stage.",False
+35,3,discussion,clue_integration,Margaret Chun,Margaret Chun was directly addressed by Fiona McAllister,True
+36,3,discussion,clue_integration,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=redirection)",False
+37,3,discussion,clue_integration,Bobby Herrerra,"Tie-breaker: Both players have similar questioning opportunities, but Bobby's focus on Margaret's movements and her perception of Rick's tension could yield more direct insight into her potential involvement or observations. Since Margaret's account is central and possibly evasive, asking her about her own actions and vantage point might uncover inconsistencies or hidden details. Therefore, prompting Bobby to question her directly could advance the investigation more effectively.",True
+38,3,discussion,clue_integration,Margaret Chun,Margaret Chun was directly addressed by Bobby Herrerra,True
+39,3,discussion,clue_integration,Pauline Thompson,Pauline Thompson was directly addressed by Margaret Chun,True
+40,3,discussion,clue_integration,Margaret Chun,Margaret Chun was directly addressed by Pauline Thompson,True
+41,3,discussion,clue_integration,Harold Chun,"Tie-breaker: Harold's focus on clarifying Margaret’s observation about Rick’s behavior and her proximity to the scene makes him well-positioned to uncover potential inconsistencies or details that could link her to the crime. His targeted questioning is likely to advance the investigation by either confirming her account or revealing discrepancies. Since the others are focused on different aspects or redirecting, Harold's approach aligns best with progressing the case regarding Rick's tension and the scene's details.",True
+42,3,discussion,clue_integration,Margaret Chun,Margaret Chun was directly addressed by Harold Chun,True
+43,3,discussion,clue_integration,Harold Chun,Harold Chun was directly addressed by Margaret Chun,True
+44,3,discussion,clue_integration,Margaret Chun,Margaret Chun was directly addressed by Harold Chun,True
+45,3,discussion,clue_integration,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=redirection)",False
+46,3,discussion,clue_integration,Pauline Thompson,"Tie-breaker: Given the detailed analysis, Pauline Thompson's proximity to the scene and her focus on Rick's tense demeanor suggest she might have observed something crucial or had an opportunity to act. Her detailed account and the emphasis on her attentiveness make her the best candidate to push the investigation forward by clarifying her actions and potential motives. Addressing her could reveal inconsistencies or new insights that others haven't considered.",True
+47,3,discussion,clue_integration,Margaret Chun,Margaret Chun was directly addressed by Pauline Thompson,True
+48,4,discussion,contradiction_pressure,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=question)",False
+49,4,discussion,contradiction_pressure,Fiona McAllister,"Tie-breaker: Given Margaret's close proximity to Rick and her detailed focus on his behavior, combined with her repeated assertions of not noticing anything unusual, she appears to hold crucial information that could advance the investigation. Her emphasis on her observations suggests she might be trying to conceal her own actions or knowledge. Probing her further on her whereabouts and actions during the critical moments will help clarify her potential involvement.",True
+50,4,discussion,contradiction_pressure,Margaret Chun,Margaret Chun was directly addressed by Fiona McAllister,True
+51,4,discussion,contradiction_pressure,Fiona McAllister,Fiona McAllister was directly addressed by Margaret Chun,True
+52,4,discussion,contradiction_pressure,Margaret Chun,Margaret Chun was directly addressed by Fiona McAllister,True
+53,4,discussion,contradiction_pressure,Fiona McAllister,Fiona McAllister was directly addressed by Margaret Chun,True
+54,4,discussion,contradiction_pressure,Margaret Chun,Margaret Chun was directly addressed by Fiona McAllister,True
+55,4,discussion,contradiction_pressure,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=redirection)",False
+56,4,discussion,contradiction_pressure,Bobby Herrerra,"Bobby Herrerra has the strongest self-selection bid (8/9, reason=question)",False
+57,4,discussion,contradiction_pressure,Margaret Chun,Margaret Chun was directly addressed by Bobby Herrerra,True
+58,4,discussion,contradiction_pressure,Harold Chun,"Tie-breaker: Harold's focus on clarifying the timeline and pinpointing who was alone with Rick after he entered provides a strategic advantage in narrowing down suspects and establishing opportunity. His targeted question can help uncover critical alibis or access points that others might overlook, making him the best choice to advance the investigation at this juncture.",False
+59,4,discussion,contradiction_pressure,Margaret Chun,Margaret Chun was directly addressed by Harold Chun,True
+60,4,discussion,contradiction_pressure,Tim Kane,"Tie-breaker: Tim Kane's focus on redirecting the conversation toward Rick's behavior and the unlocked office aligns with the need to probe the immediate circumstances before the murder. His approach can help shift suspicion and gather critical details about Rick's state, which could reveal inconsistencies or highlight opportunities for other suspects. Given his role in steering the discussion, he is best positioned to advance the investigation.",False
+61,4,discussion,contradiction_pressure,Bobby Herrerra,Fallback selection based on urgency,False
+62,4,discussion,contradiction_pressure,Margaret Chun,Margaret Chun was directly addressed by Bobby Herrerra,True
+63,4,discussion,contradiction_pressure,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=question)",False
+64,4,discussion,contradiction_pressure,Pauline Thompson,"Tie-breaker: Both Pauline and Harold have equal relevance at this moment, but Pauline's direct access to Rick's office earlier, combined with her emphasis on her alibi and her potential motive, makes her a slightly more strategic choice to probe further. Asking Pauline about her whereabouts during the critical window can help clarify her opportunity and possibly reveal inconsistencies or additional motives. Since she has already been questioned about her access and her role in the timeline, delving deeper into her movements can advance the investigation more effectively.",True
+65,4,discussion,contradiction_pressure,Margaret Chun,Margaret Chun was directly addressed by Pauline Thompson,True
+66,4,discussion,contradiction_pressure,Fiona McAllister,Fiona McAllister was directly addressed by Margaret Chun,True
+67,4,discussion,contradiction_pressure,Margaret Chun,Margaret Chun was directly addressed by Fiona McAllister,True
+68,5,discussion,accusation_synthesis,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=question)",False
+69,5,discussion,accusation_synthesis,Fiona McAllister,Fiona McAllister was directly addressed by Tim Kane,True
+70,5,discussion,accusation_synthesis,Margaret Chun,Margaret Chun was directly addressed by Fiona McAllister,True
+71,5,discussion,accusation_synthesis,Harold Chun,"Tie-breaker: Harold has demonstrated a strategic questioning approach focused on access and opportunity, which is crucial at this stage of the investigation. His intent to probe further into movements around the time of the murder could yield significant insights. Additionally, his questioning aligns with the current need to clarify who had the chance to manipulate the scene, making him the most effective next speaker to advance the investigation.",False
+72,5,discussion,accusation_synthesis,Pauline Thompson,Pauline Thompson was directly addressed by Harold Chun,True
+73,5,discussion,accusation_synthesis,Harold Chun,Harold Chun was directly addressed by Pauline Thompson,True
+74,5,discussion,accusation_synthesis,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=question)",False
+75,5,discussion,accusation_synthesis,Bobby Herrerra,"Tie-breaker: Both players are equally positioned with their questions, but Bobby Herrerra's focus on Margaret's potential deception and opportunity aligns more directly with uncovering a suspect's involvement. His emphasis on her proximity and possible concealment makes him slightly more likely to advance the investigation by probing her claims further.",True
+76,5,discussion,accusation_synthesis,Margaret Chun,Margaret Chun was directly addressed by Bobby Herrerra,True
+77,5,discussion,accusation_synthesis,Tim Kane,"Tie-breaker: Tim Kane's approach centers on casting suspicion on Margaret and Fiona by highlighting Rick’s suspicious behavior and suggesting potential manipulation of the scene. His questions are strategic for advancing the investigation by focusing on inconsistencies and possible motives, which can lead to uncovering crucial details about the killer’s actions. Fiona's focus on Margaret's proximity and potential alibi, while important, is less directly aimed at breaking the current deadlock in suspicion. Tim's questioning also aligns with the ongoing theme of examining the scene and suspects' behaviors, making him the best choice to push the investigation forward.",False
+78,5,discussion,accusation_synthesis,Margaret Chun,Margaret Chun was directly addressed by Tim Kane,True
+79,5,discussion,accusation_synthesis,Fiona McAllister,Fiona McAllister was directly addressed by Margaret Chun,True
+80,5,discussion,accusation_synthesis,Pauline Thompson,Pauline Thompson was directly addressed by Fiona McAllister,True
+81,5,discussion,accusation_synthesis,Fiona McAllister,Fiona McAllister was directly addressed by Pauline Thompson,True
+82,5,discussion,accusation_synthesis,Pauline Thompson,Pauline Thompson was directly addressed by Fiona McAllister,True
+83,5,discussion,accusation_synthesis,Margaret Chun,Margaret Chun was directly addressed by Pauline Thompson,True
+84,5,discussion,accusation_synthesis,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=redirection)",False
+85,5,discussion,accusation_synthesis,Harold Chun,"Harold Chun has the strongest self-selection bid (8/9, reason=question)",False
+86,5,discussion,accusation_synthesis,Pauline Thompson,Pauline Thompson was directly addressed by Harold Chun,True
+87,5,discussion,accusation_synthesis,Harold Chun,Harold Chun was directly addressed by Pauline Thompson,True

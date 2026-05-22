@@ -1,0 +1,4 @@
+run_id,accuser,accused,reasoning,correct,accuser_is_murderer,accused_is_murderer
+smoke-run,Alice,Bob,suspicious,True,False,True
+smoke-run,Bob,Carol,deflect,False,True,False
+smoke-run,Carol,Bob,gut feeling,True,False,True

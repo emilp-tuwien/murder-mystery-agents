@@ -1,0 +1,11 @@
+{
+  "labeling_enabled": true,
+  "labeling_mode": "heuristic",
+  "murderer_name": "Bob",
+  "run_id": "smoke-run",
+  "strategy_counts": {},
+  "strategy_rates": {},
+  "total_labeled_instances": 0,
+  "total_labeled_utterances": 0,
+  "total_murderer_utterances": 0
+}

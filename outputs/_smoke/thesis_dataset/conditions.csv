@@ -1,0 +1,2 @@
+backend,condition_description,condition_dir,condition_name,config_fingerprint,deception_labeling_mode,experiment_name,memory_version,model_name,prompt_version,replicates,scenario_id,seed,temperature,turn_policy_version
+,,outputs/_smoke,default,,,_smoke,,,,,,,,

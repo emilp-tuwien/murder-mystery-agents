@@ -1,0 +1,80 @@
+{
+  "condition_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/thesis-final-matrix/conditions/round-budget__standard-budget",
+  "condition_name": "round-budget__standard-budget",
+  "invalid_run_ids": [
+    "thesis-final-matrix-round-budget__standard-budget-20260426T164929Z-r001"
+  ],
+  "invalid_runs": 1,
+  "run_reports": [
+    {
+      "artifact_counts": {
+        "clue_reveals": 4,
+        "round_advance_decisions": 4,
+        "round_changes": 4,
+        "round_summaries": 4,
+        "stage_gate_evaluations": 0,
+        "total_accusations": 0,
+        "total_belief_snapshots": 0,
+        "total_deception_labels": 0,
+        "total_events": 347,
+        "total_interactions": 0,
+        "total_utterances": 0
+      },
+      "condition_name": "round-budget__standard-budget",
+      "exclusion_reasons": [
+        "missing_required_files:metrics.json,utterances.csv,interactions.csv,accusations.csv,attention_summary.json,deception_labels.csv,deception_summary.json",
+        "run_status:running",
+        "no_utterances",
+        "accusation_phase_incomplete",
+        "missing_metrics"
+      ],
+      "experiment_name": "thesis-final-matrix",
+      "missing_required_files": [
+        "metrics.json",
+        "utterances.csv",
+        "interactions.csv",
+        "accusations.csv",
+        "attention_summary.json",
+        "deception_labels.csv",
+        "deception_summary.json"
+      ],
+      "process_quality": {
+        "accusation_comparative_fraction": 0.0,
+        "accusation_completed": false,
+        "accusation_reasoning_evidence_backed_fraction": 0.0,
+        "accusation_reasoning_nonempty_fraction": 0.0,
+        "accusation_structure_fraction": 0.0,
+        "belief_state_snapshots_logged": 0,
+        "belief_top1_alignment_fraction": 0.0,
+        "belief_top3_alignment_fraction": 0.0,
+        "clue_reveals_count": 4,
+        "evidence_gate_satisfied_transitions": 0,
+        "hard_cap_fallback_transitions": 0,
+        "investigation_completed_events": 0,
+        "murderer_directly_challenged": false,
+        "murderer_directly_questioned": false,
+        "murderer_pressure_signals_received": 0,
+        "round_budget_transitions": 3,
+        "round_summary_count": 4,
+        "stage_gate_evaluation_count": 0,
+        "suspect_question_coverage_fraction": 0.0,
+        "suspects_directly_questioned": []
+      },
+      "run_id": "thesis-final-matrix-round-budget__standard-budget-20260426T164929Z-r001",
+      "run_usable_for_thesis": false,
+      "validation_status": "invalid",
+      "warnings": [
+        "low_suspect_question_coverage",
+        "no_belief_state_trace_logged",
+        "deception_summary_missing"
+      ]
+    }
+  ],
+  "runs_with_warnings": 1,
+  "total_runs": 1,
+  "usable_run_ids": [],
+  "usable_runs": 0,
+  "warning_run_ids": [
+    "thesis-final-matrix-round-budget__standard-budget-20260426T164929Z-r001"
+  ]
+}

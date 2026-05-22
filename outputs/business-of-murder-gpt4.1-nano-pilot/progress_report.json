@@ -1,0 +1,35 @@
+{
+  "conditions": [
+    {
+      "condition_description": null,
+      "condition_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/business-of-murder-gpt4.1-nano-pilot",
+      "condition_name": "business-of-murder-gpt4.1-nano-pilot",
+      "invalid_runs": 0,
+      "planned_runs": 0,
+      "planned_runs_remaining": 0,
+      "remaining_to_final": 20,
+      "remaining_to_interim": 10,
+      "remaining_to_pilot": 3,
+      "runs_with_warnings": 0,
+      "total_runs": 0,
+      "usable_runs": 0
+    }
+  ],
+  "experiment_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/business-of-murder-gpt4.1-nano-pilot",
+  "experiment_name": "business-of-murder-gpt4.1-nano-pilot",
+  "invalid_runs": 0,
+  "minimum_usable_runs_per_condition": 0,
+  "planned_total_runs": 0,
+  "recommendations": [
+    "No usable runs yet; start with a small sanity batch and confirm that every run reaches accusation with complete artifacts."
+  ],
+  "thresholds": {
+    "final_ready_runs_per_condition": 20,
+    "interim_ready_runs_per_condition": 10,
+    "pilot_ready_runs_per_condition": 3
+  },
+  "total_conditions": 1,
+  "total_runs": 0,
+  "usable_runs": 0,
+  "workflow_stage": "planned"
+}

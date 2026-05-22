@@ -1,0 +1,16 @@
+source,target,count
+Bobby Herrerra,Fiona McAllister,5
+Bobby Herrerra,Pauline Thompson,3
+Fiona McAllister,Bobby Herrerra,2
+Fiona McAllister,Pauline Thompson,13
+Harold Chun,Fiona McAllister,2
+Harold Chun,Pauline Thompson,1
+Louis Cagliostro,Fiona McAllister,1
+Margaret Chun,Fiona McAllister,3
+Margaret Chun,Pauline Thompson,1
+Pauline Thompson,Fiona McAllister,13
+Pauline Thompson,Tim Kane,5
+Tim Kane,Bobby Herrerra,1
+Tim Kane,Fiona McAllister,2
+Tim Kane,Margaret Chun,1
+Tim Kane,Pauline Thompson,13

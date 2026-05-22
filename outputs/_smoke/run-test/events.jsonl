@@ -1,0 +1,6 @@
+{"index": 0, "timestamp": "2026-04-01T08:31:48.369432+00:00", "type": "turn_started", "run_id": "smoke-run", "payload": {"turn": 1, "round": 1, "phase": "discussion"}}
+{"index": 1, "timestamp": "2026-04-01T08:31:48.369535+00:00", "type": "speaker_selected", "run_id": "smoke-run", "payload": {"speaker": "Alice", "reason": "test", "is_direct_address": false}}
+{"index": 2, "timestamp": "2026-04-01T08:31:48.369584+00:00", "type": "utterance", "run_id": "smoke-run", "payload": {"utterance": {"turn": 1, "round": 1, "phase": "discussion", "speaker": "Alice", "text": "Bob, where were you?", "is_question": true, "addressed_to": "Bob", "mentioned_agents": ["Bob"]}}}
+{"index": 3, "timestamp": "2026-04-01T08:31:48.369624+00:00", "type": "accusation", "run_id": "smoke-run", "payload": {"agent": "Alice", "result": {"accused": "Bob", "reasoning": "suspicious"}}}
+{"index": 4, "timestamp": "2026-04-01T08:31:48.369659+00:00", "type": "accusation", "run_id": "smoke-run", "payload": {"agent": "Bob", "result": {"accused": "Carol", "reasoning": "deflect"}}}
+{"index": 5, "timestamp": "2026-04-01T08:31:48.369691+00:00", "type": "accusation", "run_id": "smoke-run", "payload": {"agent": "Carol", "result": {"accused": "Bob", "reasoning": "gut feeling"}}}

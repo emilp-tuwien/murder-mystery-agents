@@ -1,0 +1,36 @@
+{
+  "followup_target_counts": {
+    "Fiona McAllister": 4,
+    "Harold Chun": 2,
+    "Margaret Chun": 25,
+    "Pauline Thompson": 2
+  },
+  "followup_target_entropy": 1.1626848846806317,
+  "followup_target_gini": 0.5378787878787878,
+  "justification_target_counts": {
+    "Margaret Chun": 3
+  },
+  "justification_target_entropy": 0.0,
+  "justification_target_gini": 0.0,
+  "murderer_followups_received": 0,
+  "murderer_justification_requests_received": 0,
+  "murderer_mentions_received": 0,
+  "murderer_pressure_signals_received": 0,
+  "murderer_questions_received": 0,
+  "pressure_target_counts": {
+    "Fiona McAllister": 7,
+    "Margaret Chun": 8,
+    "Pauline Thompson": 9
+  },
+  "pressure_target_entropy": 1.5774287729134877,
+  "pressure_target_gini": 0.05555555555555558,
+  "question_target_counts": {
+    "Fiona McAllister": 7,
+    "Harold Chun": 2,
+    "Margaret Chun": 27,
+    "Pauline Thompson": 6
+  },
+  "question_target_entropy": 1.4508121366562885,
+  "question_target_gini": 0.45238095238095233,
+  "total_interaction_rows": 100
+}

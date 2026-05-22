@@ -1,0 +1,41 @@
+{
+  "completed_conditions": [],
+  "experiment_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/thesis-final-matrix",
+  "experiment_name": "thesis-final-matrix",
+  "fail_fast": false,
+  "failed_conditions": [],
+  "finished_at": null,
+  "planned_conditions": [
+    {
+      "condition_description": "Baseline control. Fixed round-budget progression with the current standard dialogue budget.",
+      "condition_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/thesis-final-matrix/conditions/round-budget__standard-budget",
+      "condition_name": "round-budget__standard-budget",
+      "config_fingerprint": "905ae0641dc0",
+      "replicates": 24
+    },
+    {
+      "condition_description": "Dialogue-budget control. Fixed round-budget progression with more turns, isolating the effect of giving the discussion more space without gate logic.",
+      "condition_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/thesis-final-matrix/conditions/round-budget__extended-budget",
+      "condition_name": "round-budget__extended-budget",
+      "config_fingerprint": "9debcb8cd3cf",
+      "replicates": 24
+    },
+    {
+      "condition_description": "Primary treatment. Evidence-gated progression with the standard dialogue budget to test whether gating improves evidence integration and accusation quality.",
+      "condition_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/thesis-final-matrix/conditions/evidence-gated__standard-budget",
+      "condition_name": "evidence-gated__standard-budget",
+      "config_fingerprint": "1e4de4d10d3a",
+      "replicates": 24
+    },
+    {
+      "condition_description": "Robustness and mechanism cell. Evidence-gated progression plus more turns, testing whether gating still matters when the group is given a larger budget.",
+      "condition_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/thesis-final-matrix/conditions/evidence-gated__extended-budget",
+      "condition_name": "evidence-gated__extended-budget",
+      "config_fingerprint": "c74fa8a9c880",
+      "replicates": 24
+    }
+  ],
+  "source_path": "configs/thesis-final-matrix.yaml",
+  "started_at": "2026-04-26T16:49:29.213994+00:00",
+  "status": "running"
+}

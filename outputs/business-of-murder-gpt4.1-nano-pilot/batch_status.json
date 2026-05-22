@@ -1,0 +1,97 @@
+{
+  "condition_description": null,
+  "condition_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/business-of-murder-gpt4.1-nano-pilot",
+  "condition_name": null,
+  "config_fingerprint": "9022083573ed",
+  "experiment_name": "business-of-murder-gpt4.1-nano-pilot",
+  "fail_fast": false,
+  "finished_at": null,
+  "replicates_completed": 4,
+  "replicates_failed": 0,
+  "replicates_planned": 5,
+  "runs": [
+    {
+      "ended_at": "2026-05-20T17:48:38.956242+00:00",
+      "error_summary": null,
+      "replicate_id": 1,
+      "resolved_seed": 4242,
+      "run_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/business-of-murder-gpt4.1-nano-pilot/runs/business-of-murder-gpt4.1-nano-pilot-20260520T173456Z-r001",
+      "run_id": "business-of-murder-gpt4.1-nano-pilot-20260520T173456Z-r001",
+      "run_usable_for_thesis": true,
+      "started_at": "2026-05-20T17:34:56.037251+00:00",
+      "status": "finished",
+      "validation_status": "valid",
+      "validation_warnings": [
+        "murderer_never_directly_questioned",
+        "murderer_never_directly_challenged",
+        "accusation_reasoning_often_not_evidence_backed",
+        "accusation_structure_often_incomplete",
+        "accusations_often_missing_comparative_case"
+      ]
+    },
+    {
+      "ended_at": "2026-05-20T18:02:49.903410+00:00",
+      "error_summary": null,
+      "replicate_id": 2,
+      "resolved_seed": 4243,
+      "run_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/business-of-murder-gpt4.1-nano-pilot/runs/business-of-murder-gpt4.1-nano-pilot-20260520T174838Z-r002",
+      "run_id": "business-of-murder-gpt4.1-nano-pilot-20260520T174838Z-r002",
+      "run_usable_for_thesis": true,
+      "started_at": "2026-05-20T17:48:38.964716+00:00",
+      "status": "finished",
+      "validation_status": "valid",
+      "validation_warnings": [
+        "accusation_reasoning_often_not_evidence_backed",
+        "accusation_structure_often_incomplete",
+        "accusations_often_missing_comparative_case"
+      ]
+    },
+    {
+      "ended_at": "2026-05-20T18:16:14.265680+00:00",
+      "error_summary": null,
+      "replicate_id": 3,
+      "resolved_seed": 4244,
+      "run_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/business-of-murder-gpt4.1-nano-pilot/runs/business-of-murder-gpt4.1-nano-pilot-20260520T180249Z-r003",
+      "run_id": "business-of-murder-gpt4.1-nano-pilot-20260520T180249Z-r003",
+      "run_usable_for_thesis": true,
+      "started_at": "2026-05-20T18:02:49.908890+00:00",
+      "status": "finished",
+      "validation_status": "valid",
+      "validation_warnings": [
+        "murderer_never_directly_questioned",
+        "accusation_reasoning_often_not_evidence_backed",
+        "accusation_structure_often_incomplete",
+        "accusations_often_missing_comparative_case"
+      ]
+    },
+    {
+      "ended_at": "2026-05-20T18:30:35.390152+00:00",
+      "error_summary": null,
+      "replicate_id": 4,
+      "resolved_seed": 4245,
+      "run_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/business-of-murder-gpt4.1-nano-pilot/runs/business-of-murder-gpt4.1-nano-pilot-20260520T181614Z-r004",
+      "run_id": "business-of-murder-gpt4.1-nano-pilot-20260520T181614Z-r004",
+      "run_usable_for_thesis": true,
+      "started_at": "2026-05-20T18:16:14.276264+00:00",
+      "status": "finished",
+      "validation_status": "valid",
+      "validation_warnings": [
+        "accusation_reasoning_often_not_evidence_backed",
+        "accusation_structure_often_incomplete",
+        "accusations_often_missing_comparative_case"
+      ]
+    },
+    {
+      "ended_at": null,
+      "error_summary": null,
+      "replicate_id": 5,
+      "resolved_seed": 4246,
+      "run_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/business-of-murder-gpt4.1-nano-pilot/runs/business-of-murder-gpt4.1-nano-pilot-20260520T183035Z-r005",
+      "run_id": "business-of-murder-gpt4.1-nano-pilot-20260520T183035Z-r005",
+      "started_at": "2026-05-20T18:30:35.396645+00:00",
+      "status": "running"
+    }
+  ],
+  "started_at": "2026-05-20T17:34:56.029183+00:00",
+  "status": "running"
+}

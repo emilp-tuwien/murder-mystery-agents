@@ -1,0 +1,77 @@
+{
+  "conditions": [
+    {
+      "condition_description": "Control cell. Murderer receives no explicit tactic coaching and progression advances by fixed round budget. Establishes the baseline concealment rate without active deception instructions.",
+      "condition_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/thesis-final-matrix/conditions/passive-concealment__round-budget",
+      "condition_name": "passive-concealment__round-budget",
+      "invalid_runs": 0,
+      "planned_runs": 24,
+      "planned_runs_remaining": 24,
+      "remaining_to_final": 24,
+      "remaining_to_interim": 12,
+      "remaining_to_pilot": 5,
+      "runs_with_warnings": 0,
+      "total_runs": 0,
+      "usable_runs": 0
+    },
+    {
+      "condition_description": "Progression treatment. Murderer receives no explicit tactic coaching but rounds are evidence-gated, forcing more thorough questioning before advancement. Isolates the effect of gate structure without deception coaching.",
+      "condition_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/thesis-final-matrix/conditions/passive-concealment__evidence-gated",
+      "condition_name": "passive-concealment__evidence-gated",
+      "invalid_runs": 0,
+      "planned_runs": 24,
+      "planned_runs_remaining": 24,
+      "remaining_to_final": 24,
+      "remaining_to_interim": 12,
+      "remaining_to_pilot": 5,
+      "runs_with_warnings": 0,
+      "total_runs": 0,
+      "usable_runs": 0
+    },
+    {
+      "condition_description": "Deception treatment. Murderer receives explicit coaching in named deceptive tactics with fixed round-budget progression. Isolates the effect of tactic coaching without gate structure.",
+      "condition_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/thesis-final-matrix/conditions/active-deception__round-budget",
+      "condition_name": "active-deception__round-budget",
+      "invalid_runs": 0,
+      "planned_runs": 24,
+      "planned_runs_remaining": 24,
+      "remaining_to_final": 24,
+      "remaining_to_interim": 12,
+      "remaining_to_pilot": 5,
+      "runs_with_warnings": 0,
+      "total_runs": 0,
+      "usable_runs": 0
+    },
+    {
+      "condition_description": "Full treatment cell. Murderer receives explicit deception coaching and progression is evidence-gated. Tests whether gate structure reduces the murderer's advantage even when they are actively coached.",
+      "condition_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/thesis-final-matrix/conditions/active-deception__evidence-gated",
+      "condition_name": "active-deception__evidence-gated",
+      "invalid_runs": 0,
+      "planned_runs": 24,
+      "planned_runs_remaining": 24,
+      "remaining_to_final": 24,
+      "remaining_to_interim": 12,
+      "remaining_to_pilot": 5,
+      "runs_with_warnings": 0,
+      "total_runs": 0,
+      "usable_runs": 0
+    }
+  ],
+  "experiment_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/thesis-final-matrix",
+  "experiment_name": "thesis-final-matrix",
+  "invalid_runs": 0,
+  "minimum_usable_runs_per_condition": 0,
+  "planned_total_runs": 96,
+  "recommendations": [
+    "No usable runs yet; start with a small sanity batch and confirm that every run reaches accusation with complete artifacts."
+  ],
+  "thresholds": {
+    "final_ready_runs_per_condition": 24,
+    "interim_ready_runs_per_condition": 12,
+    "pilot_ready_runs_per_condition": 5
+  },
+  "total_conditions": 4,
+  "total_runs": 0,
+  "usable_runs": 0,
+  "workflow_stage": "planned"
+}

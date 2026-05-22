@@ -1,0 +1,2 @@
+turn,round,phase,speaker,target,response_to_speaker,is_direct_target,is_question,is_followup_question,is_justification_request,is_pressure_signal,is_mention,text
+1,1,discussion,Alice,Bob,,True,True,False,False,False,True,"Bob, where were you?"

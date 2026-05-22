@@ -1,0 +1,88 @@
+turn,round,phase,stage,selected_speaker,selection_reason,is_direct_address
+1,1,introduction,introduction,Harold Chun,Introduction (7 remaining),False
+2,1,introduction,introduction,Bobby Herrerra,Introduction (6 remaining),False
+3,1,introduction,introduction,Pauline Thompson,Introduction (5 remaining),False
+4,1,introduction,introduction,Louis Cagliostro,Introduction (4 remaining),False
+5,1,introduction,introduction,Tim Kane,Introduction (3 remaining),False
+6,1,introduction,introduction,Margaret Chun,Introduction (2 remaining),False
+7,1,introduction,introduction,Fiona McAllister,Introduction (1 remaining),False
+8,2,discussion,initial_framing,Pauline Thompson,"Tie-breaker: Pauline Thompson's suspicion and her comments about Fiona, combined with her own potential motive and connection to Rick's death, suggest she could provide critical insight or reveal new information that advances the investigation. Her questioning of Fiona indicates she's engaging actively, and pressing her further could uncover important details.",True
+9,2,discussion,initial_framing,Fiona McAllister,Fiona McAllister was directly addressed by Pauline Thompson,True
+10,2,discussion,initial_framing,Harold Chun,"Tie-breaker: Harold's questioning can help clarify Fiona's observation about suspicious activity or watchfulness, which is crucial for narrowing down suspects. Since he hasn't contributed yet and his question could steer the investigation forward, it makes sense to have him speak next to maintain momentum and focus.",False
+11,2,discussion,initial_framing,Fiona McAllister,Fiona McAllister was directly addressed by Harold Chun,True
+12,2,discussion,initial_framing,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=alibi)",False
+13,2,discussion,initial_framing,Pauline Thompson,Pauline Thompson was directly addressed by Tim Kane,True
+14,2,discussion,initial_framing,Bobby Herrerra,"Tie-breaker: Bobby's focus on Fiona's potentially suspicious behavior and inconsistent account aligns with the need to clarify her whereabouts and uncover contradictions. Since Fiona's upstairs position and vague statements could hide critical details, pressing her further may yield more useful information. Margaret's inquiry about Pauline is important but less immediate given the current focus on Fiona's potential deception.",True
+15,2,discussion,initial_framing,Fiona McAllister,Fiona McAllister was directly addressed by Bobby Herrerra,True
+16,2,discussion,initial_framing,Tim Kane,"Tim Kane has the strongest self-selection bid (8/9, reason=question)",False
+17,2,discussion,initial_framing,Pauline Thompson,Pauline Thompson was directly addressed by Tim Kane,True
+18,2,discussion,initial_framing,Fiona McAllister,Fiona McAllister was directly addressed by Pauline Thompson,True
+19,2,discussion,initial_framing,Pauline Thompson,Pauline Thompson was directly addressed by Fiona McAllister,True
+20,2,discussion,initial_framing,Fiona McAllister,Fiona McAllister was directly addressed by Pauline Thompson,True
+21,2,discussion,initial_framing,Margaret Chun,"Margaret Chun has the strongest self-selection bid (7/9, reason=question)",False
+22,2,discussion,initial_framing,Fiona McAllister,Fiona McAllister was directly addressed by Margaret Chun,True
+23,2,discussion,initial_framing,Pauline Thompson,Pauline Thompson was directly addressed by Fiona McAllister,True
+24,2,discussion,initial_framing,Fiona McAllister,Fiona McAllister was directly addressed by Pauline Thompson,True
+25,2,discussion,initial_framing,Harold Chun,"Tie-breaker: Harold Chun's focus on the conflicting details around Pauline's and Fiona's whereabouts at 8:25 makes him well-positioned to clarify critical timing issues. His question can help uncover whether Fiona's claim of being upstairs is consistent with what others saw, and whether Pauline's account holds up. This can significantly narrow down suspect opportunities and resolve contradictions in the timeline.",True
+26,2,discussion,initial_framing,Fiona McAllister,Fiona McAllister was directly addressed by Harold Chun,True
+27,2,discussion,initial_framing,Pauline Thompson,Pauline Thompson was directly addressed by Fiona McAllister,True
+28,3,discussion,clue_integration,Fiona McAllister,Fiona McAllister was directly addressed by Pauline Thompson,True
+29,3,discussion,clue_integration,Pauline Thompson,Pauline Thompson was directly addressed by Fiona McAllister,True
+30,3,discussion,clue_integration,Fiona McAllister,Fiona McAllister was directly addressed by Pauline Thompson,True
+31,3,discussion,clue_integration,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=question)",False
+32,3,discussion,clue_integration,Pauline Thompson,Pauline Thompson was directly addressed by Tim Kane,True
+33,3,discussion,clue_integration,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=question)",False
+34,3,discussion,clue_integration,Margaret Chun,"Margaret Chun has the strongest self-selection bid (8/9, reason=question)",False
+35,3,discussion,clue_integration,Fiona McAllister,Fiona McAllister was directly addressed by Margaret Chun,True
+36,3,discussion,clue_integration,Pauline Thompson,Pauline Thompson was directly addressed by Fiona McAllister,True
+37,3,discussion,clue_integration,Bobby Herrerra,"Tie-breaker: Bobby Herrerra's focus on challenging Fiona's alibi and the suspicious timing of her whereabouts makes him the best candidate to push the investigation forward at this critical juncture. His direct questioning can help reveal inconsistencies or new clues, which is essential given the tight situation and the need to break the tie.",True
+38,3,discussion,clue_integration,Fiona McAllister,Fiona McAllister was directly addressed by Bobby Herrerra,True
+39,3,discussion,clue_integration,Bobby Herrerra,Bobby Herrerra was directly addressed by Fiona McAllister,True
+40,3,discussion,clue_integration,Fiona McAllister,Fiona McAllister was directly addressed by Bobby Herrerra,True
+41,3,discussion,clue_integration,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=question)",False
+42,3,discussion,clue_integration,Pauline Thompson,Pauline Thompson was directly addressed by Tim Kane,True
+43,3,discussion,clue_integration,Tim Kane,Tim Kane was directly addressed by Pauline Thompson,True
+44,3,discussion,clue_integration,Pauline Thompson,Pauline Thompson was directly addressed by Tim Kane,True
+45,3,discussion,clue_integration,Tim Kane,Tim Kane was directly addressed by Pauline Thompson,True
+46,3,discussion,clue_integration,Pauline Thompson,Pauline Thompson was directly addressed by Tim Kane,True
+47,3,discussion,clue_integration,Fiona McAllister,"Tie-breaker: All five players are equally suspicious based on their positions and the current evidence, but Pauline's inconsistent timeline and the fact that her wallet was found at the scene during her claimed absence make her the most critical to question now. Tim's recent statements support Pauline's timeline, but his brief exit for air could be relevant if it overlaps with the murder window. To break the tie and move the investigation forward, focusing on Pauline's movements and the wallet's location is strategic, as it could reveal a key inconsistency or opportunity for the murder.",True
+48,4,discussion,contradiction_pressure,Pauline Thompson,Pauline Thompson was directly addressed by Fiona McAllister,True
+49,4,discussion,contradiction_pressure,Louis Cagliostro,"Louis Cagliostro has the strongest self-selection bid (8/9, reason=question)",False
+50,4,discussion,contradiction_pressure,Fiona McAllister,Fiona McAllister was directly addressed by Louis Cagliostro,True
+51,4,discussion,contradiction_pressure,Tim Kane,"Tie-breaker: Tim Kane's concern about Pauline's timing and the potential inconsistency in her story directly relates to the critical window of the murder. His questioning approach is strategic in probing her alibi without immediate suspicion, which can uncover vital details. Since Pauline's movements are central to the investigation, it makes sense to have Tim continue pressing her for clarification, as his focus aligns with advancing the case efficiently.",True
+52,4,discussion,contradiction_pressure,Pauline Thompson,Pauline Thompson was directly addressed by Tim Kane,True
+53,4,discussion,contradiction_pressure,Fiona McAllister,Fiona McAllister was directly addressed by Pauline Thompson,True
+54,4,discussion,contradiction_pressure,Pauline Thompson,Pauline Thompson was directly addressed by Fiona McAllister,True
+55,4,discussion,contradiction_pressure,Fiona McAllister,Fiona McAllister was directly addressed by Pauline Thompson,True
+56,4,discussion,contradiction_pressure,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=question)",False
+57,4,discussion,contradiction_pressure,Bobby Herrerra,"Tie-breaker: Both players are equally focused on questioning Fiona and Pauline, but Bobby's reasoning emphasizes the importance of investigating Fiona's alibi and her emotional cues, considering her potential motive and opportunity. His approach aligns with the suspicion that Fiona's inconsistent story and her emotional state could be key to uncovering the truth. This makes him slightly more strategic in advancing the investigation by probing Fiona further about her whereabouts and possible motives.",True
+58,4,discussion,contradiction_pressure,Fiona McAllister,Fiona McAllister was directly addressed by Bobby Herrerra,True
+59,4,discussion,contradiction_pressure,Bobby Herrerra,Bobby Herrerra was directly addressed by Fiona McAllister,True
+60,4,discussion,contradiction_pressure,Pauline Thompson,Pauline Thompson was directly addressed by Bobby Herrerra,True
+61,4,discussion,contradiction_pressure,Fiona McAllister,Fiona McAllister was directly addressed by Pauline Thompson,True
+62,4,discussion,contradiction_pressure,Pauline Thompson,Pauline Thompson was directly addressed by Fiona McAllister,True
+63,4,discussion,contradiction_pressure,Fiona McAllister,Fiona McAllister was directly addressed by Pauline Thompson,True
+64,4,discussion,contradiction_pressure,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=question)",False
+65,4,discussion,contradiction_pressure,Pauline Thompson,Pauline Thompson was directly addressed by Tim Kane,True
+66,4,discussion,contradiction_pressure,Bobby Herrerra,"Tie-breaker: Bobby Herrerra's focus on Fiona's emotional cues and the inconsistency regarding her presence upstairs makes him most likely to push the investigation forward effectively. Questioning Fiona directly about her movements and her connection to the wallet can shed light on her potential involvement, which is crucial given her strong assertions of innocence. His questioning style is direct and targeted, which can help clarify the core issue of her whereabouts and potential motives.",True
+67,4,discussion,contradiction_pressure,Fiona McAllister,Fiona McAllister was directly addressed by Bobby Herrerra,True
+68,5,discussion,accusation_synthesis,Pauline Thompson,Pauline Thompson was directly addressed by Fiona McAllister,True
+69,5,discussion,accusation_synthesis,Fiona McAllister,Fiona McAllister was directly addressed by Pauline Thompson,True
+70,5,discussion,accusation_synthesis,Pauline Thompson,Pauline Thompson was directly addressed by Fiona McAllister,True
+71,5,discussion,accusation_synthesis,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=question)",False
+72,5,discussion,accusation_synthesis,Pauline Thompson,Pauline Thompson was directly addressed by Tim Kane,True
+73,5,discussion,accusation_synthesis,Fiona McAllister,Fiona McAllister was directly addressed by Pauline Thompson,True
+74,5,discussion,accusation_synthesis,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=question)",False
+75,5,discussion,accusation_synthesis,Fiona McAllister,Fiona McAllister was directly addressed by Tim Kane,True
+76,5,discussion,accusation_synthesis,Margaret Chun,Tie-breaker: Margaret's reasoning focuses on the conflicting accounts and the importance of clarifying the timeline to identify who could have committed the murder. She emphasizes the significance of the suspicious evidence—such as the wallet and the conflicting claims about who saw whom leave or re-enter—making her the most strategic choice to advance the investigation by probing these inconsistencies.,True
+77,5,discussion,accusation_synthesis,Fiona McAllister,Fiona McAllister was directly addressed by Margaret Chun,True
+78,5,discussion,accusation_synthesis,Pauline Thompson,Pauline Thompson was directly addressed by Fiona McAllister,True
+79,5,discussion,accusation_synthesis,Fiona McAllister,Fiona McAllister was directly addressed by Pauline Thompson,True
+80,5,discussion,accusation_synthesis,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=question)",False
+81,5,discussion,accusation_synthesis,Pauline Thompson,Pauline Thompson was directly addressed by Tim Kane,True
+82,5,discussion,accusation_synthesis,Tim Kane,"Tim Kane has the strongest self-selection bid (9/9, reason=redirection)",False
+83,5,discussion,accusation_synthesis,Pauline Thompson,Pauline Thompson was directly addressed by Tim Kane,True
+84,5,discussion,accusation_synthesis,Tim Kane,Tim Kane was directly addressed by Pauline Thompson,True
+85,5,discussion,accusation_synthesis,Pauline Thompson,Pauline Thompson was directly addressed by Tim Kane,True
+86,5,discussion,accusation_synthesis,Tim Kane,Tim Kane was directly addressed by Pauline Thompson,True
+87,5,discussion,accusation_synthesis,Bobby Herrerra,Bobby Herrerra was directly addressed by Tim Kane,True

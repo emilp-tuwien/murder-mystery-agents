@@ -1,0 +1,36 @@
+{
+  "conditions": [
+    {
+      "condition_description": null,
+      "condition_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/business-of-murder-pilot",
+      "condition_name": "business-of-murder-pilot",
+      "invalid_runs": 1,
+      "planned_runs": 5,
+      "planned_runs_remaining": 4,
+      "remaining_to_final": 20,
+      "remaining_to_interim": 10,
+      "remaining_to_pilot": 3,
+      "runs_with_warnings": 1,
+      "total_runs": 1,
+      "usable_runs": 0
+    }
+  ],
+  "experiment_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/business-of-murder-pilot",
+  "experiment_name": "business-of-murder-pilot",
+  "invalid_runs": 1,
+  "minimum_usable_runs_per_condition": 0,
+  "planned_total_runs": 5,
+  "recommendations": [
+    "Inspect run_validation.json files for invalid runs before interpreting condition-level metrics.",
+    "Keep collecting until each condition has at least 3 usable runs for pilot comparison."
+  ],
+  "thresholds": {
+    "final_ready_runs_per_condition": 20,
+    "interim_ready_runs_per_condition": 10,
+    "pilot_ready_runs_per_condition": 3
+  },
+  "total_conditions": 1,
+  "total_runs": 1,
+  "usable_runs": 0,
+  "workflow_stage": "collecting"
+}

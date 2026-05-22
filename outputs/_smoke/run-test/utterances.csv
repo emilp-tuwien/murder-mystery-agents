@@ -1,0 +1,2 @@
+run_id,turn,round,phase,speaker,text,word_count,is_question,addressed_to,mentioned_agents,response_to_speaker
+smoke-run,1,1,discussion,Alice,"Bob, where were you?",4,True,Bob,Bob,

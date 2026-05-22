@@ -1,0 +1,26 @@
+{
+  "condition_description": "Baseline control. Fixed round-budget progression with the current standard dialogue budget.",
+  "condition_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/thesis-final-matrix/conditions/round-budget__standard-budget",
+  "condition_name": "round-budget__standard-budget",
+  "config_fingerprint": "905ae0641dc0",
+  "experiment_name": "thesis-final-matrix",
+  "fail_fast": false,
+  "finished_at": null,
+  "replicates_completed": 0,
+  "replicates_failed": 0,
+  "replicates_planned": 24,
+  "runs": [
+    {
+      "ended_at": null,
+      "error_summary": null,
+      "replicate_id": 1,
+      "resolved_seed": 4242,
+      "run_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/thesis-final-matrix/conditions/round-budget__standard-budget/runs/thesis-final-matrix-round-budget__standard-budget-20260426T164929Z-r001",
+      "run_id": "thesis-final-matrix-round-budget__standard-budget-20260426T164929Z-r001",
+      "started_at": "2026-04-26T16:49:29.799717+00:00",
+      "status": "running"
+    }
+  ],
+  "started_at": "2026-04-26T16:49:29.791577+00:00",
+  "status": "running"
+}

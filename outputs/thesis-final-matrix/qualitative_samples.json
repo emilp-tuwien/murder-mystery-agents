@@ -1,0 +1,30 @@
+{
+  "dataset_manifest": {
+    "dataset_dir": "outputs/thesis-final-matrix/thesis_dataset",
+    "experiment_dir": "outputs/thesis-final-matrix",
+    "files": {
+      "accusations": "thesis_dataset/accusations.csv",
+      "conditions": "thesis_dataset/conditions.csv",
+      "deception_labels": "thesis_dataset/deception_labels.csv",
+      "events": "thesis_dataset/events.csv",
+      "interactions": "thesis_dataset/interactions.csv",
+      "runs": "thesis_dataset/runs.csv",
+      "utterances": "thesis_dataset/utterances.csv"
+    },
+    "total_accusations": 0,
+    "total_conditions": 4,
+    "total_deception_labels": 0,
+    "total_events": 0,
+    "total_interactions": 0,
+    "total_runs": 0,
+    "total_utterances": 0
+  },
+  "experiment_dir": "outputs/thesis-final-matrix",
+  "sample_sets": {
+    "evidence_gated_clean_progression": [],
+    "hard_cap_fallback_cases": [],
+    "high_pressure_solved": [],
+    "high_pressure_unsolved": [],
+    "strong_structured_accusations": []
+  }
+}

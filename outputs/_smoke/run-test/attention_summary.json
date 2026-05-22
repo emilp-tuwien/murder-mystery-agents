@@ -1,0 +1,22 @@
+{
+  "followup_target_counts": {},
+  "followup_target_entropy": 0.0,
+  "followup_target_gini": 0.0,
+  "justification_target_counts": {},
+  "justification_target_entropy": 0.0,
+  "justification_target_gini": 0.0,
+  "murderer_followups_received": 0,
+  "murderer_justification_requests_received": 0,
+  "murderer_mentions_received": 1,
+  "murderer_pressure_signals_received": 0,
+  "murderer_questions_received": 1,
+  "pressure_target_counts": {},
+  "pressure_target_entropy": 0.0,
+  "pressure_target_gini": 0.0,
+  "question_target_counts": {
+    "Bob": 1
+  },
+  "question_target_entropy": 0.0,
+  "question_target_gini": 0.0,
+  "total_interaction_rows": 1
+}
