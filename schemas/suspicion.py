@@ -43,6 +43,40 @@ class SuspectAssessment(BaseModel):
         if not isinstance(data, dict):
             return data
         out = dict(data)
+
+        # ── Fix LLM key-typos ──────────────────────────────────────────────────
+        # Some models emit keys with spurious prefixes or spaces, e.g.
+        # "sus suspicion_score" instead of "suspicion_score".  Normalise by
+        # treating any key whose *suffix* (after replacing spaces with underscores)
+        # matches a canonical field name as that canonical field.
+        _CANONICAL_FIELDS = {
+            "suspicion_score", "confidence_score", "primary_reason",
+            "strongest_supporting_fact", "evidence_categories", "suspect",
+        }
+        for key in list(out.keys()):
+            if key in _CANONICAL_FIELDS:
+                continue  # already correct
+            normalised = key.strip().replace(" ", "_").lower()
+            for field in _CANONICAL_FIELDS:
+                if normalised == field or normalised.endswith("_" + field):
+                    if field not in out:  # don't overwrite a correctly named key
+                        out[field] = out.pop(key)
+                    break
+
+        # ── Explicit aliases for suspicion_score that suffix-matching misses ──
+        # LLMs frequently use "suspect_score", "score", "guilt_score", etc.
+        # These don't end with "_suspicion_score" so the loop above skips them.
+        _SUSPICION_SCORE_ALIASES = (
+            "suspect_score", "guilt_score", "guilt_level", "suspect_level",
+            "suspicion_level", "score",
+        )
+        if "suspicion_score" not in out:
+            for alias in _SUSPICION_SCORE_ALIASES:
+                if alias in out:
+                    out["suspicion_score"] = out.pop(alias)
+                    break
+        # ──────────────────────────────────────────────────────────────────────
+
         if "suspect" not in out and "name" in out:
             out["suspect"] = out.pop("name")
         if "primary_reason" not in out:

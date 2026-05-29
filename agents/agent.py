@@ -2,7 +2,7 @@ from typing import Optional, Literal, Any, List, Dict
 from pathlib import Path
 import time
 import re
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from langchain_core.messages import SystemMessage, HumanMessage
 from scenarios import ScenarioConfig
 from schemas.state import GameState
@@ -36,10 +36,15 @@ def _retry_with_backoff(func, max_retries: int = 5, base_delay: float = 2.0):
     Retry a function with exponential backoff on rate limit errors.
     Extracts wait time from error message if available.
     """
+    # NOTE: do NOT use `except Exception as e` and then reference `e` after the
+    # loop — Python 3 (PEP 3110) deletes the `as` target at the end of each
+    # except block, so `e` would be unbound when the final raise executes.
+    last_exc: Optional[Exception] = None
     for attempt in range(max_retries):
         try:
             return func()
         except Exception as e:
+            last_exc = e          # capture before Python deletes `e`
             error_str = str(e)
             # Check if it's a rate limit error
             if '429' in error_str or 'rate_limit' in error_str.lower():
@@ -49,14 +54,14 @@ def _retry_with_backoff(func, max_retries: int = 5, base_delay: float = 2.0):
                     wait_time = float(wait_match.group(1)) + 0.5  # Add buffer
                 else:
                     wait_time = base_delay * (2 ** attempt)  # Exponential backoff
-                
+
                 print(f"  Rate limit hit. Waiting {wait_time:.1f}s before retry ({attempt + 1}/{max_retries})...")
                 time.sleep(wait_time)
             else:
-                # Not a rate limit error, re-raise
+                # Not a rate limit error, re-raise immediately
                 raise
-    # If all retries failed, raise the last exception
-    raise Exception(f"Max retries ({max_retries}) exceeded for rate limit") from e
+    # All retries exhausted by rate-limit errors
+    raise Exception(f"Max retries ({max_retries}) exceeded for rate limit") from last_exc
 
 
 class ThinkResult(BaseModel):
@@ -64,6 +69,73 @@ class ThinkResult(BaseModel):
     action: Literal["speak", "listen"]
     importance: int = Field(ge=0, le=9)
     reason_type: str = Field(default="no_move")
+
+    @model_validator(mode="before")
+    @classmethod
+    def extract_embedded_fields(cls, data: Any) -> Any:
+        """
+        Some LLMs embed Importance / Reason_type / Action as plain text inside
+        the `thought` value instead of emitting them as sibling JSON keys:
+
+            {"thought": "... I should ask.\n\nImportance: 7\n\nReason_type: question"}
+
+        Extract those inline annotations and promote them to proper fields so
+        that the rest of the validators can operate normally.
+        """
+        if not isinstance(data, dict):
+            return data
+        out = dict(data)
+        thought = out.get("thought", "")
+        if not isinstance(thought, str):
+            return out
+
+        needs_action = "action" not in out
+        needs_importance = "importance" not in out
+
+        if needs_importance or needs_action:
+            # --- Importance: N ---------------------------------------------------
+            if needs_importance:
+                imp_m = re.search(r'\bimportance\s*[:=]\s*(\d+)', thought, re.IGNORECASE)
+                if imp_m:
+                    out["importance"] = int(imp_m.group(1))
+                    thought = re.sub(
+                        r'\n*\s*\bimportance\s*[:=]\s*\d+\s*', ' ', thought, flags=re.IGNORECASE
+                    ).strip()
+
+            # --- Reason_type: xxx ------------------------------------------------
+            if "reason_type" not in out:
+                rt_m = re.search(r'\breason_?type\s*[:=]\s*(\w+)', thought, re.IGNORECASE)
+                if rt_m:
+                    out["reason_type"] = rt_m.group(1)
+                    thought = re.sub(
+                        r'\n*\s*\breason_?type\s*[:=]\s*\w+\s*', ' ', thought, flags=re.IGNORECASE
+                    ).strip()
+
+            # --- Action: xxx -----------------------------------------------------
+            if needs_action:
+                act_m = re.search(r'\baction\s*[:=]\s*(\w+)', thought, re.IGNORECASE)
+                if act_m:
+                    out["action"] = act_m.group(1)
+                    thought = re.sub(
+                        r'\n*\s*\baction\s*[:=]\s*\w+\s*', ' ', thought, flags=re.IGNORECASE
+                    ).strip()
+
+            out["thought"] = re.sub(r'\s+', ' ', thought).strip()
+
+        # --- Infer action from reason_type if still missing ----------------------
+        if "action" not in out:
+            rt = str(out.get("reason_type", "")).lower()
+            speak_reasons = {
+                "question", "direct_response", "clue", "alibi", "motive", "means",
+                "opportunity", "timeline", "contradiction", "self_defense", "redirection",
+                "accusation", "continuation", "introduction",
+            }
+            out["action"] = "speak" if rt in speak_reasons else "listen"
+
+        # --- Default importance if still missing ---------------------------------
+        out.setdefault("importance", 5)
+
+        return out
 
     @field_validator("action", mode="before")
     @classmethod
@@ -122,6 +194,45 @@ class AccusationResult(BaseModel):
             if digits:
                 return max(0, min(100, int(digits.group(0))))
         return 50
+
+    @field_validator("primary_basis", mode="before")
+    @classmethod
+    def normalize_primary_basis(cls, value):
+        """Coerce composite / comma-separated values to 'mixed', and fix any case issues.
+
+        Uses an ordered tuple (not a set) for the partial-match fallback so that the
+        result is deterministic regardless of PYTHONHASHSEED.  Priority: more specific
+        categories (motive, means, …) before the catch-all 'mixed'.
+        """
+        # Ordered by specificity — checked in this exact order for partial matches.
+        # Using a tuple (not a set) guarantees deterministic results across Python runs.
+        _ORDERED = (
+            "contradiction", "timeline", "alibi",
+            "motive", "means", "opportunity", "behavior",
+            "mixed",
+        )
+        _ALLOWED_SET = frozenset(_ORDERED)  # O(1) exact-match lookup
+        if not isinstance(value, str):
+            return "mixed"
+        cleaned = value.strip().lower()
+        if cleaned in _ALLOWED_SET:
+            return cleaned
+        # Comma-separated or slash-separated multi-value string → "mixed"
+        if "," in cleaned or "/" in cleaned:
+            return "mixed"
+        # Partial match: iterate in defined priority order (deterministic)
+        for allowed in _ORDERED:
+            if allowed in cleaned:
+                return allowed
+        return "mixed"
+
+    @field_validator("uncertainty", mode="before")
+    @classmethod
+    def coerce_uncertainty_to_str(cls, value):
+        """LLMs sometimes return an integer uncertainty score; coerce to string."""
+        if isinstance(value, (int, float)):
+            return str(value)
+        return value
 
     @field_validator("evidence_items", mode="before")
     @classmethod
@@ -195,9 +306,50 @@ class Agent:
         """Add an important fact to long-term memory."""
         self.memory.long_term.add_fact(turn_id, fact)
     
+    # Markers indicating that a name in a summary bullet is incriminating.
+    # Kept as a class-level tuple so it's shared across all instances.
+    _SUMMARY_INCRIMINATING_MARKERS: tuple = (
+        "fire escape", "stairwell", "followed", "fled", "planted",
+        "lied", "doesn't add up", "does not add up", "inconsistent",
+        "no alibi", "unaccounted", "motive", "debt", "opportunity",
+        "suspicious", "only person", "sole person",
+    )
+
     def add_round_summary(self, round_num: int, bullets: List[str]):
-        """Store bullet point summary of a round in long-term memory."""
+        """Store bullet point summary of a round in long-term memory and
+        propagate incriminating mentions into the knowledge-graph suspicion
+        scores.
+
+        Why: the KnowledgeGraph is signal-driven (it increments when a name is
+        mentioned in questions / evidence language during live dialogue).  A
+        quiet, low-profile suspect like a murderer who successfully deflects
+        most direct pressure will accumulate few signals and end up near the
+        bottom of the ranking.  Round summaries are LLM-extracted — they encode
+        higher-level reasoning that the live signal can miss.  Seeding one point
+        per incriminating summary mention gives the belief state a chance to
+        catch up before the accusation phase.
+        """
         self.memory.long_term.add_round_summary(round_num, bullets)
+
+        # Candidate names = everyone except self who is already tracked.
+        candidate_names = [
+            n for n in self.memory.knowledge_graph.suspicions.keys()
+            if n and n != self.name
+        ]
+        if not candidate_names:
+            return
+
+        for bullet in bullets:
+            bullet_lower = bullet.lower()
+            for name in candidate_names:
+                if name.lower() not in bullet_lower:
+                    continue
+                for marker in self._SUMMARY_INCRIMINATING_MARKERS:
+                    if marker in bullet_lower:
+                        self.memory.knowledge_graph.update_suspicion(
+                            name, 1, f"R{round_num} summary: {bullet[:60]}"
+                        )
+                        break  # one boost per bullet per name
     
     def update_suspicion(self, target: str, delta: int, reason: str):
         """Update suspicion level for a person in knowledge graph."""
@@ -1017,8 +1169,40 @@ Return valid structured JSON only. Cover all suspects: {suspects_str}"""),
         belief_summary = self.render_belief_summary(all_agents)
         top_ranked = belief_snapshot.get("ranking", [])
         top_n_candidates = [row.get("name") for row in top_ranked[:TOP_N_ACCUSATION_CANDIDATES] if row.get("name")]
+
+        # ── Incorporate private suspicion history into the candidate set ───────
+        # The knowledge-graph belief snapshot is built from observed dialogue
+        # signals, which may diverge from the LLM's own private assessments.
+        # Pull in the top suspects from the most recent private snapshots so
+        # that consistently high private scores (e.g. Tim Kane across rounds 4-5)
+        # are NOT silently overridden by the interaction-pressure ranking.
+        private_suspicion_context = ""
+        if self.private_suspicion_history:
+            # Aggregate suspicion scores across the last 3 private snapshots
+            aggregate: dict[str, list[int]] = {}
+            for snap in self.private_suspicion_history[-3:]:
+                for sa in snap.suspect_assessments:
+                    aggregate.setdefault(sa.suspect, []).append(sa.suspicion_score)
+            avg_scores = {name: sum(scores) / len(scores) for name, scores in aggregate.items()}
+            private_ranked = sorted(avg_scores.items(), key=lambda x: x[1], reverse=True)
+            # Top-N from private assessments
+            private_top = [name for name, _ in private_ranked[:TOP_N_ACCUSATION_CANDIDATES] if name in other_agents]
+            # Merge: private top candidates take priority
+            merged = list(dict.fromkeys(private_top + top_n_candidates))  # preserves order, deduplicates
+            top_n_candidates = merged[:TOP_N_ACCUSATION_CANDIDATES]
+
+            # Build a short context block for the prompt
+            lines = ["Your private suspicion scores (averaged across recent rounds):"]
+            for name, score in private_ranked[:6]:
+                if name in other_agents:
+                    lines.append(f"  {name}: {score:.1f}/10")
+            latest = self.private_suspicion_history[-1]
+            lines.append(f"Your most recent top suspect (Round {latest.round}): {latest.top_suspect}")
+            private_suspicion_context = "\n".join(lines)
+        # ──────────────────────────────────────────────────────────────────────
+
         top_suspect = top_n_candidates[0] if top_n_candidates else (other_agents[0] if other_agents else "")
-        
+
         msgs = [
             SystemMessage(content=f"""Character Information:
 You are {self.name}.
@@ -1033,6 +1217,8 @@ Do not give a vague accusation. Build the strongest honest case you can from the
 
 {belief_summary}
 
+{private_suspicion_context}
+
 {interaction_summary}
 
 Choose murderer from: {others_str}
@@ -1041,6 +1227,7 @@ Choose murderer from: {others_str}
 Belief-state constraint:
 - Your accusation MUST come from these top belief candidates unless the evidence is truly overwhelming otherwise: {', '.join(top_n_candidates) if top_n_candidates else others_str}
 - Your current top suspect is: {top_suspect}
+- Your private suspicion scores above reflect your own careful reasoning across all rounds — weight them heavily.
 - If you accuse someone other than your current top suspect, `comparative_case` must explicitly explain why the evidence for your chosen suspect is stronger than the evidence for {top_suspect}.
 - If your uncertainty is high, acknowledge that in `uncertainty`, but still choose the strongest candidate from your belief state.
 
@@ -1080,15 +1267,25 @@ Requirements:
                 else:
                     result.accused = other_agents[0]
 
+            # ── Belief-alignment check (log only — do NOT override the LLM's choice) ──
+            # Forcing result.accused = top_suspect here corrupts research data: it
+            # inflates the `corrected_to_top_suspect` metric and prevents us from
+            # observing how often agents naturally deviate from their belief state
+            # (RQ3).  Name validation (accused must be a real agent) is handled by the
+            # block above.  Here we only record whether the model strayed from its
+            # top-N candidates so analysis can measure belief-alignment authentically.
+            accused_outside_top_n = bool(top_n_candidates and result.accused not in top_n_candidates)
+            if accused_outside_top_n:
+                divergence_note = (
+                    f"[Belief-state note: {result.accused} was outside the top-{TOP_N_ACCUSATION_CANDIDATES} "
+                    f"belief candidates ({', '.join(top_n_candidates)}); accusation preserved as-is.]"
+                )
+                result.comparative_case = (
+                    (result.comparative_case + " " + divergence_note).strip()
+                    if result.comparative_case else divergence_note
+                )
+            # corrected_to_top_suspect kept as False — we no longer force overrides.
             corrected_to_top_suspect = False
-            if top_n_candidates and result.accused not in top_n_candidates:
-                corrected_to_top_suspect = True
-                original_accused = result.accused
-                result.accused = top_suspect
-                corrective_note = f"The model selected {original_accused}, which was outside the allowed top-{TOP_N_ACCUSATION_CANDIDATES} belief candidates, so the accusation was constrained back to {top_suspect}."
-                result.comparative_case = (result.comparative_case + " " + corrective_note).strip() if result.comparative_case else corrective_note
-                if not result.uncertainty.strip():
-                    result.uncertainty = "Belief state was diffuse, so the accusation was constrained to the strongest logged suspect."
 
             accused_rank = next((row.get("rank") for row in top_ranked if row.get("name") == result.accused), None)
             if result.accused != top_suspect and top_suspect and not result.comparative_case.strip():
@@ -1122,6 +1319,10 @@ Requirements:
                 "top_suspect": top_suspect,
                 "accused_rank": accused_rank,
                 "accused_in_top_n": result.accused in top_n_candidates if top_n_candidates else True,
+                "accused_outside_top_n": accused_outside_top_n,
+                # corrected_to_top_suspect is always False now — we no longer force
+                # overrides.  Kept in the payload for backward-compat with analysis
+                # pipelines that read this field from event logs.
                 "corrected_to_top_suspect": corrected_to_top_suspect,
             }
             return result
@@ -1141,6 +1342,7 @@ Requirements:
                 "top_suspect": top_suspect,
                 "accused_rank": 1 if fallback.accused == top_suspect else None,
                 "accused_in_top_n": fallback.accused in top_n_candidates if top_n_candidates else True,
-                "corrected_to_top_suspect": True,
+                "accused_outside_top_n": False,  # fallback always picks top_suspect
+                "corrected_to_top_suspect": True,  # fallback due to model error IS a real correction
             }
             return fallback

@@ -373,11 +373,24 @@ class LongTermHistory:
     def get_all_facts(self) -> List[str]:
         return [f.fact_text for f in self.facts]
     
-    def get_all_summaries(self) -> str:
+    def get_all_summaries(self, max_summaries: int = 35) -> str:
+        """Return round-summary bullets up to *max_summaries*, respecting the
+        section char cap.  Kept in chronological order so earlier-round facts
+        (e.g. Tim's stairwell sighting in Round 2) are not silently dropped."""
         summaries = [f for f in self.facts if "summary" in f.tags]
         if not summaries:
             return ""
-        return "\n".join([f"• {s.fact_text}" for s in summaries[-10:]])
+        lines = []
+        total_chars = 0
+        for s in summaries[-max_summaries:]:
+            line = f"• {s.fact_text}"
+            if len(line) > MAX_LINE_CHARS:
+                line = line[:MAX_LINE_CHARS - 3] + "..."
+            if total_chars + len(line) > MAX_SECTION_CHARS:
+                break
+            lines.append(line)
+            total_chars += len(line) + 1
+        return "\n".join(lines)
 
 
 # ============================================================================
@@ -587,34 +600,53 @@ class AgentMemory:
     
     def build_prompt_context(self, query: str = "") -> str:
         sections = []
-        
+
         history = self.shared_history.render_for_prompt()
         if history:
             sections.append(f"[CONVERSATION]\n{history}")
-        
+
         thoughts = self.short_term.render_for_prompt()
         if thoughts:
             sections.append(f"[YOUR THOUGHTS]\n{thoughts}")
-        
+
+        # ── Investigation notes (always shown, not similarity-gated) ───────────
+        # Round summaries are LLM-extracted condensed facts — the highest-signal
+        # memory we have.  Gating them behind cosine similarity means key facts
+        # from earlier rounds (e.g. who was seen at the stairwell in R2, the fire-
+        # escape timeline from R5) silently disappear when the retrieval query
+        # doesn't share keywords with them.  Show them unconditionally instead.
+        summaries = self.long_term.get_all_summaries()
+        if summaries:
+            sections.append(f"[INVESTIGATION NOTES]\n{summaries}")
+
+        # ── Similarity-retrieved facts (richer query: last utterance + suspects) ─
         if not query:
             window = self.shared_history.get_window()
-            query = window[-1]["text"] if window else self.agent_name
-        
+            last_text = window[-1]["text"] if window else self.agent_name
+            # Append top suspect names so the retrieval biases toward suspect-
+            # relevant facts even when the last utterance changes topic.
+            suspect_names = " ".join(
+                name for name, _, _ in self.knowledge_graph.get_ranked_suspects()[:5] if name
+            )
+            query = f"{last_text} {suspect_names}".strip() or self.agent_name
+
         facts = self.long_term.render_for_prompt(query)
         if facts:
             sections.append(f"[RELEVANT FACTS]\n{facts}")
-        
+
+        # ── Suspicion scores (all known suspects, not just those with level ≠ 0) ─
+        # Hiding suspects at level 0 makes quiet, low-profile killers invisible.
+        # Show all suspects so agents can reason about who has NOT been pressured.
         suspects = self.knowledge_graph.get_ranked_suspects()
         if suspects:
             susp_lines = []
-            for name, level, reasons in suspects[:3]:
-                if level != 0:
-                    lvl = f"+{level}" if level > 0 else str(level)
-                    reason = reasons[0][:30] if reasons else ""
-                    susp_lines.append(f"• {name}: {lvl} ({reason})")
+            for name, level, reasons in suspects[:5]:
+                lvl = f"+{level}" if level > 0 else str(level)
+                reason = reasons[0][:40] if reasons else "no dialogue signals yet"
+                susp_lines.append(f"• {name}: {lvl} ({reason})")
             if susp_lines:
                 sections.append(f"[SUSPICIONS]\n" + "\n".join(susp_lines))
-        
+
         return "\n\n".join(sections)
     
     def get_suspect_ranking(self) -> str:

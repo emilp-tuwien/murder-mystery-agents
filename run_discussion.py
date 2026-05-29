@@ -414,6 +414,12 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
                         "top_suspect": accusation_context.get("top_suspect"),
                         "accused_rank": accusation_context.get("accused_rank"),
                         "accused_in_top_n": accusation_context.get("accused_in_top_n"),
+                        # accused_outside_top_n: True when the model chose a suspect outside
+                        # its top-N belief candidates but we preserved the choice (authentic
+                        # data for RQ3 belief-alignment analysis).
+                        "accused_outside_top_n": accusation_context.get("accused_outside_top_n", False),
+                        # corrected_to_top_suspect: True only on model-error fallback path.
+                        # No longer True for normal out-of-top-N choices (see accused_outside_top_n).
                         "corrected_to_top_suspect": accusation_context.get("corrected_to_top_suspect", False),
                     },
                 },
