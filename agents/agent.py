@@ -422,14 +422,17 @@ class Agent:
                 continue
             delta = 0
             reason_bits: List[str] = []
+            # Being questioned/talked-about is weak signal — attention is not guilt.
+            # Evidence and contradiction linkage carry the real weight so the belief
+            # state tracks who the clues implicate, not just who drew scrutiny.
             if question:
-                delta += 2
+                delta += 1
                 reason_bits.append("was directly questioned")
             if addressed_to == target and question:
-                delta += 2
+                delta += 1
                 reason_bits.append("was the focus of a direct response-seeking question")
             if pressure_signal:
-                delta += 2
+                delta += 3
                 reason_bits.append("was linked to evidence, motive, or contradiction language")
             if accusation_signal:
                 delta += 2
@@ -675,7 +678,7 @@ Return valid JSON with keys: thought, action, importance, reason_type.
 Use reason_type="introduction" if you should speak, otherwise "no_move"."""),
             ]
         else:
-            if self.is_murderer:
+            if self.is_murderer and self.murderer_behavior_mode == "active_deception":
                 if current_round <= 2:
                     deception_style = (
                         "You are in the early investigation. Your priority is credibility. "
@@ -705,23 +708,60 @@ Your goals are:
 6. Do NOT confess or volunteer incriminating details.
 
 {deception_style}"""
-            else:
-                goals_block = f"""You are an in-world suspect trying to help the group determine who killed {self.scenario.victim_name}.
+            elif self.is_murderer:
+                # passive_concealment: behave like an innocent suspect. No tactic
+                # coaching, no round-by-round escalation toward redirection/offence.
+                deception_style = (
+                    "Stay measured and natural across the entire investigation. "
+                    "Do NOT escalate into steering suspicion or building a case against others — that is not how you behave."
+                )
+                goals_block = f"""You are an in-world suspect AND the actual murderer of {self.scenario.victim_name}.
+You are NOT running a manipulation strategy. You are an ordinary person who happens to be guilty and simply does not want to be caught.
 Your goals are:
-1. identify the murderer from dialogue, clues, motives, means, opportunity, contradictions, and timelines,
-2. ask sharp questions when you lack crucial information,
-3. reveal relevant facts you know when it helps the investigation,
-4. protect your private secrets unless they are directly challenged or necessary to defend yourself,
-5. avoid wasting turns on generic filler.
+1. AVOID being accused as the murderer at the end of the game.
+2. Behave exactly as an innocent, cooperative suspect would — engage with the investigation and show appropriate concern.
+3. When directly asked about your timeline or movements, give a calm, specific, plausible account. Lie only where the truth would expose you, and keep that account consistent.
+4. Only reference information that has been said aloud in the conversation or publicly revealed by the Game Master.
+5. Do NOT proactively steer suspicion toward others, build cases, or volunteer accusations. Defend yourself only when directly challenged.
+6. Do NOT confess or volunteer incriminating details.
 
-Think like an investigator with partial information, not like a chatbot.
-Your job is NOT to speak every turn. Good investigation also means waiting when another person has a stronger next move."""
+{deception_style}"""
+            else:
+                goals_block = f"""You are an in-world suspect trying to identify who killed {self.scenario.victim_name}.
+
+You have two information sets: a PRIVATE set (what only you know) and a PUBLIC set (what the group has collectively established). You may only speak from the public set or your private set — never invent facts.
+
+Apply this reasoning loop before every turn:
+
+1. BELIEF UPDATE — What did the last few turns reveal? Does it raise or lower suspicion on any specific person, and why?
+2. INFORMATION GAP — What is the single most important fact the group still does not know? Who is most likely to hold it?
+3. THEORY OF MIND — What does each other agent currently seem to know or believe? Is someone pressing unusually hard in one direction? Is someone conspicuously avoiding a topic?
+4. BEST MOVE — Given the above: is there a specific hypothesis you can test with a question, a contradiction you can surface, or a private fact worth revealing? If not, listen.
+
+Deception detection — watch for these signals in other agents' speech:
+- A claim that cannot be independently verified and conveniently removes the speaker from suspicion.
+- An alibi that changes detail under pressure, or is volunteered before anyone asked.
+- Deflection (counter-accusing someone else) instead of directly answering a question.
+- Over-explanation: excessive unprompted detail often signals preparation, not recall.
+- Silence or vagueness about a topic the person should plausibly know about.
+
+When these signals appear, name the specific inconsistency rather than making a vague accusation.
+
+Strategic question framing — a question is valuable only if its answer would discriminate between suspects. Before asking, complete this check: "If [suspect] is guilty, the answer should be X. If innocent, it should be Y." If both answers would be the same, the question is not worth asking.
+
+Your job is NOT to speak every turn. Listen when another agent has a higher-value move."""
 
             # CACHEABLE PREFIX: everything that is stable within a round
             # (agent identity, persona, round-bucketed strategy, decision frame,
             # action/importance/JSON spec) goes into SystemMessage so the local
             # LLM / OpenAI prefix cache can reuse it across all turns of the round.
-            if self.is_murderer and current_round <= 2:
+            if self.is_murderer and self.murderer_behavior_mode != "active_deception":
+                decision_frame = (
+                    "MURDERER DECISION FRAME (passive concealment): Behave like an innocent suspect. "
+                    "Take the floor mainly when directly addressed or when you can naturally give a plausible alibi detail. "
+                    "Do NOT proactively redirect suspicion or build a case against anyone — just engage as an innocent person would."
+                )
+            elif self.is_murderer and current_round <= 2:
                 decision_frame = (
                     "MURDERER DECISION FRAME (early rounds — appear cooperative): You are guilty but the group doesn't know it yet. "
                     "Do not eagerly take the floor. Speak when directly addressed, when you can volunteer a plausible alibi detail, or when dangerous topics come up and you need to shape how they land. "
@@ -742,7 +782,14 @@ Your job is NOT to speak every turn. Good investigation also means waiting when 
             else:
                 decision_frame = "Decide whether YOU specifically should speak now."
 
-            if self.is_murderer:
+            if self.is_murderer and self.murderer_behavior_mode != "active_deception":
+                listen_default_lines = ""
+                self_questions = (
+                    "- Was I directly addressed and must respond?\n"
+                    "- Do I have a natural, plausible alibi detail I haven't given yet?\n"
+                    "- Would speaking here look like an innocent person engaging, or like I'm trying to steer the conversation?"
+                )
+            elif self.is_murderer:
                 listen_default_lines = ""
                 self_questions = (
                     "- Was I directly addressed and must respond?\n"
@@ -842,10 +889,31 @@ Now decide whether to speak or listen this turn and return the JSON object as sp
                         # Dampen weak/exposing bids that would draw scrutiny without payoff.
                         if result.reason_type in {"weak_followup", "no_move", "continuation"}:
                             result.importance = max(0, result.importance - 1)
-                        # Strongly boost deception-aligned and proactive-accusation bids so the
-                        # murderer reliably takes the floor to redirect, accuse, or plant doubt.
-                        if result.reason_type in {"redirection", "alibi", "self_defense", "contradiction", "accusation", "question", "motive"}:
-                            result.importance = min(9, result.importance + 2)
+
+                        # Separate self-protective bids (defending/alibi) from proactive
+                        # misdirection (redirecting, accusing, leading questions). Only an
+                        # active-deception murderer should escalate the proactive kind, and
+                        # even then not in the early rounds where the prompt says to lie low.
+                        defensive_reasons = {"alibi", "self_defense", "direct_response"}
+                        proactive_reasons = {"redirection", "accusation", "question", "motive", "contradiction"}
+
+                        if self.murderer_behavior_mode == "active_deception":
+                            if result.reason_type in defensive_reasons:
+                                result.importance = min(9, result.importance + 2)
+                            if result.reason_type in proactive_reasons:
+                                if current_round <= 2:
+                                    # Early game: stay quiet — do not grab the floor to redirect.
+                                    result.importance = max(0, result.importance - 1)
+                                elif current_round <= 4:
+                                    result.importance = min(9, result.importance + 1)
+                                else:
+                                    result.importance = min(9, result.importance + 2)
+                        else:
+                            # passive_concealment: defend when needed, never boost misdirection.
+                            if result.reason_type in defensive_reasons:
+                                result.importance = min(9, result.importance + 1)
+                            if result.reason_type in proactive_reasons:
+                                result.importance = max(0, result.importance - 1)
 
                     if result.action == "speak" and result.importance <= 2:
                         result.action = "listen"
@@ -913,7 +981,7 @@ Output dialogue only."""),
             # SystemMessage so the prefix cache hits across all turns of the round.
             # Per-turn dynamic content (memory_context, constraint, can_ask) stays
             # in the HumanMessage.
-            if self.is_murderer:
+            if self.is_murderer and self.murderer_behavior_mode == "active_deception":
                 if current_round <= 2:
                     accusation_guidance = (
                         "In these early rounds, do NOT volunteer accusations unprompted — that looks suspicious. "
@@ -944,19 +1012,43 @@ Lie confidently when needed, appear cooperative, and gradually steer the group t
 - Stay in character. Speak in first person.
 - If asking a question, ask exactly ONE targeted question total in this turn.
 - Never ask multiple questions to multiple people in the same utterance."""
-            else:
-                purpose_block = "Your purpose is to help the group identify the murderer by surfacing relevant facts, probing suspicious people, testing alibis, and narrowing the suspect list.\nYou should prioritize dialogue that advances the investigation."
+            elif self.is_murderer:
+                # passive_concealment: behave like an innocent suspect — no proactive
+                # accusation or misdirection, no round-by-round escalation.
+                purpose_block = f"""Your purpose is to get through this investigation without being identified, by behaving like an innocent, cooperative suspect.
+You are not trying to manipulate anyone — you simply do not want to be caught."""
                 static_rules_block = f"""Rules:
-- Only use facts from your knowledge.
-- Reveal what you know when it helps identify the murderer.
-- Protect deeper secrets unless challenged, but do not become uselessly vague.
-- Focus on motive, means, opportunity, timeline, location, contradictions, and suspicious behavior.
-- No repetition.
-- Stay in character.
-- Speak in first person when appropriate.
-- If asking a question, ask exactly ONE targeted investigative question total in this turn.
-- Never ask multiple questions to multiple people in the same utterance.
-- If answering, answer the point directly before adding pressure on another suspect if relevant."""
+- You MAY lie about your own movements, timing, and what you saw — but ONLY where the truth would expose you, and keep it consistent with what you have already said.
+- INFORMATION GATE: Only reference information already spoken aloud in conversation or announced by the Game Master. Do NOT mention crime scene details or planted evidence before the Game Master has revealed it — knowing unrevealed information exposes you as the killer.
+- Do NOT confess or admit you killed {self.scenario.victim_name}.
+- Do NOT proactively accuse others, build a case against a suspect, or steer suspicion. That is not your approach — defend yourself only when directly challenged.
+- CRITICAL — when directly asked about your whereabouts, timeline, or actions: answer with a specific, plausible account first. Do NOT dodge — a calm, concrete answer is less suspicious than evasion.
+- Do not contradict hard clue facts the group has already heard — that is a red flag.
+- No exact repetition of what you've already said.
+- Stay in character. Speak in first person.
+- If asking a question, ask exactly ONE targeted question, and only if it is something an innocent person would naturally ask.
+- Never ask multiple questions to multiple people in the same utterance."""
+            else:
+                purpose_block = f"""Your purpose is to identify who killed {self.scenario.victim_name} through hypothesis testing, targeted questioning, and strategic surfacing of evidence.
+
+Before choosing what to say, identify your move type:
+- HYPOTHESIS TEST: ask a question whose answer would rule a specific suspect in or out.
+- CONTRADICTION FLAG: name a specific inconsistency between two things that have been said.
+- EVIDENCE REVEAL: disclose a private fact that materially advances the group's understanding.
+- PRESSURE: directly challenge an evasive or suspicious answer — cite the specific claim that does not fit.
+
+Choose the move type with the highest investigative value. If none clears a meaningful bar, listen instead."""
+                static_rules_block = f"""Rules:
+- Only reference facts from your private knowledge or from the public conversation.
+- Reveal private information when it advances the investigation or defends you from false accusation.
+- Protect deeper secrets unless directly challenged.
+- Focus on: motive, means, opportunity, timeline, contradictions, and suspicious behaviour patterns.
+- No repetition of already-established facts.
+- Stay in character and speak in first person.
+- One targeted question per turn, addressed to a single named person.
+- Answer direct questions before redirecting to another suspect.
+- When flagging suspicious behaviour, cite the specific claim or inconsistency — do not make vague accusations.
+- Never ask multiple questions to multiple people in the same utterance."""
 
             system_static = f"""Character Information:
 You are {self.name}.
@@ -985,10 +1077,18 @@ Output dialogue only."""
 
 Can ask: {can_ask_str}
 
-Speak now."""),
+Speak now.
+
+Constraints for this utterance:
+- Respond in 1-2 natural sentences only.
+- If you ask a question, include at most one question mark and name the single target explicitly (e.g., "Pauline, did you see...").
+- Do NOT ask multiple questions or address multiple people in the same utterance.
+- Do NOT invent facts or reveal information not already publicly spoken or announced by the Game Master.
+Return dialogue only."""),
             ]
         try:
-            result = _retry_with_backoff(lambda: self.llm.invoke(msgs))
+            # Cap response length to keep utterances concise and reduce rambling
+            result = _retry_with_backoff(lambda: self.llm.invoke(msgs, max_tokens=120))
             response = result.content if result and result.content else "I have nothing new to add."
             
             # Remove quotation marks from response
@@ -1140,11 +1240,11 @@ Return valid structured JSON only. Cover all suspects: {suspects_str}"""),
                     continue
                 delta = 0
                 if question:
-                    delta += 2
+                    delta += 1
                 if addressed == target and question:
-                    delta += 2
+                    delta += 1
                 if any(word in text.lower() for word in ["motive", "alibi", "where were", "did you", "why did", "how do you explain", "contradict", "debt", "weapon", "blood", "lied", "suspicious"]):
-                    delta += 2
+                    delta += 3
                 if delta > 0:
                     suspicion_scores[target] = suspicion_scores.get(target, 0) + delta
 
@@ -1254,9 +1354,15 @@ Belief-state constraint:
 - If your uncertainty is high, acknowledge that in `uncertainty`, but still choose the strongest candidate from your belief state.
 
 Important decision rule:
-- Your final accusation should align with the strongest evidence and the strongest sustained suspicion from the discussion.
-- If one suspect was repeatedly questioned, pressured, challenged, or treated as the main focus, you should usually accuse that suspect unless there is stronger concrete exculpatory evidence.
-- Do not switch to a random lower-attention suspect without explicitly explaining the stronger evidence for that switch.
+- Base your accusation on CONCRETE EVIDENCE first: revealed clues, contradictions, broken alibis, and motive/means/opportunity that point to a specific person.
+- How much a suspect was questioned or talked about is only weak corroboration — attention is NOT evidence of guilt. Do NOT accuse someone simply because the discussion focused on them.
+- A quiet suspect whom the clues implicate is a stronger accusation than a heavily-questioned suspect against whom there is no concrete evidence.
+- If you accuse against the direction of group attention, briefly justify it with the concrete evidence in `comparative_case`.
+
+Evidence-item requirements:
+- `evidence_items` must contain 2 to 4 concise evidence points.
+- Each evidence item SHOULD reference a revealed clue by its label (e.g., "CLUE #3: marble paperweight found in bathtub") or a concise phrase copied from the [INVESTIGATION NOTES] or SharedHistory (quote up to ~12 words).
+- Do NOT invent or hallucinate clue content — if you are unsure, state the uncertainty in `uncertainty` and give the best-supported items.
 
 Return valid JSON with keys:
 - accused
@@ -1273,14 +1379,17 @@ Return valid JSON with keys:
 
 Requirements:
 - `confidence` must be an INTEGER from 0 to 100. Do NOT use words like "high", "medium", or "low".
-- `evidence_items` must contain 2 to 4 concise evidence points.
+- `evidence_items` must contain 2 to 4 concise evidence points and reference clue labels or INVESTIGATION NOTES where possible.
 - Use the structured fields even if some are weak; if a dimension is weak, say so briefly.
 - Keep `reasoning` to 1-3 sentences.
 - `primary_basis` must be one of: motive, means, opportunity, timeline, alibi, contradiction, behavior, mixed.
-- Do not invent evidence you do not know."""),
+- Do not invent evidence you do not know.
+
+Return JSON only."""),
         ]
         try:
-            result = _retry_with_backoff(lambda: llm_accuse.invoke(msgs))
+            # Limit tokens for accusation generation to encourage concise structured output
+            result = _retry_with_backoff(lambda: llm_accuse.invoke(msgs, max_tokens=300))
             if result.accused not in other_agents:
                 for agent in other_agents:
                     if agent.lower() in result.accused.lower() or result.accused.lower() in agent.lower():

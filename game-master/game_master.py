@@ -145,7 +145,13 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
                 bullets.append(f"{msg['speaker']}: {msg['text'][:50]}...")
             return bullets
 
-    def assess_round_progress(self, history: List[dict], current_round: int, conversations_in_round: int) -> RoundGateAssessment:
+    def assess_round_progress(
+        self,
+        history: List[dict],
+        current_round: int,
+        conversations_in_round: int,
+        repetition_tracker=None,
+    ) -> RoundGateAssessment:
         current_clue = self.get_clue_for_round(current_round)
         return assess_round_gate(
             history=history,
@@ -167,11 +173,18 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
             evidence_patterns=getattr(self.scenario, "gate_evidence_patterns", None),
             pressure_patterns=getattr(self.scenario, "gate_pressure_patterns", None),
             synthesis_patterns=getattr(self.scenario, "gate_synthesis_patterns", None),
+            repetition_tracker=repetition_tracker,
         )
 
-    def should_advance_round(self, history: List[dict], conversations_in_round: int, current_round: int) -> RoundGateAssessment:
+    def should_advance_round(
+        self,
+        history: List[dict],
+        conversations_in_round: int,
+        current_round: int,
+        repetition_tracker=None,
+    ) -> RoundGateAssessment:
         """Assess whether the current investigation round should advance."""
-        return self.assess_round_progress(history, current_round, conversations_in_round)
+        return self.assess_round_progress(history, current_round, conversations_in_round, repetition_tracker)
     
     def get_stage_for_round(self, round_num: int) -> str:
         return stage_name_for_round(round_num, self.max_rounds)
@@ -202,7 +215,7 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
             return ""
         return self._load_clue(clue_number)
 
-    def decide_next_speaker(self, state: dict, thoughts: dict) -> SpeakerDecision:
+    def decide_next_speaker(self, state: dict, thoughts: dict, repetition_tracker=None) -> SpeakerDecision:
         """
         Evaluate the last message and all agent thoughts to decide who speaks next.
         
@@ -242,12 +255,54 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
         
         # SECOND: Self-selection by bid strength among available agents
         available_thoughts = {name: tr for name, tr in thoughts.items() if name in available}
-        speaking_bids = {name: tr for name, tr in available_thoughts.items() if tr.action == "speak" and tr.importance >= 7}
+
+        # Identify agents who have contributed the fewest novel facts this round
+        # (used for a low-contribution boost below)
+        current_round = state.get("current_round", 1)
+        low_contribution_agents: list = []
+        if repetition_tracker is not None:
+            low_contribution_agents = repetition_tracker.get_low_contribution_agents(
+                all_agents=self.agent_names, round_num=current_round, top_n=max(1, len(self.agent_names) // 2)
+            )
+
+        speaking_bids = {}
+        for name, tr in available_thoughts.items():
+            if not (tr.action == "speak" and tr.importance >= 7):
+                continue
+            thought_text = getattr(tr, "thought", "")
+
+            # Novelty adjustment: semantic similarity against recent utterances
+            # (replaces the old token-overlap heuristic)
+            if repetition_tracker is not None and thought_text.strip():
+                novelty = max(0.35, repetition_tracker.novelty_score(thought_text, against_last_n=8))
+            else:
+                # Fallback: token-overlap against last 6 utterances
+                recent_msgs = " ".join([u.get("text", "") for u in history[-6:]]).lower()
+                thought_tokens = set(t for t in thought_text.lower().split() if len(t) > 2)
+                recent_tokens = set(t for t in recent_msgs.split() if len(t) > 2)
+                overlap = float(len(thought_tokens & recent_tokens)) / (len(thought_tokens) or 1)
+                novelty = max(0.35, 1.0 - overlap)
+
+            adjusted_importance = int(round(tr.importance * novelty))
+
+            # Low-contribution boost: agents with few novel turns get +1 so they
+            # are preferred in ties, nudging them to share more of their knowledge
+            if name in low_contribution_agents:
+                adjusted_importance = min(9, adjusted_importance + 1)
+
+            tr_copy = tr
+            setattr(tr_copy, "adjusted_importance", adjusted_importance)
+            speaking_bids[name] = tr_copy
 
         if speaking_bids:
-            sorted_by_bid = sorted(speaking_bids.items(), key=lambda x: x[1].importance, reverse=True)
-            highest_score = sorted_by_bid[0][1].importance
-            top_agents = [name for name, tr in sorted_by_bid if tr.importance == highest_score]
+            # Use adjusted_importance when available, fall back to original importance
+            sorted_by_bid = sorted(
+                speaking_bids.items(),
+                key=lambda x: getattr(x[1], "adjusted_importance", x[1].importance),
+                reverse=True,
+            )
+            highest_score = getattr(sorted_by_bid[0][1], "adjusted_importance", sorted_by_bid[0][1].importance)
+            top_agents = [name for name, tr in sorted_by_bid if getattr(tr, "adjusted_importance", tr.importance) == highest_score]
 
             if len(top_agents) == 1:
                 winner = top_agents[0]
@@ -292,18 +347,27 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
             f"{u['speaker']}: {u['text']}" for u in history[-5:]  # Last 5 messages for context
         ]) or "(no conversation yet)"
         
+        coverage_note = ""
+        if low_contribution_agents:
+            coverage_note = (
+                f"\nKNOWLEDGE COVERAGE: These players have contributed the fewest novel facts so far "
+                f"and should be preferred if their bid is otherwise comparable: "
+                f"{', '.join(low_contribution_agents)}."
+            )
+
         msgs = [
             SystemMessage(content=f"""{self.persona}
 
 These players have EQUAL urgency scores and are tied: {available_str}
 You must break the tie by choosing who would best advance the murder investigation.
+Prefer players who have not yet shared their private knowledge or who have been silent.
 Return valid JSON with keys: reasoning, next_speaker, response_constraint, is_direct_address."""),
             HumanMessage(content=f"""RECENT CONVERSATION:
 {history_txt}
 
 TIED PLAYERS' THOUGHTS:
 {agent_thoughts_txt}
-
+{coverage_note}
 Choose ONE player from the tied players to speak next: {available_str}
 Return JSON only."""),
         ]
@@ -404,7 +468,7 @@ Let each suspect introduce themselves to the group.
 ══════════════════════════════════════════════════════════════════
 """
         
-        inner_width = 61
+        inner_width = 63
 
         if new_round == 2:
             title = f"ROUND {new_round}: THE INVESTIGATION BEGINS"

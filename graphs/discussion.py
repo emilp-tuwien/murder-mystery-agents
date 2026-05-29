@@ -235,7 +235,7 @@ def think_all(state: GameState, agents: Dict[str, any], ui_store=None):
     return {"thoughts": thoughts, "thoughts_history": thoughts_records}
 
 
-def game_master_decide(state: GameState, game_master, agents: Dict[str, any], ui_store=None):
+def game_master_decide(state: GameState, game_master, agents: Dict[str, any], ui_store=None, repetition_tracker=None):
     """Game Master evaluates and decides who speaks next"""
     thoughts = state.get("thoughts", {})
     current_round = state.get("current_round", 1)
@@ -262,7 +262,7 @@ def game_master_decide(state: GameState, game_master, agents: Dict[str, any], ui
         _emit(ui_store, "speaker_selected", {"speaker": None, "reason": "No thoughts available"})
         return {"next_speaker": None, "pending_obligation": None}
 
-    decision = game_master.decide_next_speaker(state, thoughts)
+    decision = game_master.decide_next_speaker(state, thoughts, repetition_tracker=repetition_tracker)
     _print_gm_decision(decision.next_speaker, decision.reasoning)
 
     if decision.is_direct_address:
@@ -337,7 +337,7 @@ def speak(state: GameState, agents: Dict[str, any], ui_store=None, murderer_judg
     return {"new_utterance": u, "last_speaker": speaker}
 
 
-def update_history(state: GameState, agents: Dict[str, any], ui_store=None):
+def update_history(state: GameState, agents: Dict[str, any], ui_store=None, repetition_tracker=None):
     """Update history, feed dialogue to memory systems, and log belief-state updates."""
     u = state.get("new_utterance")
     if not u:
@@ -346,7 +346,12 @@ def update_history(state: GameState, agents: Dict[str, any], ui_store=None):
     turn_id = u.get("turn", 0)
     speaker = u.get("speaker", "")
     text = u.get("text", "")
+    round_num = u.get("round", 0)
     agent_names = list(agents.keys())
+
+    # Feed utterance to the repetition tracker (side-effect, like agent memory)
+    if repetition_tracker is not None and speaker != "Game Master":
+        repetition_tracker.add(speaker, text, turn=turn_id, round_num=round_num)
 
     belief_snapshots = {}
     belief_history = []
@@ -379,7 +384,7 @@ def update_history(state: GameState, agents: Dict[str, any], ui_store=None):
     return update
 
 
-def check_round_advance(state: GameState, game_master, agents: Dict[str, any], ui_store=None):
+def check_round_advance(state: GameState, game_master, agents: Dict[str, any], ui_store=None, repetition_tracker=None):
     """Check if we should advance to the next round/stage."""
     current_round = state.get("current_round", 1)
     conversations_in_round = state.get("conversations_in_round", 0) + 1
@@ -497,7 +502,7 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
 
         return {"conversations_in_round": conversations_in_round, "current_stage": current_stage}
 
-    assessment = game_master.should_advance_round(current_round_history, conversations_in_round, current_round)
+    assessment = game_master.should_advance_round(current_round_history, conversations_in_round, current_round, repetition_tracker=repetition_tracker)
     gate_payload = {
         "stage_gate_policy": assessment.gate_policy,
         "stage_name": assessment.stage_name,
@@ -536,9 +541,13 @@ def route(state: GameState):
 
 
 def build_graph(agents: Dict[str, any], game_master, max_turns: int = 3, ui_store=None):
+    from utils.repetition_tracker import RepetitionTracker
 
     murderer_name = next((name for name, agent in agents.items() if getattr(agent, "is_murderer", False)), None)
     murderer_judge = MurdererResponseJudge(game_master.llm, murderer_name=murderer_name or "the suspect")
+
+    # One tracker per game; closed into node lambdas exactly like agents/game_master
+    repetition_tracker = RepetitionTracker()
 
     def route_fn(state: GameState):
         if state["turn"] >= max_turns or state.get("done", False):
@@ -549,10 +558,10 @@ def build_graph(agents: Dict[str, any], game_master, max_turns: int = 3, ui_stor
     g = StateGraph(GameState)
 
     g.add_node("think_all", lambda s: think_all(s, agents, ui_store=ui_store))
-    g.add_node("game_master_decide", lambda s: game_master_decide(s, game_master, agents, ui_store=ui_store))
+    g.add_node("game_master_decide", lambda s: game_master_decide(s, game_master, agents, ui_store=ui_store, repetition_tracker=repetition_tracker))
     g.add_node("speak", lambda s: speak(s, agents, ui_store=ui_store, murderer_judge=murderer_judge, murderer_name=murderer_name))
-    g.add_node("update_history", lambda s: update_history(s, agents, ui_store=ui_store))
-    g.add_node("check_round_advance", lambda s: check_round_advance(s, game_master, agents, ui_store=ui_store))
+    g.add_node("update_history", lambda s: update_history(s, agents, ui_store=ui_store, repetition_tracker=repetition_tracker))
+    g.add_node("check_round_advance", lambda s: check_round_advance(s, game_master, agents, ui_store=ui_store, repetition_tracker=repetition_tracker))
     g.add_node("advance_turn", lambda s: advance_turn(s, max_turns=max_turns))
 
     g.set_entry_point("think_all")

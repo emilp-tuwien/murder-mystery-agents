@@ -130,6 +130,9 @@ def assess_round_gate(
     evidence_patterns: Optional[Iterable[str]] = None,
     pressure_patterns: Optional[Iterable[str]] = None,
     synthesis_patterns: Optional[Iterable[str]] = None,
+    repetition_tracker=None,
+    max_repetition_rate: float = 0.55,
+    min_unique_contributor_fraction: float = 0.70,
 ) -> RoundGateAssessment:
     stage_name = stage_name_for_round(current_round, max_rounds)
     resolved_min_conversations = min_conversations or 6
@@ -179,6 +182,18 @@ def assess_round_gate(
     minimum_conversations_reached = conversations_in_round >= resolved_min_conversations
     hard_cap_reached = conversations_in_round >= resolved_hard_cap
 
+    # ── Repetition tracker metrics (if provided) ─────────────────────────────
+    rep_rate = 0.0
+    unique_contributor_fraction = 1.0
+    agents_with_novel_contribution: List[str] = list(agent_names)
+    if repetition_tracker is not None:
+        rep_rate = repetition_tracker.repetition_rate(round_num=current_round)
+        contributing = repetition_tracker.agents_with_novel_contribution(
+            all_agents=list(agent_names), round_num=current_round
+        )
+        agents_with_novel_contribution = contributing
+        unique_contributor_fraction = len(contributing) / len(agent_names) if agent_names else 1.0
+
     if gate_policy == "round_budget":
         gate_satisfied = conversations_in_round >= resolved_hard_cap
         return RoundGateAssessment(
@@ -197,6 +212,9 @@ def assess_round_gate(
                 "clue_reference_count": clue_reference_count,
                 "direct_response_count": direct_response_count,
                 "synthesis_signal_count": synthesis_signal_count,
+                "repetition_rate": rep_rate,
+                "unique_contributor_fraction": unique_contributor_fraction,
+                "agents_with_novel_contribution": agents_with_novel_contribution,
             },
             thresholds={
                 "advance_after_conversations": resolved_hard_cap,
@@ -217,6 +235,8 @@ def assess_round_gate(
     required_synthesis = min_synthesis_signals if current_round >= max_rounds - 1 else 0
     required_suspect_mentions = max(2, min(4, max(len(agent_names) // 2, 2)))
 
+    required_contributor_fraction = min_unique_contributor_fraction
+
     unmet: List[str] = []
     if unique_question_targets < required_question_targets:
         unmet.append("unique_question_targets")
@@ -234,6 +254,11 @@ def assess_round_gate(
         unmet.append("synthesis_signals")
     if not minimum_conversations_reached:
         unmet.append("minimum_conversations")
+    # Repetition and coverage gate (only enforced when tracker is available)
+    if repetition_tracker is not None and rep_rate > max_repetition_rate:
+        unmet.append("repetition_rate_too_high")
+    if repetition_tracker is not None and unique_contributor_fraction < required_contributor_fraction:
+        unmet.append("insufficient_unique_contributors")
 
     gate_satisfied = minimum_conversations_reached and not [item for item in unmet if item != "minimum_conversations"]
     allow_advance = gate_satisfied or hard_cap_reached
@@ -260,6 +285,9 @@ def assess_round_gate(
             "clue_reference_count": clue_reference_count,
             "direct_response_count": direct_response_count,
             "synthesis_signal_count": synthesis_signal_count,
+            "repetition_rate": rep_rate,
+            "unique_contributor_fraction": unique_contributor_fraction,
+            "agents_with_novel_contribution": agents_with_novel_contribution,
         },
         thresholds={
             "minimum_conversations": resolved_min_conversations,
@@ -271,6 +299,8 @@ def assess_round_gate(
             "pressure_signals": required_pressure,
             "clue_references": required_clue_references,
             "synthesis_signals": required_synthesis,
+            "max_repetition_rate": max_repetition_rate,
+            "min_unique_contributor_fraction": required_contributor_fraction,
         },
         unmet_requirements=unmet,
         minimum_conversations_reached=minimum_conversations_reached,

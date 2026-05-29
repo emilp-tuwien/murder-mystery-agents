@@ -37,64 +37,35 @@ base:
   roles_dir: scenarios/business-of-murder/roles
   clues_dir: scenarios/business-of-murder/clues
   notes: >-
-    Final thesis matrix. 2x2 design over murderer_behavior_mode
-    (passive_concealment vs active_deception) and progression_policy
-    (round_budget vs evidence_gated). Dialogue budget is held constant
-    at the standard value across all four cells.
+    Final thesis batch. Single-factor design over murderer_behavior_mode
+    (passive_concealment vs active_deception). progression_policy is held
+    constant at round_budget and dialogue budget is held at the standard value,
+    so any condition difference is attributable to deception coaching alone.
 
 conditions:
-  - name: passive-concealment__round-budget
+  - name: passive-concealment
     description: >-
-      Control cell. Murderer receives no explicit tactic coaching and progression
-      advances by fixed round budget. Establishes the baseline concealment rate
-      without active deception instructions.
+      Control. The murderer knows he is guilty and his goal is to avoid being
+      accused, but receives no coaching in deceptive tactics. He behaves like an
+      innocent, cooperative suspect and defends himself only when challenged.
     overrides:
       murderer_behavior_mode: passive_concealment
       stage_gate_policy: round_budget
-      max_round_gate_conversations: 20
     factors:
       murderer_behavior: passive_concealment
       progression_policy: round_budget
       cell_role: control
 
-  - name: passive-concealment__evidence-gated
+  - name: active-deception
     description: >-
-      Progression treatment. Murderer receives no explicit tactic coaching but
-      rounds are evidence-gated, forcing more thorough questioning before
-      advancement. Isolates the effect of gate structure without deception coaching.
-    overrides:
-      murderer_behavior_mode: passive_concealment
-      stage_gate_policy: evidence_gated
-      max_round_gate_conversations: 24
-    factors:
-      murderer_behavior: passive_concealment
-      progression_policy: evidence_gated
-      cell_role: gate_treatment
-
-  - name: active-deception__round-budget
-    description: >-
-      Deception treatment. Murderer receives explicit coaching in named deceptive
-      tactics with fixed round-budget progression. Isolates the effect of tactic
-      coaching without gate structure.
+      Treatment. Same goal (avoid accusation) but the murderer is explicitly
+      instructed to use deceptive tactics: denial, alibi construction, deflection,
+      uncertainty seeding, selective disclosure, accusation redirection, and
+      evidence reframing.
     overrides:
       murderer_behavior_mode: active_deception
       stage_gate_policy: round_budget
-      max_round_gate_conversations: 20
     factors:
       murderer_behavior: active_deception
       progression_policy: round_budget
       cell_role: deception_treatment
-
-  - name: active-deception__evidence-gated
-    description: >-
-      Full treatment cell. Murderer receives explicit deception coaching and
-      progression is evidence-gated. Tests whether gate structure reduces the
-      murderer's advantage even when they are actively coached.
-    overrides:
-      murderer_behavior_mode: active_deception
-      stage_gate_policy: evidence_gated
-      max_round_gate_conversations: 24
-    factors:
-      murderer_behavior: active_deception
-      progression_policy: evidence_gated
-      cell_role: full_treatment

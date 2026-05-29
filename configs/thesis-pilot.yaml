@@ -1,0 +1,72 @@
+base:
+  experiment_name: thesis-pilot
+  output_root: outputs
+  replicates: 5                       # 2 conditions x 5 replicates = 10 runs
+  pilot_ready_runs_per_condition: 5
+  interim_ready_runs_per_condition: 12
+  final_ready_runs_per_condition: 24
+  backend: local
+  model_name: local_llm
+  base_url: http://192.168.11.11:8080/v1
+  temperature: 0.7
+  seed: 4242                          # paired seeds across conditions (replicate r uses 4242+r-1 in both)
+  conversations_per_round: 20
+  max_rounds: 6
+  stage_gate_policy: round_budget     # held constant across both conditions
+  min_round_gate_conversations: 10
+  max_round_gate_conversations: 20
+  min_unique_question_targets_per_round: 3
+  min_question_coverage_fraction_per_round: 0.5
+  min_evidence_signals_per_round: 3
+  min_pressure_signals_per_round: 2
+  min_clue_references_per_round: 1
+  min_synthesis_signals_final_round: 1
+  murderer_behavior_mode: passive_concealment
+  enable_ui: false
+  prompt_version: thesis-final-v2
+  turn_policy_version: top2-selective-silence-v1
+  memory_version: three-stage-v1
+  deception_labeling_enabled: true
+  deception_labeling_mode: llm_rubric
+  deception_judge_temperature: 0.0
+  deception_judge_context_before_turns: 4
+  deception_judge_context_after_turns: 2
+  deception_judge_max_retries: 2
+  scenario_id: business-of-murder-v1
+  scenario_path: scenarios/business-of-murder/scenario.json
+  roles_dir: scenarios/business-of-murder/roles
+  clues_dir: scenarios/business-of-murder/clues
+  notes: >-
+    Pilot batch (10 runs). Single-factor design over murderer_behavior_mode
+    (passive_concealment vs active_deception) with progression_policy held
+    constant at round_budget. Used to confirm the pipeline produces complete
+    artifacts and that the two murderer conditions behave visibly differently
+    before scaling to the full batch.
+
+conditions:
+  - name: passive-concealment
+    description: >-
+      Control. The murderer knows he is guilty and his goal is to avoid being
+      accused, but receives no coaching in deceptive tactics. He behaves like an
+      innocent, cooperative suspect and defends himself only when challenged.
+    overrides:
+      murderer_behavior_mode: passive_concealment
+      stage_gate_policy: round_budget
+    factors:
+      murderer_behavior: passive_concealment
+      progression_policy: round_budget
+      cell_role: control
+
+  - name: active-deception
+    description: >-
+      Treatment. Same goal (avoid accusation) but the murderer is explicitly
+      instructed to use deceptive tactics: denial, alibi construction, deflection,
+      uncertainty seeding, selective disclosure, accusation redirection, and
+      evidence reframing.
+    overrides:
+      murderer_behavior_mode: active_deception
+      stage_gate_policy: round_budget
+    factors:
+      murderer_behavior: active_deception
+      progression_policy: round_budget
+      cell_role: deception_treatment
