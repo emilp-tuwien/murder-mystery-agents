@@ -477,7 +477,7 @@ class Agent:
         all_agents: Optional[List[str]] = None,
     ) -> dict:
         candidates = self._belief_candidate_names(all_agents or [])
-        snapshot = self.memory.knowledge_graph.build_snapshot(candidate_names=candidates or None, top_k=5)
+        snapshot = self.memory.knowledge_graph.build_snapshot(candidate_names=candidates or None, top_k=max(5, len(candidates)))
         belief_snapshot = {
             "turn": turn,
             "round": round_num,
