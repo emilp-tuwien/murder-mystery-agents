@@ -15,6 +15,27 @@ import re
 import numpy as np
 
 # ============================================================================
+# SENTENCE-TRANSFORMER EMBEDDING (lazy singleton)
+# ============================================================================
+_st_model = None
+
+def _get_st_embedding_fn():
+    """Return a sentence-transformers embedding function, loading the model once."""
+    try:
+        from sentence_transformers import SentenceTransformer
+    except ImportError:
+        return None
+
+    def _embed(text: str) -> np.ndarray:
+        global _st_model
+        if _st_model is None:
+            _st_model = SentenceTransformer("all-MiniLM-L6-v2")
+        vec = _st_model.encode(text, normalize_embeddings=True)
+        return vec.astype(np.float32)
+
+    return _embed
+
+# ============================================================================
 # CONFIGURABLE CONSTANTS
 # ============================================================================
 K_HISTORY = 50   # Shared history window size
@@ -23,6 +44,12 @@ L_LONG = 10      # Top L facts to retrieve from long-term memory
 
 MAX_LINE_CHARS = 120      # Max chars per line in prompt sections
 MAX_SECTION_CHARS = 2400  # Max chars per prompt section
+
+SEMANTIC_DEDUP_THRESHOLD = 0.92  # Cosine similarity above which a new fact is treated as a duplicate
+CONTRADICTION_LINK_MIN_SIM = 0.30  # Min similarity for a contradiction to be linked to an alibi fact
+
+# Render order for evidence tags — contradictions first for maximum salience
+RENDER_TAG_ORDER = ["contradiction", "alibi", "motive", "means", "opportunity", "timeline"]
 
 DEFAULT_EVIDENCE_TAGS = ["motive", "means", "opportunity", "contradiction", "timeline", "alibi"]
 
@@ -224,7 +251,7 @@ class LongTermHistory:
         return hashlib.md5(f"{turn_id}:{fact_text}".encode()).hexdigest()[:12]
     
     def add_fact(self, turn_id: int, fact_text: str, tags: List[str] = None):
-        """Add a normalized fact entry. Deduplicates by exact text."""
+        """Add a normalized fact entry. Deduplicates by exact text and semantic similarity."""
         if not fact_text:
             return
 
@@ -236,13 +263,24 @@ class LongTermHistory:
         if dedupe_key in self._fact_texts:
             return
         self._fact_texts.add(dedupe_key)
-        
+
+        embedding = self._embedding_fn(fact_text)
+
+        # Semantic dedup: skip if near-identical to an existing fact
+        if self.facts:
+            existing_embs = [f.embedding for f in self.facts if f.embedding is not None]
+            if existing_embs:
+                emb_matrix = np.stack(existing_embs)
+                max_sim = float((emb_matrix @ embedding).max())
+                if max_sim > SEMANTIC_DEDUP_THRESHOLD:
+                    return
+
         entry = FactEntry(
             id=self._generate_id(fact_text, turn_id),
             turn_id=turn_id,
             fact_text=fact_text,
             tags=tags or [],
-            embedding=self._embedding_fn(fact_text),
+            embedding=embedding,
             created_at=turn_id
         )
         self.facts.append(entry)
@@ -253,48 +291,64 @@ class LongTermHistory:
             self.add_fact(turn_id=turn_id, fact_text=f.get("fact_text", ""), tags=f.get("tags", []))
     
     def retrieve(self, query: str, top_k: int = L_LONG) -> List[FactEntry]:
-        """Retrieve top L_LONG facts by cosine similarity."""
+        """Retrieve top facts by cosine similarity, cross-linking contradictions to the alibi they dispute."""
         if not self.facts:
             return []
-        
+
         query_emb = self._embedding_fn(query)
-        scored = []
-        for fact in self.facts:
-            if fact.embedding is not None:
-                sim = np.dot(query_emb, fact.embedding)
-                scored.append((sim, fact))
-        
+        scored = [(float(np.dot(query_emb, f.embedding)), f) for f in self.facts if f.embedding is not None]
         scored.sort(key=lambda x: x[0], reverse=True)
-        return [f for _, f in scored[:top_k]]
+        results = [f for _, f in scored[:top_k]]
+
+        # For each contradiction fact in results, pull in the alibi it most likely disputes
+        result_ids = {f.id for f in results}
+        alibi_pool = [f for f in self.facts if "alibi" in f.tags and f.id not in result_ids and f.embedding is not None]
+        for contr_fact in [f for f in results if "contradiction" in f.tags]:
+            if not alibi_pool:
+                break
+            sims = [(float(np.dot(contr_fact.embedding, af.embedding)), af) for af in alibi_pool]
+            best_sim, best_alibi = max(sims, key=lambda x: x[0])
+            if best_sim >= CONTRADICTION_LINK_MIN_SIM:
+                results.append(best_alibi)
+                result_ids.add(best_alibi.id)
+                alibi_pool.remove(best_alibi)
+
+        return results
     
     def render_for_prompt(self, query: str) -> str:
-        """Retrieve and render top L_LONG facts for prompt."""
+        """Retrieve and render top facts for prompt. Contradictions first; clues labelled."""
         facts = self.retrieve(query, top_k=L_LONG)
         if not facts:
             return ""
-        
-        grouped: Dict[str, List[str]] = {tag: [] for tag in self.evidence_tags}
+
+        # Build ordered tag list: preferred order first, then any remaining evidence tags
+        ordered_tags = list(dict.fromkeys(RENDER_TAG_ORDER + self.evidence_tags))
+
+        grouped: Dict[str, List[str]] = {tag: [] for tag in ordered_tags}
         other_lines: List[str] = []
 
+        fact_tag_set: Dict[str, set] = {f.id: set(f.tags) for f in facts}
         for fact in facts:
-            primary_tags = [tag for tag in fact.tags if tag in self.evidence_tags]
-            if primary_tags:
-                tag = primary_tags[0]
-                grouped[tag].append(fact.fact_text)
+            label = "[CLUE] " if "clue" in fact.tags else ""
+            display = f"{label}{fact.fact_text}"
+            # File under the highest-priority render-order tag the fact carries
+            best_tag = next((tag for tag in ordered_tags if tag in fact_tag_set[fact.id]), None)
+            if best_tag:
+                grouped[best_tag].append(display)
             else:
-                other_lines.append(fact.fact_text)
+                other_lines.append(display)
 
         sections = []
         total_chars = 0
 
-        for tag in self.evidence_tags:
+        for tag in ordered_tags:
             entries = grouped[tag][:3]
             if not entries:
                 continue
             header = f"[{tag.upper()}]"
             lines = [header]
-            for fact_text in entries:
-                line = f"• {fact_text}"
+            for display in entries:
+                line = f"• {display}"
                 if len(line) > MAX_LINE_CHARS:
                     line = line[:MAX_LINE_CHARS - 3] + "..."
                 lines.append(line)
@@ -306,8 +360,8 @@ class LongTermHistory:
 
         if other_lines and total_chars < MAX_SECTION_CHARS:
             lines = ["[OTHER FACTS]"]
-            for fact_text in other_lines[:2]:
-                line = f"• {fact_text}"
+            for display in other_lines[:2]:
+                line = f"• {display}"
                 if len(line) > MAX_LINE_CHARS:
                     line = line[:MAX_LINE_CHARS - 3] + "..."
                 lines.append(line)
@@ -574,6 +628,8 @@ class AgentMemory:
         self.short_term = ShortTermHistory()
         evidence_tags = list(getattr(scenario, "evidence_tags", DEFAULT_EVIDENCE_TAGS))
         category_patterns = dict(getattr(scenario, "memory_category_patterns", DEFAULT_CATEGORY_PATTERNS))
+        if embedding_fn is None:
+            embedding_fn = _get_st_embedding_fn()  # falls back to random-projection if not installed
         self.long_term = LongTermHistory(embedding_fn=embedding_fn, evidence_tags=evidence_tags, category_patterns=category_patterns)
         self.knowledge_graph = KnowledgeGraph()
         self.normalizer = FactNormalizer(llm=llm, valid_tags=evidence_tags, category_patterns=category_patterns)

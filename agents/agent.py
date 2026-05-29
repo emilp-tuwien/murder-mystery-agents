@@ -157,6 +157,28 @@ class ThinkResult(BaseModel):
         return "no_move"
 
 
+class ClueRecallResult(BaseModel):
+    """Pre-accusation clue recall probe — measures what each agent actually remembers."""
+    recalled_clues: List[str] = Field(
+        default_factory=list,
+        description="List of specific clues or pieces of evidence you remember being revealed by the Game Master during the investigation.",
+    )
+    total_recalled: int = Field(default=0, ge=0, description="How many distinct clues you believe were revealed.")
+    most_important_clue: str = Field(default="", description="The single most important clue for identifying the murderer.")
+    clue_based_suspect: str = Field(default="", description="Based on the clues alone, who do they point to most strongly?")
+
+    @field_validator("recalled_clues", mode="before")
+    @classmethod
+    def normalize_recalled_clues(cls, value):
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return [part.strip(" -•\t") for part in value.split("\n") if part.strip()]
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
+        return []
+
+
 class AccusationResult(BaseModel):
     reasoning: str = Field(description="Short final reasoning for your accusation")
     accused: str = Field(description="The name of the person you accuse of being the murderer")
@@ -1346,3 +1368,58 @@ Requirements:
                 "corrected_to_top_suspect": True,  # fallback due to model error IS a real correction
             }
             return fallback
+
+    def recall_clues(self, state: GameState) -> Optional[dict]:
+        """Pre-accusation clue recall probe.
+
+        Asks the agent to list every Game-Master-revealed clue it remembers.
+        Returns a dict with the recall results and a match score against actual
+        clues stored in long-term memory.  The result is never fed back to the
+        agent — it is a measurement-only probe for the thesis analysis.
+        """
+        self.update_memory(state)
+        memory_context = self.memory.build_prompt_context()
+
+        llm_recall = self.llm.with_structured_output(ClueRecallResult, method="json_mode")
+
+        msgs = [
+            SystemMessage(content=f"""You are {self.name}.
+
+You are about to make your final accusation.
+Before that, recall ALL the clues and evidence that the Game Master revealed during the investigation.
+Do NOT invent or fabricate clues. Only list clues you actually remember being announced.
+Return valid JSON."""),
+            HumanMessage(content=f"""{memory_context}
+
+List every clue or piece of evidence that the Game Master revealed during the investigation rounds.
+For each clue, write a short summary (one sentence).
+Also state which clue you consider most important and who the clues point to.
+
+Return JSON with keys: recalled_clues, total_recalled, most_important_clue, clue_based_suspect"""),
+        ]
+
+        try:
+            result = _retry_with_backoff(lambda: llm_recall.invoke(msgs))
+            result.total_recalled = len(result.recalled_clues)
+
+            # Score recall against actual clues stored in long-term memory
+            actual_clues = self.memory.long_term.get_all_clues()
+            return {
+                "agent": self.name,
+                "recalled_clues": result.recalled_clues,
+                "total_recalled": result.total_recalled,
+                "most_important_clue": result.most_important_clue,
+                "clue_based_suspect": result.clue_based_suspect,
+                "actual_clue_count": len(actual_clues),
+            }
+        except Exception as e:
+            print(f"  Warning: clue recall probe failed for {self.name}: {e}")
+            return {
+                "agent": self.name,
+                "recalled_clues": [],
+                "total_recalled": 0,
+                "most_important_clue": "",
+                "clue_based_suspect": "",
+                "actual_clue_count": len(self.memory.long_term.get_all_clues()),
+                "error": str(e),
+            }

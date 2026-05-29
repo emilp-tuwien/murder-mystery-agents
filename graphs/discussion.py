@@ -460,6 +460,17 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
         print("  INVESTIGATION COMPLETE - Moving to accusation phase!")
         print(f"{'═'*70}\n")
 
+        # Deliver the final clue before the accusation phase so agents have
+        # all available evidence when making their accusations.
+        final_clue = game_master.get_clue_for_round(current_round + 1)
+        if final_clue:
+            from memory.agent_memory import SharedHistory
+            SharedHistory().append(state.get("turn", 0), "Game Master", f"[NEW EVIDENCE] {final_clue}")
+            print(f"\n   Final clue revealed before accusation phase.")
+            _emit(ui_store, "clue_revealed", {"round": current_round + 1, "stage": "accusation", "clue": final_clue})
+            for _, agent in agents.items():
+                agent.add_clue_to_memory(final_clue)
+
         _summarize_current_round()
         _collect_suspicion_assessments(current_round, current_stage, agents, ui_store)
 

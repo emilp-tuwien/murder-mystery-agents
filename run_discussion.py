@@ -373,6 +373,31 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
     print("Remember: Players CANNOT accuse themselves!\n")
 
     agent_names = list(agents.keys())
+
+    # ── Pre-accusation clue recall probe ──────────────────────────────────
+    _section("Clue recall probe")
+    print("Measuring what each agent remembers before accusations...\n")
+    clue_recall_results = {}
+    for name, agent in agents.items():
+        print(f"  {name} recalling clues...", end=" ")
+        recall = agent.recall_clues(final)
+        clue_recall_results[name] = recall
+        if recall:
+            print(f"recalled {recall.get('total_recalled', 0)} clues (actual: {recall.get('actual_clue_count', '?')})")
+        else:
+            print("(failed)")
+
+    if runtime_sink is not None:
+        runtime_sink.append("clue_recall", {"results": clue_recall_results})
+
+    avg_recalled = (
+        sum(r.get("total_recalled", 0) for r in clue_recall_results.values()) / len(clue_recall_results)
+        if clue_recall_results else 0
+    )
+    print(f"\n  Average clues recalled: {avg_recalled:.1f}")
+    print()
+    # ─────────────────────────────────────────────────────────────────────
+
     accusations = {}
     votes = {name: 0 for name in agent_names}
 
@@ -535,6 +560,8 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
         "winners": winners,
         "thoughts_csv": thoughts_csv,
         "group_solved": murderer_name in winners if murderer_name else False,
+        "clue_recall": clue_recall_results,
+        "avg_clues_recalled": avg_recalled,
     }
 
 

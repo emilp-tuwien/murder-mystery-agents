@@ -432,24 +432,14 @@ The truth about {self.scenario.victim_name}'s murder is getting closer...
 Continue questioning. The killer is among you!
 """
         else:
-            final_clue_number = self.max_rounds - 1
-            final_clue = self._load_clue(final_clue_number)
-            final_clue_section = ""
-            if final_clue:
-                final_clue_section = f"""
-┌─────────────────────────────────────────────────────────────────┐
-│                         FINAL CLUE!                             │
-└─────────────────────────────────────────────────────────────────┘
-
-{final_clue}
-
-══════════════════════════════════════════════════════════════════
-"""
+            # Final clue injection into agent memory is handled separately by
+            # the is_game_complete path in discussion.py (or _advance_to_round).
+            # Do NOT embed the clue text here to avoid double-reveal.
             return f"""
 ╔═══════════════════════════════════════════════════════════════╗
 ║         FINAL ROUND - TIME TO ACCUSE                          ║
 ╚═══════════════════════════════════════════════════════════════╝
-{final_clue_section}
+
 The investigation is complete. 
 
 It's time to decide: {self.scenario.accusation_prompt}
