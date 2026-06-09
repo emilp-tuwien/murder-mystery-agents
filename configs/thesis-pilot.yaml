@@ -23,7 +23,7 @@ base:
   min_synthesis_signals_final_round: 1
   murderer_behavior_mode: passive_concealment
   enable_ui: false
-  prompt_version: thesis-final-v2
+  prompt_version: thesis-final-v3
   turn_policy_version: top2-selective-silence-v1
   memory_version: three-stage-v1
   deception_labeling_enabled: true

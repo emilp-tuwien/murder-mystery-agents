@@ -1,0 +1,63 @@
+{
+  "artifact_counts": {
+    "clue_reveals": 1,
+    "round_advance_decisions": 1,
+    "round_changes": 1,
+    "round_summaries": 1,
+    "stage_gate_evaluations": 0,
+    "total_accusations": 0,
+    "total_belief_snapshots": 0,
+    "total_deception_labels": 0,
+    "total_events": 45,
+    "total_interactions": 0,
+    "total_utterances": 0
+  },
+  "condition_name": "active-deception",
+  "exclusion_reasons": [
+    "missing_required_files:metrics.json,utterances.csv,interactions.csv,accusations.csv,attention_summary.json,deception_labels.csv,deception_summary.json",
+    "run_status:running",
+    "no_utterances",
+    "accusation_phase_incomplete",
+    "missing_metrics"
+  ],
+  "experiment_name": "thesis-pilot",
+  "missing_required_files": [
+    "metrics.json",
+    "utterances.csv",
+    "interactions.csv",
+    "accusations.csv",
+    "attention_summary.json",
+    "deception_labels.csv",
+    "deception_summary.json"
+  ],
+  "process_quality": {
+    "accusation_comparative_fraction": 0.0,
+    "accusation_completed": false,
+    "accusation_reasoning_evidence_backed_fraction": 0.0,
+    "accusation_reasoning_nonempty_fraction": 0.0,
+    "accusation_structure_fraction": 0.0,
+    "belief_state_snapshots_logged": 0,
+    "belief_top1_alignment_fraction": 0.0,
+    "belief_top3_alignment_fraction": 0.0,
+    "clue_reveals_count": 1,
+    "evidence_gate_satisfied_transitions": 0,
+    "hard_cap_fallback_transitions": 0,
+    "investigation_completed_events": 0,
+    "murderer_directly_challenged": false,
+    "murderer_directly_questioned": false,
+    "murderer_pressure_signals_received": 0,
+    "round_budget_transitions": 0,
+    "round_summary_count": 1,
+    "stage_gate_evaluation_count": 0,
+    "suspect_question_coverage_fraction": 0.0,
+    "suspects_directly_questioned": []
+  },
+  "run_id": "thesis-pilot-active-deception-20260529T093416Z-r001",
+  "run_usable_for_thesis": false,
+  "validation_status": "invalid",
+  "warnings": [
+    "low_suspect_question_coverage",
+    "no_belief_state_trace_logged",
+    "deception_summary_missing"
+  ]
+}

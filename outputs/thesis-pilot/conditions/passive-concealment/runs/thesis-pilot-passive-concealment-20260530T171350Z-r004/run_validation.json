@@ -1,0 +1,53 @@
+{
+  "artifact_counts": {
+    "clue_reveals": 5,
+    "round_advance_decisions": 5,
+    "round_changes": 5,
+    "round_summaries": 5,
+    "stage_gate_evaluations": 0,
+    "total_accusations": 7,
+    "total_belief_snapshots": 609,
+    "total_deception_labels": 18,
+    "total_events": 509,
+    "total_interactions": 67,
+    "total_utterances": 88
+  },
+  "condition_name": "passive-concealment",
+  "exclusion_reasons": [],
+  "experiment_name": "thesis-pilot",
+  "missing_required_files": [],
+  "process_quality": {
+    "accusation_comparative_fraction": 1.0,
+    "accusation_completed": true,
+    "accusation_reasoning_evidence_backed_fraction": 1.0,
+    "accusation_reasoning_nonempty_fraction": 1.0,
+    "accusation_structure_fraction": 1.0,
+    "belief_state_snapshots_logged": 609,
+    "belief_top1_alignment_fraction": 0.14285714285714285,
+    "belief_top3_alignment_fraction": 0.8571428571428571,
+    "clue_reveals_count": 5,
+    "evidence_gate_satisfied_transitions": 0,
+    "hard_cap_fallback_transitions": 0,
+    "investigation_completed_events": 1,
+    "murderer_directly_challenged": true,
+    "murderer_directly_questioned": true,
+    "murderer_pressure_signals_received": 0,
+    "round_budget_transitions": 3,
+    "round_summary_count": 5,
+    "stage_gate_evaluation_count": 0,
+    "suspect_question_coverage_fraction": 1.0,
+    "suspects_directly_questioned": [
+      "Bobby Herrerra",
+      "Fiona McAllister",
+      "Harold Chun",
+      "Louis Cagliostro",
+      "Margaret Chun",
+      "Pauline Thompson",
+      "Tim Kane"
+    ]
+  },
+  "run_id": "thesis-pilot-passive-concealment-20260530T171350Z-r004",
+  "run_usable_for_thesis": true,
+  "validation_status": "valid",
+  "warnings": []
+}

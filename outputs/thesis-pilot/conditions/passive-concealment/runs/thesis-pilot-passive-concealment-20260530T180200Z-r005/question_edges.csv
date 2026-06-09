@@ -1,0 +1,25 @@
+source,target,count
+Bobby Herrerra,Fiona McAllister,1
+Bobby Herrerra,Harold Chun,1
+Bobby Herrerra,Louis Cagliostro,3
+Bobby Herrerra,Margaret Chun,2
+Bobby Herrerra,Pauline Thompson,4
+Bobby Herrerra,Tim Kane,1
+Fiona McAllister,Bobby Herrerra,4
+Fiona McAllister,Pauline Thompson,3
+Fiona McAllister,Tim Kane,1
+Harold Chun,Bobby Herrerra,2
+Harold Chun,Louis Cagliostro,2
+Harold Chun,Margaret Chun,2
+Harold Chun,Pauline Thompson,3
+Harold Chun,Tim Kane,3
+Louis Cagliostro,Bobby Herrerra,1
+Louis Cagliostro,Pauline Thompson,2
+Louis Cagliostro,Tim Kane,2
+Margaret Chun,Harold Chun,6
+Margaret Chun,Pauline Thompson,2
+Margaret Chun,Tim Kane,2
+Pauline Thompson,Bobby Herrerra,2
+Pauline Thompson,Fiona McAllister,1
+Pauline Thompson,Harold Chun,2
+Pauline Thompson,Tim Kane,2

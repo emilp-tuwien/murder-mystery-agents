@@ -20,7 +20,7 @@ from scenarios import load_scenario_config
 from schemas.state import GameState
 from utils.agent_helper import detect_murderer, load_character_descriptions
 from utils.evidence_gates import stage_name_for_round
-from utils.formatting import _banner, _format_history, _section
+from utils.formatting import _banner, _format_history, _format_suspicion_matrix, _section
 from utils.ollama_helper import _select_ollama_model
 
 sys.path.insert(0, str(Path(__file__).parent / "game-master"))
@@ -202,7 +202,11 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
     scenario = load_scenario_config(config.resolved_scenario_path())
     descriptions = load_character_descriptions(roles_dir)
     selected_characters = list(descriptions.keys())
-    max_turns = len(selected_characters) + max(config.max_rounds - 2, 0) * config.conversations_per_round + 10
+    # Discussion runs in rounds 2..max_rounds-1 (round max_rounds is accusation-only,
+    # no discussion turns); round 1 is introductions. Size the turn budget generously
+    # for every discussion round plus intros and slack — it is only an upper bound; the
+    # graph ends as soon as the final discussion round's gate completes.
+    max_turns = len(selected_characters) + max(config.max_rounds - 1, 0) * config.conversations_per_round + 10
 
     print(f"Game will have {config.max_rounds} rounds with {config.conversations_per_round} conversations per round.")
     print(f"Maximum turns: {max_turns}")
@@ -383,7 +387,14 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
         recall = agent.recall_clues(final)
         clue_recall_results[name] = recall
         if recall:
-            print(f"recalled {recall.get('total_recalled', 0)} clues (actual: {recall.get('actual_clue_count', '?')})")
+            recalled = recall.get("total_recalled", 0)
+            actual = recall.get("actual_clue_count")
+            if actual:
+                pct = 100.0 * recalled / actual
+                flag = "  ⚠ low" if pct < 50 else ""
+                print(f"recalled {recalled}/{actual} clues ({pct:.0f}%){flag}")
+            else:
+                print(f"recalled {recalled} clues (actual: ?)")
         else:
             print("(failed)")
 
@@ -398,6 +409,18 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
     print()
     # ─────────────────────────────────────────────────────────────────────
 
+    # ── Final private suspicion state (matrix) ────────────────────────────
+    latest_assessments = {
+        name: agent.private_suspicion_history[-1]
+        for name, agent in agents.items()
+        if getattr(agent, "private_suspicion_history", None)
+    }
+    if latest_assessments:
+        _section("Final suspicion matrix (private, pre-accusation)")
+        print(_format_suspicion_matrix(latest_assessments, agent_names, murderer_name=murderer_name))
+        print()
+    # ─────────────────────────────────────────────────────────────────────
+
     accusations = {}
     votes = {name: 0 for name in agent_names}
 
@@ -405,10 +428,18 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
         print(f"  {name} is deliberating...", end=" ")
         result = agent.accuse(final, agent_names)
 
+        # Self-accusation is not allowed. accuse() already guards against it, but if
+        # one ever slips through we redirect to the agent's OWN strongest suspect
+        # (from its belief state) rather than an arbitrary name, so the vote still
+        # reflects what this agent actually believed.
         if result.accused == name:
+            ctx = getattr(agent, "last_accusation_context", {}) or {}
             other_agents = [n for n in agent_names if n != name]
-            print(f"(tried to accuse self, redirecting)...", end=" ")
-            result.accused = other_agents[0] if other_agents else result.accused
+            redirect = ctx.get("top_suspect")
+            if not redirect or redirect == name:
+                redirect = other_agents[0] if other_agents else result.accused
+            print(f"(self-accusation blocked → {redirect})...", end=" ")
+            result.accused = redirect
 
         accusations[name] = result
         votes[result.accused] = votes.get(result.accused, 0) + 1
@@ -470,7 +501,30 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
     sorted_votes = sorted(votes.items(), key=lambda x: x[1], reverse=True)
     for name, count in sorted_votes:
         bar = "█" * count
-        print(f"  {name}: {bar} ({count} votes)")
+        marker = "  ← MURDERER" if murderer_name and name == murderer_name else ""
+        print(f"  {name:<20} {bar} ({count} votes){marker}")
+
+    # ── Belief-alignment summary (RQ3) ────────────────────────────────────
+    _section("Belief alignment")
+    n_acc = len(accusations) or 1
+    matched_top = 0
+    in_top_n = 0
+    outside_top_n = 0
+    for nm, result in accusations.items():
+        ctx = getattr(agents.get(nm), "last_accusation_context", {}) or {}
+        if ctx.get("top_suspect") == result.accused:
+            matched_top += 1
+        if ctx.get("accused_in_top_n"):
+            in_top_n += 1
+        if ctx.get("accused_outside_top_n"):
+            outside_top_n += 1
+    print(f"  Accused their own top suspect:        {matched_top}/{n_acc} ({100*matched_top/n_acc:.0f}%)")
+    print(f"  Accused someone in their top-N:       {in_top_n}/{n_acc} ({100*in_top_n/n_acc:.0f}%)")
+    print(f"  Accused outside their top-N belief:   {outside_top_n}/{n_acc} ({100*outside_top_n/n_acc:.0f}%)")
+    if murderer_name:
+        accused_murderer = sum(1 for r in accusations.values() if r.accused == murderer_name)
+        print(f"  Accused the real murderer:            {accused_murderer}/{n_acc} ({100*accused_murderer/n_acc:.0f}%)")
+    # ──────────────────────────────────────────────────────────────────────
 
     max_votes = sorted_votes[0][1]
     winners = [name for name, count in sorted_votes if count == max_votes]
@@ -520,6 +574,28 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
                 "votes": votes,
             },
         )
+
+    # ── Suspicion convergence over rounds ─────────────────────────────────
+    if murderer_name:
+        by_round: dict[int, list[tuple[bool, bool]]] = {}
+        for agent in agents.values():
+            for snap in getattr(agent, "private_suspicion_history", []) or []:
+                ranked = sorted(snap.suspect_assessments, key=lambda sa: sa.suspicion_score, reverse=True)
+                top3 = [sa.suspect for sa in ranked[:3]]
+                is_top1 = snap.top_suspect == murderer_name
+                is_top3 = murderer_name in top3
+                by_round.setdefault(snap.round, []).append((is_top1, is_top3))
+        if by_round:
+            _section(f"Suspicion convergence on {murderer_name}")
+            print("  (how many agents privately suspected the real murderer each round)\n")
+            for rnd in sorted(by_round):
+                entries = by_round[rnd]
+                total = len(entries)
+                t1 = sum(1 for a, _ in entries if a)
+                t3 = sum(1 for _, b in entries if b)
+                bar = "█" * t3 + "░" * (total - t3)
+                print(f"  Round {rnd}: [{bar}] top-3: {t3}/{total}   |   top suspect: {t1}/{total}")
+    # ──────────────────────────────────────────────────────────────────────
 
     _section("Full transcript")
     print(_format_history(final["history"]))

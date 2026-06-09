@@ -1,10 +1,10 @@
 Workflow progress for thesis-pilot
 
-- Workflow stage: planned
+- Workflow stage: complete_but_underpowered
 - Planned total runs: 10
-- Completed runs: 0
-- Usable runs: 0
-- Invalid runs: 0
+- Completed runs: 15
+- Usable runs: 5
+- Invalid runs: 10
 - Conditions: 2
 - Minimum usable runs per condition: 0
 
@@ -14,10 +14,11 @@ Thresholds:
 - Final-analysis-ready: 24 usable runs / condition
 
 Per-condition status:
-- passive-concealment: planned=5, completed=0, usable=0, invalid=0, warnings=0
-  remaining_to_pilot=5, remaining_to_interim=12, remaining_to_final=24
-- active-deception: planned=5, completed=0, usable=0, invalid=0, warnings=0
+- passive-concealment: planned=5, completed=11, usable=5, invalid=6, warnings=6
+  remaining_to_pilot=0, remaining_to_interim=7, remaining_to_final=19
+- active-deception: planned=5, completed=4, usable=0, invalid=4, warnings=4
   remaining_to_pilot=5, remaining_to_interim=12, remaining_to_final=24
 
 Recommendations:
-- No usable runs yet; start with a small sanity batch and confirm that every run reaches accusation with complete artifacts.
+- Inspect run_validation.json files for invalid runs before interpreting condition-level metrics.
+- The currently planned batch finished below pilot-ready power; either raise replicates or reduce the condition matrix before drawing conclusions.

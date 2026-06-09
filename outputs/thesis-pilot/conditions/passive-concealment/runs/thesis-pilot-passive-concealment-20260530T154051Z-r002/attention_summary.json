@@ -1,0 +1,35 @@
+{
+  "followup_target_counts": {
+    "Bobby Herrerra": 8,
+    "Fiona McAllister": 1,
+    "Harold Chun": 1,
+    "Margaret Chun": 8,
+    "Pauline Thompson": 5,
+    "Tim Kane": 2
+  },
+  "followup_target_entropy": 2.179470570797252,
+  "followup_target_gini": 0.3933333333333333,
+  "justification_target_counts": {},
+  "justification_target_entropy": 0.0,
+  "justification_target_gini": 0.0,
+  "murderer_followups_received": 2,
+  "murderer_justification_requests_received": 0,
+  "murderer_mentions_received": 6,
+  "murderer_pressure_signals_received": 0,
+  "murderer_questions_received": 6,
+  "pressure_target_counts": {},
+  "pressure_target_entropy": 0.0,
+  "pressure_target_gini": 0.0,
+  "question_target_counts": {
+    "Bobby Herrerra": 10,
+    "Fiona McAllister": 2,
+    "Harold Chun": 4,
+    "Louis Cagliostro": 4,
+    "Margaret Chun": 14,
+    "Pauline Thompson": 7,
+    "Tim Kane": 6
+  },
+  "question_target_entropy": 2.582599291754015,
+  "question_target_gini": 0.3100303951367782,
+  "total_interaction_rows": 74
+}

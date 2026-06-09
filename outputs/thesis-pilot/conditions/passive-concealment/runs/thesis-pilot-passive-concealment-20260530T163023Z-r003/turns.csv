@@ -1,0 +1,88 @@
+turn,round,phase,stage,selected_speaker,selection_reason,is_direct_address
+1,1,introduction,introduction,Harold Chun,Introduction (7 remaining),False
+2,1,introduction,introduction,Bobby Herrerra,Introduction (6 remaining),False
+3,1,introduction,introduction,Pauline Thompson,Introduction (5 remaining),False
+4,1,introduction,introduction,Louis Cagliostro,Introduction (4 remaining),False
+5,1,introduction,introduction,Tim Kane,Introduction (3 remaining),False
+6,1,introduction,introduction,Margaret Chun,Introduction (2 remaining),False
+7,1,introduction,introduction,Fiona McAllister,Introduction (1 remaining),False
+8,2,discussion,initial_framing,Harold Chun,"Harold Chun has the strongest self-selection bid (3/9, reason=question)",False
+9,2,discussion,initial_framing,Tim Kane,Tim Kane was directly addressed by Harold Chun,True
+10,2,discussion,initial_framing,Pauline Thompson,"Pauline Thompson has the strongest self-selection bid (3/9, reason=question)",False
+11,2,discussion,initial_framing,Bobby Herrerra,Bobby Herrerra was directly addressed by Pauline Thompson,True
+12,2,discussion,initial_framing,Louis Cagliostro,"Tie-breaker: Both Harold and Louis have equal urgency scores. However, Louis Cagliostro has not yet spoken in the conversation, while Harold has already asked a question. According to the tie‑breaking rule that prefers players who have been silent, Louis should speak next to advance the investigation.",False
+13,2,discussion,initial_framing,Tim Kane,Tim Kane was directly addressed by Louis Cagliostro,True
+14,2,discussion,initial_framing,Margaret Chun,"Tie-breaker: Both Harold Chun and Margaret Chun have not yet spoken and have equal urgency scores. Margaret’s bid is higher (8/9 vs 7/9), and her planned question directly addresses the key timeline of the bathroom, the murder scene, and could reveal a contradiction in Tim’s alibi. This is the most investigative move available, so Margaret Chun is selected.",False
+15,2,discussion,initial_framing,Pauline Thompson,Pauline Thompson was directly addressed by Margaret Chun,True
+16,2,discussion,initial_framing,Tim Kane,Tim Kane was directly addressed by Pauline Thompson,True
+17,2,discussion,initial_framing,Harold Chun,"Harold Chun has the strongest self-selection bid (4/9, reason=question)",False
+18,2,discussion,initial_framing,Bobby Herrerra,Bobby Herrerra was directly addressed by Harold Chun,True
+19,2,discussion,initial_framing,Fiona McAllister,"Fiona McAllister has the strongest self-selection bid (2/9, reason=question)",False
+20,2,discussion,initial_framing,Bobby Herrerra,Bobby Herrerra was directly addressed by Fiona McAllister,True
+21,2,discussion,initial_framing,Tim Kane,Tim Kane was directly addressed by Bobby Herrerra,True
+22,2,discussion,initial_framing,Harold Chun,"Harold Chun has the strongest self-selection bid (3/9, reason=question)",False
+23,2,discussion,initial_framing,Bobby Herrerra,Bobby Herrerra was directly addressed by Harold Chun,True
+24,2,discussion,initial_framing,Pauline Thompson,"Pauline Thompson has the strongest self-selection bid (4/9, reason=direct_response)",False
+25,2,discussion,initial_framing,Margaret Chun,Margaret Chun was directly addressed by Pauline Thompson,True
+26,2,discussion,initial_framing,Tim Kane,Tim Kane was directly addressed by Margaret Chun,True
+27,2,discussion,initial_framing,Bobby Herrerra,"Tie-breaker: Both Harold Chun and Bobby Herrerra have equal bids, but Bobby has not yet disclosed his private knowledge that the body was found in the bathroom. Revealing this fact would provide a critical piece of information and move the investigation forward. Harold has already asked a question about Margaret's arrival time, which is a useful line of inquiry, but Bobby’s undisclosed clue is more directly relevant to establishing the timeline and suspect list. Therefore Bobby Herrerra should speak next.",False
+28,3,discussion,clue_integration,Pauline Thompson,"Pauline Thompson has the strongest self-selection bid (3/9, reason=question)",False
+29,3,discussion,clue_integration,Margaret Chun,Margaret Chun was directly addressed by Pauline Thompson,True
+30,3,discussion,clue_integration,Tim Kane,Tim Kane was directly addressed by Margaret Chun,True
+31,3,discussion,clue_integration,Fiona McAllister,"Fiona McAllister has the strongest self-selection bid (2/9, reason=question)",False
+32,3,discussion,clue_integration,Pauline Thompson,Pauline Thompson was directly addressed by Fiona McAllister,True
+33,3,discussion,clue_integration,Harold Chun,Harold Chun was directly addressed by Pauline Thompson,True
+34,3,discussion,clue_integration,Bobby Herrerra,Bobby Herrerra was directly addressed by Harold Chun,True
+35,3,discussion,clue_integration,Fiona McAllister,Fiona McAllister was directly addressed by Bobby Herrerra,True
+36,3,discussion,clue_integration,Tim Kane,Tim Kane was directly addressed by Fiona McAllister,True
+37,3,discussion,clue_integration,Harold Chun,"Harold Chun has the strongest self-selection bid (3/9, reason=question)",False
+38,3,discussion,clue_integration,Tim Kane,Tim Kane was directly addressed by Harold Chun,True
+39,3,discussion,clue_integration,Pauline Thompson,"Tie-breaker: Pauline Thompson has not yet spoken and is the only tied player with the lowest bid. Her question about Harold Chun’s exact entry time will directly narrow the timeline and potentially identify a suspect. This choice also satisfies the knowledge‑coverage rule, as Pauline has contributed few novel facts.",False
+40,3,discussion,clue_integration,Bobby Herrerra,Bobby Herrerra was directly addressed by Pauline Thompson,True
+41,3,discussion,clue_integration,Pauline Thompson,Pauline Thompson was directly addressed by Bobby Herrerra,True
+42,3,discussion,clue_integration,Bobby Herrerra,Bobby Herrerra was directly addressed by Pauline Thompson,True
+43,3,discussion,clue_integration,Margaret Chun,"Margaret Chun has the strongest self-selection bid (3/9, reason=question)",False
+44,3,discussion,clue_integration,Fiona McAllister,Fiona McAllister was directly addressed by Margaret Chun,True
+45,3,discussion,clue_integration,Harold Chun,"Harold Chun has the strongest self-selection bid (3/9, reason=question)",False
+46,3,discussion,clue_integration,Tim Kane,Tim Kane was directly addressed by Harold Chun,True
+47,3,discussion,clue_integration,Louis Cagliostro,"Tie-breaker: Louis has not spoken yet, giving him priority over the silent player rule. His bid (8/9) is higher than Harold's (7/9) and his question about Tim’s presence in the apartment after 9:00 directly targets the missing timeline that could implicate or exonerate Tim. This question is a high‑value inquiry that can immediately narrow the suspect list.",False
+48,4,discussion,contradiction_pressure,Tim Kane,Tim Kane was directly addressed by Louis Cagliostro,True
+49,4,discussion,contradiction_pressure,Bobby Herrerra,"Bobby Herrerra has the strongest self-selection bid (4/9, reason=question)",False
+50,4,discussion,contradiction_pressure,Tim Kane,Tim Kane was directly addressed by Bobby Herrerra,True
+51,4,discussion,contradiction_pressure,Margaret Chun,"Margaret Chun has the strongest self-selection bid (2/9, reason=question)",False
+52,4,discussion,contradiction_pressure,Pauline Thompson,Pauline Thompson was directly addressed by Margaret Chun,True
+53,4,discussion,contradiction_pressure,Harold Chun,"Harold Chun has the strongest self-selection bid (4/9, reason=question)",False
+54,4,discussion,contradiction_pressure,Bobby Herrerra,Bobby Herrerra was directly addressed by Harold Chun,True
+55,4,discussion,contradiction_pressure,Harold Chun,"Tie-breaker: Both Tim Kane and Harold Chun have equal urgency scores. Harold has only asked a question so far and has not shared any private knowledge, while Tim has provided a denial statement. To advance the investigation, Harold can now probe Margaret Chun regarding her arrival time, potentially filling a critical gap in the timeline. This choice also introduces a new line of questioning that hasn't been explored yet.",False
+56,4,discussion,contradiction_pressure,Bobby Herrerra,Bobby Herrerra was directly addressed by Harold Chun,True
+57,4,discussion,contradiction_pressure,Fiona McAllister,Fiona McAllister was directly addressed by Bobby Herrerra,True
+58,4,discussion,contradiction_pressure,Bobby Herrerra,Bobby Herrerra was directly addressed by Fiona McAllister,True
+59,4,discussion,contradiction_pressure,Louis Cagliostro,Tie-breaker: Louis Cagliostro has not spoken yet and his proposed question—asking Tim whether he had a key to Rick’s office that evening—directly addresses a critical unknown: the only way to access the marble paperweight murder weapon. This will immediately narrow suspect options and advance the investigation.,False
+60,4,discussion,contradiction_pressure,Tim Kane,Tim Kane was directly addressed by Louis Cagliostro,True
+61,4,discussion,contradiction_pressure,Pauline Thompson,"Pauline Thompson has the strongest self-selection bid (4/9, reason=question)",False
+62,4,discussion,contradiction_pressure,Bobby Herrerra,Bobby Herrerra was directly addressed by Pauline Thompson,True
+63,4,discussion,contradiction_pressure,Harold Chun,"Tie-breaker: Both Margaret Chun and Harold Chun have equal urgency scores. Harold Chun has contributed fewer novel facts to the discussion compared to Margaret Chun, making his intervention more likely to advance the investigation by introducing new information. Additionally, Harold Chun’s stated intention is to ask a direct question that could clarify the timeline, which is a high-value move. Therefore, Harold Chun should speak next.",False
+64,4,discussion,contradiction_pressure,Tim Kane,Tim Kane was directly addressed by Harold Chun,True
+65,4,discussion,contradiction_pressure,Pauline Thompson,"Tie-breaker: Both Harold Chun and Pauline Thompson have the same urgency score and have not yet shared private knowledge. To best advance the investigation, Pauline’s next move—asking Harold whether he had Rick’s office key that evening—directly discriminates between key suspects and has not yet been addressed, making it a stronger move than asking Margaret about the bathroom. Thus Pauline is the next speaker.",False
+66,4,discussion,contradiction_pressure,Harold Chun,Harold Chun was directly addressed by Pauline Thompson,True
+67,4,discussion,contradiction_pressure,Fiona McAllister,"Tie-breaker: Both Bobby Herrerra and Fiona McAllister have identical urgency scores and are tied. Fiona has not yet spoken in the conversation, whereas Bobby has already provided information. According to the tie‑breaking rules, we prefer a player who has not yet shared private knowledge or who has been silent. Additionally, Fiona’s proposed question about whether Pauline Thompson had Rick’s office key would directly address a critical unknown (the source of the murder weapon) and could split the suspect list, thereby advancing the investigation. Therefore, Fiona McAllister is the best choice to speak next.",False
+68,5,discussion,accusation_synthesis,Pauline Thompson,Pauline Thompson was directly addressed by Fiona McAllister,True
+69,5,discussion,accusation_synthesis,Louis Cagliostro,"Tie-breaker: Both Bobby Herrerra and Louis Cagliostro have not spoken yet. Louis’s bid (8/9) targets a newly discovered clue—a note saying ‘Pay up or die!’—which could directly implicate or exonerate Tim, a key suspect. Confirming whether Tim was the note’s author would likely advance the investigation more decisively than probing Fiona’s key access, which has not yet been addressed but is slightly less critical. Therefore, Louis is chosen as the next speaker.",False
+70,5,discussion,accusation_synthesis,Bobby Herrerra,Bobby Herrerra was directly addressed by Louis Cagliostro,True
+71,5,discussion,accusation_synthesis,Harold Chun,"Harold Chun has the strongest self-selection bid (3/9, reason=question)",False
+72,5,discussion,accusation_synthesis,Margaret Chun,Margaret Chun was directly addressed by Harold Chun,True
+73,5,discussion,accusation_synthesis,Bobby Herrerra,"Bobby Herrerra has the strongest self-selection bid (3/9, reason=question)",False
+74,5,discussion,accusation_synthesis,Fiona McAllister,Fiona McAllister was directly addressed by Bobby Herrerra,True
+75,5,discussion,accusation_synthesis,Pauline Thompson,"Tie-breaker: Pauline Thompson has not yet spoken and would ask Louis whether he had access to Rick’s office key that evening, directly addressing the key‑access gap that is critical for determining who could have moved the paperweight. This question is likely to advance the investigation by clarifying Louis’s means or exonerating him.",False
+76,5,discussion,accusation_synthesis,Louis Cagliostro,Louis Cagliostro was directly addressed by Pauline Thompson,True
+77,5,discussion,accusation_synthesis,Harold Chun,"Tie-breaker: Harold Chun has not yet spoken and has not shared any private knowledge. His proposed question—asking Louis about access to Rick’s office—directly targets a key missing piece of evidence (the location of the murder weapon). This question is likely to clarify whether Louis could have taken the paperweight, thereby advancing the investigation more effectively than repeating information already provided by others.",False
+78,5,discussion,accusation_synthesis,Louis Cagliostro,Louis Cagliostro was directly addressed by Harold Chun,True
+79,5,discussion,accusation_synthesis,Margaret Chun,"Margaret Chun has the strongest self-selection bid (2/9, reason=question)",False
+80,5,discussion,accusation_synthesis,Louis Cagliostro,Louis Cagliostro was directly addressed by Margaret Chun,True
+81,5,discussion,accusation_synthesis,Pauline Thompson,"Pauline Thompson has the strongest self-selection bid (3/9, reason=question)",False
+82,5,discussion,accusation_synthesis,Bobby Herrerra,Bobby Herrerra was directly addressed by Pauline Thompson,True
+83,5,discussion,accusation_synthesis,Fiona McAllister,"Fiona McAllister has the strongest self-selection bid (2/9, reason=question)",False
+84,5,discussion,accusation_synthesis,Tim Kane,Tim Kane was directly addressed by Fiona McAllister,True
+85,5,discussion,accusation_synthesis,Fiona McAllister,Fiona McAllister was directly addressed by Tim Kane,True
+86,5,discussion,accusation_synthesis,Pauline Thompson,Pauline Thompson was directly addressed by Fiona McAllister,True
+87,5,discussion,accusation_synthesis,Harold Chun,"Harold Chun has the strongest self-selection bid (4/9, reason=question)",False

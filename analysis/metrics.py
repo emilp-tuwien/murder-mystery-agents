@@ -9,7 +9,7 @@ import random
 
 from analysis.attention import build_attention_artifacts
 from analysis.deception import aggregate_condition_deception, label_deception_for_run
-from utils.dialogue_analysis import detect_direct_address, extract_mentions, is_question
+from utils.dialogue_analysis import count_disfluencies, detect_direct_address, extract_mentions, is_question
 
 
 def _read_json(path: Path) -> Dict[str, Any]:
@@ -126,6 +126,7 @@ def _extract_utterance_rows(events: List[Dict[str, Any]], agent_names: List[str]
             "speaker": speaker,
             "text": text,
             "word_count": len(text.split()),
+            "disfluency_count": count_disfluencies(text),
             "is_question": question_flag,
             "addressed_to": addressed_to,
             "mentioned_agents": "|".join(mentioned_agents),
@@ -328,6 +329,7 @@ def _extract_belief_rows(events: List[Dict[str, Any]], run_id: str) -> List[Dict
 def _compute_agent_metrics(utterances: List[Dict[str, Any]], agent_names: List[str], murderer_name: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
     utterance_count = Counter()
     word_count = Counter()
+    disfluency_count = Counter()
     question_count = Counter()
     questions_received = Counter()
     mentions_received = Counter()
@@ -338,6 +340,7 @@ def _compute_agent_metrics(utterances: List[Dict[str, Any]], agent_names: List[s
         speaker = row["speaker"]
         utterance_count[speaker] += 1
         word_count[speaker] += int(row["word_count"])
+        disfluency_count[speaker] += int(row.get("disfluency_count", 0))
         if row["is_question"]:
             question_count[speaker] += 1
             if row["addressed_to"]:
@@ -361,6 +364,8 @@ def _compute_agent_metrics(utterances: List[Dict[str, Any]], agent_names: List[s
             "speaker_share": utterance_count[agent] / total_utterances,
             "word_count": word_count[agent],
             "word_share": word_count[agent] / total_words,
+            "disfluency_count": disfluency_count[agent],
+            "disfluency_per_utterance": disfluency_count[agent] / utterance_count[agent] if utterance_count[agent] else 0.0,
             "question_count": question_count[agent],
             "questions_received": questions_received[agent],
             "mentions_received": mentions_received[agent],

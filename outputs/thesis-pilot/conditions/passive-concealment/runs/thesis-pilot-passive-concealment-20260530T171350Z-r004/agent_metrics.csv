@@ -1,0 +1,8 @@
+agent,is_murderer,utterance_count,speaker_share,word_count,word_share,disfluency_count,disfluency_per_utterance,question_count,questions_received,mentions_received,attention_received
+Harold Chun,False,13,0.14772727272727273,208,0.11040339702760085,0,0.0,11,5,11,16
+Bobby Herrerra,False,22,0.25,468,0.2484076433121019,0,0.0,15,17,17,34
+Pauline Thompson,False,14,0.1590909090909091,342,0.18152866242038215,0,0.0,8,10,12,22
+Louis Cagliostro,False,7,0.07954545454545454,122,0.06475583864118896,0,0.0,5,2,2,4
+Tim Kane,True,12,0.13636363636363635,346,0.18365180467091294,0,0.0,1,9,9,18
+Margaret Chun,False,10,0.11363636363636363,227,0.12048832271762208,0,0.0,7,3,10,13
+Fiona McAllister,False,9,0.10227272727272728,161,0.08545647558386411,0,0.0,6,4,6,10

@@ -2,40 +2,41 @@
   "conditions": [
     {
       "condition_description": "Control. The murderer knows he is guilty and his goal is to avoid being accused, but receives no coaching in deceptive tactics. He behaves like an innocent, cooperative suspect and defends himself only when challenged.",
-      "condition_dir": "/Users/emil/Desktop/project_thesis/murder-mystery-agents/outputs/thesis-pilot/conditions/passive-concealment",
+      "condition_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/thesis-pilot/conditions/passive-concealment",
       "condition_name": "passive-concealment",
-      "invalid_runs": 0,
+      "invalid_runs": 6,
       "planned_runs": 5,
-      "planned_runs_remaining": 5,
-      "remaining_to_final": 24,
-      "remaining_to_interim": 12,
-      "remaining_to_pilot": 5,
-      "runs_with_warnings": 0,
-      "total_runs": 0,
-      "usable_runs": 0
+      "planned_runs_remaining": 0,
+      "remaining_to_final": 19,
+      "remaining_to_interim": 7,
+      "remaining_to_pilot": 0,
+      "runs_with_warnings": 6,
+      "total_runs": 11,
+      "usable_runs": 5
     },
     {
       "condition_description": "Treatment. Same goal (avoid accusation) but the murderer is explicitly instructed to use deceptive tactics: denial, alibi construction, deflection, uncertainty seeding, selective disclosure, accusation redirection, and evidence reframing.",
-      "condition_dir": "/Users/emil/Desktop/project_thesis/murder-mystery-agents/outputs/thesis-pilot/conditions/active-deception",
+      "condition_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/thesis-pilot/conditions/active-deception",
       "condition_name": "active-deception",
-      "invalid_runs": 0,
+      "invalid_runs": 4,
       "planned_runs": 5,
-      "planned_runs_remaining": 5,
+      "planned_runs_remaining": 1,
       "remaining_to_final": 24,
       "remaining_to_interim": 12,
       "remaining_to_pilot": 5,
-      "runs_with_warnings": 0,
-      "total_runs": 0,
+      "runs_with_warnings": 4,
+      "total_runs": 4,
       "usable_runs": 0
     }
   ],
-  "experiment_dir": "/Users/emil/Desktop/project_thesis/murder-mystery-agents/outputs/thesis-pilot",
+  "experiment_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/thesis-pilot",
   "experiment_name": "thesis-pilot",
-  "invalid_runs": 0,
+  "invalid_runs": 10,
   "minimum_usable_runs_per_condition": 0,
   "planned_total_runs": 10,
   "recommendations": [
-    "No usable runs yet; start with a small sanity batch and confirm that every run reaches accusation with complete artifacts."
+    "Inspect run_validation.json files for invalid runs before interpreting condition-level metrics.",
+    "The currently planned batch finished below pilot-ready power; either raise replicates or reduce the condition matrix before drawing conclusions."
   ],
   "thresholds": {
     "final_ready_runs_per_condition": 24,
@@ -43,7 +44,7 @@
     "pilot_ready_runs_per_condition": 5
   },
   "total_conditions": 2,
-  "total_runs": 0,
-  "usable_runs": 0,
-  "workflow_stage": "planned"
+  "total_runs": 15,
+  "usable_runs": 5,
+  "workflow_stage": "complete_but_underpowered"
 }

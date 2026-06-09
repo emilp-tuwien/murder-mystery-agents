@@ -193,3 +193,23 @@ def extract_mentions(text: str, agent_names: Iterable[str], exclude: Optional[st
 
 def is_question(text: str) -> bool:
     return "?" in text or text.strip().lower().startswith(("who ", "what ", "why ", "where ", "when ", "how ", "did ", "do ", "does ", "are ", "is ", "was ", "were ", "can ", "could ", "would ", "will ", "have ", "has ", "had "))
+
+
+# Filled pauses / hesitation markers ("um", "uh", "er", "erm", "hmm") and
+# throat-clearing. These are the nervous "leakage" tells a guilty agent tends to
+# emit under direct pressure — we count rather than suppress them so they can be
+# measured as a behavioural signal (e.g. murderer vs. innocents).
+_FILLED_PAUSE_RE = re.compile(r"\b(?:u+m+|u+h+|uh+m+|e+rm+|er|hm+|ahem)\b", re.IGNORECASE)
+# Stammered repetition: the same short word repeated across a comma/hyphen/dash,
+# e.g. "I, I just" or "the- the office".
+_STAMMER_RE = re.compile(r"\b(\w+)\s*[,\-–—]\s*\1\b", re.IGNORECASE)
+
+
+def count_disfluencies(text: str) -> int:
+    """Count nervous-speech tells in an utterance: filled pauses plus stammered
+    word repetitions. Used by the analysis layer to quantify guilt-leakage; it
+    deliberately does not alter or remove the disfluencies from the dialogue.
+    """
+    if not text:
+        return 0
+    return len(_FILLED_PAUSE_RE.findall(text)) + len(_STAMMER_RE.findall(text))

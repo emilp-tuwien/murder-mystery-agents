@@ -1,0 +1,26 @@
+{
+  "condition_description": "Treatment. Same goal (avoid accusation) but the murderer is explicitly instructed to use deceptive tactics: denial, alibi construction, deflection, uncertainty seeding, selective disclosure, accusation redirection, and evidence reframing.",
+  "condition_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/thesis-pilot/conditions/active-deception",
+  "condition_name": "active-deception",
+  "config_fingerprint": "4ea9678faaaa",
+  "experiment_name": "thesis-pilot",
+  "fail_fast": false,
+  "finished_at": null,
+  "replicates_completed": 0,
+  "replicates_failed": 0,
+  "replicates_planned": 5,
+  "runs": [
+    {
+      "ended_at": "2026-05-30T19:08:47.668908+00:00",
+      "error_summary": null,
+      "replicate_id": 1,
+      "resolved_seed": 4242,
+      "run_dir": "/home/concircle/.openclaw/workspace/murder-mystery-agents/outputs/thesis-pilot/conditions/active-deception/runs/thesis-pilot-active-deception-20260530T183940Z-r001",
+      "run_id": "thesis-pilot-active-deception-20260530T183940Z-r001",
+      "started_at": "2026-05-30T18:39:40.385650+00:00",
+      "status": "running"
+    }
+  ],
+  "started_at": "2026-05-30T18:39:40.375253+00:00",
+  "status": "running"
+}

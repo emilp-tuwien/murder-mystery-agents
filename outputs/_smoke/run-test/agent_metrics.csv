@@ -1,4 +1,4 @@
-agent,is_murderer,utterance_count,speaker_share,word_count,word_share,question_count,questions_received,mentions_received,attention_received
-Alice,False,1,1.0,4,1.0,1,0,0,0
-Bob,True,0,0.0,0,0.0,0,1,1,2
-Carol,False,0,0.0,0,0.0,0,0,0,0
+agent,is_murderer,utterance_count,speaker_share,word_count,word_share,disfluency_count,disfluency_per_utterance,question_count,questions_received,mentions_received,attention_received
+Alice,False,1,1.0,4,1.0,0,0.0,1,0,0,0
+Bob,True,0,0.0,0,0.0,0,0.0,0,1,1,2
+Carol,False,0,0.0,0,0.0,0,0.0,0,0,0,0

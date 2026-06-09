@@ -736,7 +736,7 @@ Apply this reasoning loop before every turn:
 1. BELIEF UPDATE — What did the last few turns reveal? Does it raise or lower suspicion on any specific person, and why?
 2. INFORMATION GAP — What is the single most important fact the group still does not know? Who is most likely to hold it?
 3. THEORY OF MIND — What does each other agent currently seem to know or believe? Is someone pressing unusually hard in one direction? Is someone conspicuously avoiding a topic?
-4. BEST MOVE — Given the above: is there a specific hypothesis you can test with a question, a contradiction you can surface, or a private fact worth revealing? If not, listen.
+4. BEST MOVE — Given the above: do you have a specific hypothesis to test with a question, a contradiction to surface, a private fact worth revealing, OR a piece of reasoning to share out loud (your current read of who did it and why, or how the latest facts connect)? Stating your reasoning counts as a real contribution — you do not need a question to justify speaking. If you have none of these, listen.
 
 Deception detection — watch for these signals in other agents' speech:
 - A claim that cannot be independently verified and conveniently removes the speaker from suspicion.
@@ -801,11 +801,21 @@ Your job is NOT to speak every turn. Listen when another agent has a higher-valu
                     "Default to listening unless there is a strong reason to take the floor.\n"
                     "Usually only one or two agents should strongly want to speak on a given turn.\n"
                     "If another suspect likely has a better next move, choose listen.\n"
-                    "Strategic silence is often the correct move."
+                    "Strategic silence is often the correct move.\n"
+                    "EXCEPTION — first-hand testimony: if YOU personally saw or heard something the "
+                    "group has NOT been told yet (who you saw, where, and when; who was near the "
+                    "scene; who said or did something revealing), that is high-value and you should "
+                    "bid strongly to volunteer it. Eyewitness placements of people at specific times "
+                    "and locations are exactly what breaks this case open — do not sit on them waiting "
+                    "to be asked."
                 )
                 self_questions = (
                     "- Was I directly addressed and therefore must respond?\n"
+                    "- Do I personally know a first-hand observation (someone I saw at a place/time, "
+                    "something I witnessed) that the group has NOT heard yet? If so, share it — name "
+                    "the person, place, and time concretely.\n"
                     "- Do I have a concrete fact about motive, means, opportunity, location, timing, or contradiction that has not already been surfaced?\n"
+                    "- Can I move the reasoning forward by saying where my suspicion now sits and why, or how the latest facts fit together? (Stating this is a valid reason to speak — a question is not required.)\n"
                     "- Can I ask a targeted question that materially narrows the suspect list?"
                 )
 
@@ -827,7 +837,7 @@ When deciding whether to speak, ask yourself:
 - Would my personality prefer caution, deflection, opportunism, or confrontation in this moment?
 
 Actions:
-• Speak: contribute evidence, challenge someone, clarify an alibi, or ask a targeted question.
+• Speak: share your reasoning or current suspicion, contribute evidence, challenge someone, clarify an alibi, or ask a targeted question.
 • Listen: if your contribution would be repetitive, weak, premature, strategically costly, or better made by someone else.
 
 Importance guidance:
@@ -1032,20 +1042,23 @@ You are not trying to manipulate anyone — you simply do not want to be caught.
                 purpose_block = f"""Your purpose is to identify who killed {self.scenario.victim_name} through hypothesis testing, targeted questioning, and strategic surfacing of evidence.
 
 Before choosing what to say, identify your move type:
+- REASONING ALOUD: state your current read of the case — who you suspect and why, how the latest clue changes the picture, or which two facts fit together (or clash). You do NOT need a question to contribute; thinking through the evidence out loud is itself a strong move.
 - HYPOTHESIS TEST: ask a question whose answer would rule a specific suspect in or out.
 - CONTRADICTION FLAG: name a specific inconsistency between two things that have been said.
 - EVIDENCE REVEAL: disclose a private fact that materially advances the group's understanding.
 - PRESSURE: directly challenge an evasive or suspicious answer — cite the specific claim that does not fit.
 
-Choose the move type with the highest investigative value. If none clears a meaningful bar, listen instead."""
+Choose the move type with the highest investigative value — and prefer stating reasoning or evidence over asking yet another question when the group already has enough on the table to reason about. If none clears a meaningful bar, listen instead."""
                 static_rules_block = f"""Rules:
 - Only reference facts from your private knowledge or from the public conversation.
 - Reveal private information when it advances the investigation or defends you from false accusation.
-- Protect deeper secrets unless directly challenged.
+- VOLUNTEER FIRST-HAND TESTIMONY: if you personally saw or heard something the group has not been told — who you saw at a place, at what time, near the scene, behaving oddly — state it plainly and concretely (name the person, place, and time). Do not wait to be asked, and do not withhold it as a "secret"; eyewitness placements are how this case gets solved.
+- Protect only secrets that would unfairly incriminate YOU; never sit on an observation that points at someone else.
 - Focus on: motive, means, opportunity, timeline, contradictions, and suspicious behaviour patterns.
-- No repetition of already-established facts.
+- No repetition of already-established facts, and don't restate a point you (or someone else) already made — advance the reasoning instead.
+- You do NOT need to ask a question every turn. A clear statement of your reasoning or a stated suspicion backed by a specific fact is often more useful than another question.
 - Stay in character and speak in first person.
-- One targeted question per turn, addressed to a single named person.
+- At most one targeted question per turn, addressed to a single named person — and only when its answer would actually change your thinking.
 - Answer direct questions before redirecting to another suspect.
 - When flagging suspicious behaviour, cite the specific claim or inconsistency — do not make vague accusations.
 - Never ask multiple questions to multiple people in the same utterance."""
@@ -1066,7 +1079,8 @@ Output only the exact words your character says out loud.
 
 {static_rules_block}
 
-Respond in 1-2 natural sentences.
+Say as much or as little as a real person would in this moment — sometimes that's a single sharp line, sometimes a longer point. Don't pad to a target length or clip yourself short; let the conversation set the rhythm. React to what others just said and give specifics rather than generic filler.
+Think out loud — do NOT reduce every turn to a question. A strong turn usually STATES something rather than asks: give your read of what was just said, reason through how the facts connect (or fail to), say where your suspicion currently sits and what moved it, or push back on a claim that doesn't hold up. That is exactly what you would do talking through a case with real people. Reserve questions for when an answer would genuinely change your thinking — and don't repeat a point already made; add a new angle or move the reasoning forward.
 If you ask a question, you may include at most one question mark in the entire utterance and it must refer to a single target.
 Do not stack questions, follow-up questions, or question a second person in the same turn.
 Output dialogue only."""
@@ -1080,15 +1094,17 @@ Can ask: {can_ask_str}
 Speak now.
 
 Constraints for this utterance:
-- Respond in 1-2 natural sentences only.
-- If you ask a question, include at most one question mark and name the single target explicitly (e.g., "Pauline, did you see...").
+- Let your length be natural — a quick retort or a longer explanation, whatever this moment calls for. Don't aim for a fixed sentence count.
+- Prefer reasoning out loud or stating a conclusion over asking a question; you don't have to ask anything this turn.
+- If you do ask a question, include at most one question mark and name the single target explicitly (e.g., "Pauline, did you see...").
 - Do NOT ask multiple questions or address multiple people in the same utterance.
 - Do NOT invent facts or reveal information not already publicly spoken or announced by the Game Master.
 Return dialogue only."""),
             ]
         try:
-            # Cap response length to keep utterances concise and reduce rambling
-            result = _retry_with_backoff(lambda: self.llm.invoke(msgs, max_tokens=120))
+            # Length is steered by the prompt (natural, conversation-driven), not a
+            # hard token cap — a cap truncated utterances mid-thought and flattened the dialogue.
+            result = _retry_with_backoff(lambda: self.llm.invoke(msgs))
             response = result.content if result and result.content else "I have nothing new to add."
             
             # Remove quotation marks from response
@@ -1364,6 +1380,12 @@ Evidence-item requirements:
 - Each evidence item SHOULD reference a revealed clue by its label (e.g., "CLUE #3: marble paperweight found in bathtub") or a concise phrase copied from the [INVESTIGATION NOTES] or SharedHistory (quote up to ~12 words).
 - Do NOT invent or hallucinate clue content — if you are unsure, state the uncertainty in `uncertainty` and give the best-supported items.
 
+NO-FABRICATION RULE (critical — applies to motive_case, means_case, opportunity_case):
+- Every claim in these fields MUST be anchored to a revealed clue, a fact the suspect themselves stated, or something specific that was said about them in the discussion. Quote or name the source.
+- Do NOT invent biography, vices, relationships, or motives that were never established (e.g. "they probably had debts", "they were jealous", "they likely owed money"). If a real person speculated it aloud, attribute it; otherwise do not assert it.
+- If a dimension has NO grounded support for your accused, write "no concrete evidence" for that field rather than inventing one. A weaker but honest case beats a fabricated one.
+- Prefer the suspect whose guilt the actual revealed clues and stated facts support — not the one for whom you can spin the most colourful story.
+
 Return valid JSON with keys:
 - accused
 - reasoning
@@ -1388,15 +1410,19 @@ Requirements:
 Return JSON only."""),
         ]
         try:
-            # Limit tokens for accusation generation to encourage concise structured output
-            result = _retry_with_backoff(lambda: llm_accuse.invoke(msgs, max_tokens=300))
+            result = _retry_with_backoff(lambda: llm_accuse.invoke(msgs))
             if result.accused not in other_agents:
                 for agent in other_agents:
                     if agent.lower() in result.accused.lower() or result.accused.lower() in agent.lower():
                         result.accused = agent
                         break
                 else:
-                    result.accused = other_agents[0]
+                    result.accused = top_suspect or other_agents[0]
+
+            # Self-accusation is never allowed: if the model named us (or a fuzzy
+            # match resolved back to us), fall back to our own strongest suspect.
+            if result.accused == self.name:
+                result.accused = top_suspect if top_suspect and top_suspect != self.name else other_agents[0]
 
             # ── Belief-alignment check (log only — do NOT override the LLM's choice) ──
             # Forcing result.accused = top_suspect here corrupts research data: it

@@ -4,16 +4,18 @@ from schemas.state import GameState
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from utils.judge import MurdererResponseJudge
 from utils.dialogue_analysis import detect_direct_address, extract_mentions, is_question
+from utils.formatting import _format_suspicion_matrix
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # FORMATTING HELPERS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def _print_turn_header(turn: int, round_num: int, phase: str):
+def _print_turn_header(turn: int, round_num: int, phase: str, max_rounds: int = 6):
     """Print a clean turn header."""
+    label = f"  TURN {turn+1:<3} │ Round {round_num}/{max_rounds} │ Phase: {phase.upper()}"
     print(f"\n┌{'─'*68}┐")
-    print(f"│  TURN {turn+1:<3} │ Round {round_num}/6 │ Phase: {phase.upper():<20}                │")
+    print(f"│{label:<68}│")
     print(f"└{'─'*68}┘")
 
 
@@ -45,7 +47,8 @@ def _print_thinking_summary(thoughts: Dict, last_speaker: str = None):
     print(f"\n  Agent Thoughts:")
     for name, tr in thoughts.items():
         action = " SPEAK" if tr.action == "speak" else " listen"
-        urgency_bar = "█" * tr.importance + "░" * (9 - tr.importance)
+        imp = max(0, min(9, tr.importance))
+        urgency_bar = "█" * imp + "░" * (9 - imp)
         excluded = " (just spoke - excluded)" if name == last_speaker else ""
         print(f"     {name:<20} {action} [{urgency_bar}] {tr.importance}/9{excluded}")
 
@@ -67,12 +70,16 @@ def _collect_suspicion_assessments(
     current_stage: str,
     agents: Dict[str, any],
     ui_store=None,
+    murderer_name: str | None = None,
 ) -> None:
     """Generate private end-of-round suspicion assessments for all agents in parallel.
 
     Skips round 1 (introductions — no evidence yet).
     Results are emitted as 'round_suspicion_assessed' events and stored privately
     on each agent.  They are never added to SharedHistory or spoken aloud.
+    After collection, a suspicion matrix is printed so the console reader can see
+    where every agent's private suspicion sits and whether the group is converging
+    on the real murderer.
     """
     if current_round == 1:
         return
@@ -80,6 +87,7 @@ def _collect_suspicion_assessments(
     all_agent_names = list(agents.keys())
     print(f"\n   Generating private suspicion assessments for Round {current_round}...")
 
+    assessments: Dict[str, any] = {}
     with ThreadPoolExecutor(max_workers=max(1, len(agents))) as executor:
         future_to_name = {
             executor.submit(
@@ -96,30 +104,48 @@ def _collect_suspicion_assessments(
             try:
                 assessment = future.result()
                 if assessment is not None:
+                    assessments[name] = assessment
                     payload = assessment.model_dump()
                     _emit(ui_store, "round_suspicion_assessed", payload)
                     completed += 1
-                    print(
-                        f"     {name}: top_suspect={assessment.top_suspect}, "
-                        f"uncertainty={assessment.overall_uncertainty}/10"
-                    )
             except Exception as exc:
                 print(f"     Warning: suspicion assessment failed for {name}: {exc}")
 
     print(f"   Private suspicion assessments complete ({completed}/{len(agents)} agents).")
+
+    if assessments:
+        matrix = _format_suspicion_matrix(
+            assessments, all_agent_names, murderer_name=murderer_name, round_num=current_round
+        )
+        if matrix:
+            print()
+            print(matrix)
+        # How many agents privately point at the real murderer right now?
+        if murderer_name:
+            top1 = sum(1 for a in assessments.values() if a.top_suspect == murderer_name)
+            in_top3 = 0
+            for a in assessments.values():
+                ranked = sorted(a.suspect_assessments, key=lambda sa: sa.suspicion_score, reverse=True)
+                if murderer_name in [sa.suspect for sa in ranked[:3]]:
+                    in_top3 += 1
+            print(
+                f"\n   → On the real murderer ({murderer_name}): "
+                f"{top1}/{len(assessments)} have them as top suspect, "
+                f"{in_top3}/{len(assessments)} have them in their top 3."
+            )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # GRAPH NODES
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def think_all(state: GameState, agents: Dict[str, any], ui_store=None):
+def think_all(state: GameState, agents: Dict[str, any], ui_store=None, max_rounds: int = 6):
     current_round = state.get("current_round", 1)
     phase = state.get("phase", "introduction")
     current_stage = state.get("current_stage", phase)
     turn = state.get("turn", 0)
 
-    _print_turn_header(turn, current_round, phase)
+    _print_turn_header(turn, current_round, phase, max_rounds)
     _emit(ui_store, "turn_started", {"turn": turn + 1, "round": current_round, "phase": phase, "stage": current_stage})
 
     if current_round == 1:
@@ -384,7 +410,7 @@ def update_history(state: GameState, agents: Dict[str, any], ui_store=None, repe
     return update
 
 
-def check_round_advance(state: GameState, game_master, agents: Dict[str, any], ui_store=None, repetition_tracker=None):
+def check_round_advance(state: GameState, game_master, agents: Dict[str, any], ui_store=None, repetition_tracker=None, murderer_name: str | None = None):
     """Check if we should advance to the next round/stage."""
     current_round = state.get("current_round", 1)
     conversations_in_round = state.get("conversations_in_round", 0) + 1
@@ -392,6 +418,22 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
     current_stage = state.get("current_stage", game_master.get_stage_for_round(current_round))
     # Slice to only this round's utterances so summarizer and gate don't see prior rounds.
     current_round_history = [u for u in history if u.get("round") == current_round]
+
+    def _print_round_repetition():
+        if repetition_tracker is None:
+            return
+        try:
+            summary = repetition_tracker.summary(round_num=current_round)
+        except Exception:
+            return
+        rate = summary.get("repetition_rate", 0.0)
+        novel = summary.get("novel_turns_by_agent", {})
+        total = summary.get("total_turns_by_agent", {})
+        print(f"\n   Round {current_round} dialogue health:")
+        print(f"     Repetition rate: {rate*100:.0f}%   (novelty: {(1-rate)*100:.0f}%)")
+        if total:
+            parts = [f"{name} {novel.get(name, 0)}/{total.get(name, 0)}" for name in total]
+            print(f"     Novel/total turns by agent: {', '.join(parts)}")
 
     def _summarize_current_round():
         if current_round_history:
@@ -401,6 +443,7 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
                 agent.add_round_summary(current_round, bullets)
             print(f"   Summary: {len(bullets)} key facts extracted")
             _emit(ui_store, "round_summarized", {"round": current_round, "stage": current_stage, "bullets": bullets})
+        _print_round_repetition()
 
     def _advance_to_round(new_round: int, advance_reason: str, gate_payload: Optional[Dict[str, Any]] = None):
         new_phase = game_master.get_phase_for_round(new_round)
@@ -420,27 +463,38 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
         _emit(ui_store, "round_advance_decision", decision_payload)
 
         _summarize_current_round()
-        _collect_suspicion_assessments(current_round, current_stage, agents, ui_store)
+        _collect_suspicion_assessments(current_round, current_stage, agents, ui_store, murderer_name=murderer_name)
 
         announcement = game_master.announce_round_change(new_round)
         print(announcement)
 
-        clue = game_master.get_clue_for_round(new_round)
+        # Entering the FINAL DISCUSSION round (max_rounds - 1), reveal every clue not
+        # yet on the table (Clue #4 fire escape + Clue #5 timeline — the only two that
+        # point at the murderer) so the group can actually debate them during this last
+        # discussion round. Round max_rounds itself is accusation-only (no discussion),
+        # so anything not revealed here would land in the silent accusation step with
+        # zero debate. For all earlier rounds, reveal the single scheduled clue.
+        if new_round >= game_master.max_rounds - 1:
+            clues = game_master.get_remaining_clues(current_round)
+        else:
+            single = game_master.get_clue_for_round(new_round)
+            clues = [single] if single else []
 
-        if clue:
-            # Inject the clue into SharedHistory as a Game Master message so every agent
-            # sees it in their [CONVERSATION] section on the next think/speak call.
+        if clues:
+            # Inject each clue into SharedHistory as a Game Master message so every
+            # agent sees it in their [CONVERSATION] section on the next think/speak call.
             from memory.agent_memory import SharedHistory
-            SharedHistory().append(state.get("turn", 0), "Game Master", f"[NEW EVIDENCE] {clue}")
+            for clue in clues:
+                SharedHistory().append(state.get("turn", 0), "Game Master", f"[NEW EVIDENCE] {clue}")
 
         print(f"\n   Updating agent knowledge for Round {new_round}...")
         for _, agent in agents.items():
             agent.update_round(new_round)
-            if clue:
+            for clue in clues:
                 agent.add_clue_to_memory(clue)
         print(f"   All agents updated with Round {new_round} information")
         _emit(ui_store, "round_changed", {"round": new_round, "phase": new_phase, "stage": new_stage, "announcement": announcement})
-        if clue:
+        for clue in clues:
             _emit(ui_store, "clue_revealed", {"round": new_round, "stage": new_stage, "clue": clue})
 
         return {
@@ -451,41 +505,58 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
             "round_gate_status": gate_payload or {},
         }
 
-    if game_master.is_game_complete(current_round, conversations_in_round):
-        _emit(ui_store, "round_advance_decision", {
+    def _complete_investigation(advance_reason: str, gate_payload: Optional[Dict[str, Any]] = None):
+        """Finish the final discussion round and move straight to the accusation phase.
+
+        Round ``max_rounds`` is accusation-only and runs NO discussion turns. The
+        decisive clues (#4 fire escape, #5 timeline) were revealed when entering the
+        final discussion round (``max_rounds - 1``) and have just been debated, so the
+        group accuses now instead of deliberating for another full round.
+        """
+        decision_payload = {
             "from_round": current_round,
             "from_stage": current_stage,
-            "to_round": current_round,
+            "to_round": game_master.max_rounds,
             "to_stage": "accusation",
             "phase": "accusation",
-            "advance_reason": "investigation_complete",
+            "advance_reason": advance_reason,
             "conversations_in_round": conversations_in_round,
-        })
+            "conversations_per_round": state.get("conversations_per_round"),
+        }
+        if gate_payload:
+            decision_payload.update(gate_payload)
+        _emit(ui_store, "round_advance_decision", decision_payload)
+
         print(f"\n{'═'*70}")
         print("  INVESTIGATION COMPLETE - Moving to accusation phase!")
         print(f"{'═'*70}\n")
 
-        # Deliver the final clue before the accusation phase so agents have
-        # all available evidence when making their accusations.
-        final_clue = game_master.get_clue_for_round(current_round + 1)
-        if final_clue:
-            from memory.agent_memory import SharedHistory
-            SharedHistory().append(state.get("turn", 0), "Game Master", f"[NEW EVIDENCE] {final_clue}")
-            print(f"\n   Final clue revealed before accusation phase.")
-            _emit(ui_store, "clue_revealed", {"round": current_round + 1, "stage": "accusation", "clue": final_clue})
-            for _, agent in agents.items():
-                agent.add_clue_to_memory(final_clue)
-
+        # All clues — including Clue #4 (fire escape) and Clue #5 (timeline) — were
+        # already revealed when entering the final discussion round (max_rounds - 1),
+        # so the group has had a full round to debate them. Nothing new is delivered
+        # here; re-revealing would duplicate the evidence.
         _summarize_current_round()
-        _collect_suspicion_assessments(current_round, current_stage, agents, ui_store)
+        _collect_suspicion_assessments(current_round, current_stage, agents, ui_store, murderer_name=murderer_name)
 
-        _emit(ui_store, "round_changed", {"round": current_round, "phase": "accusation", "stage": "accusation"})
+        # Show the "FINAL ROUND - TIME TO ACCUSE" banner now, immediately before the
+        # accusation step — there is no round-max_rounds discussion to precede.
+        announcement = game_master.announce_round_change(game_master.max_rounds)
+        print(announcement)
+
+        _emit(ui_store, "round_changed", {"round": game_master.max_rounds, "phase": "accusation", "stage": "accusation"})
         return {
             "conversations_in_round": conversations_in_round,
             "done": True,
             "phase": "accusation",
+            "current_round": game_master.max_rounds,
             "current_stage": "accusation",
+            "round_gate_status": gate_payload or {},
         }
+
+    # Safety net: if we somehow find ourselves already at/after the accusation
+    # round, finish immediately rather than trying to run discussion in it.
+    if current_round >= game_master.max_rounds:
+        return _complete_investigation("investigation_complete")
 
     if current_round == 1:
         speakers_so_far = set(u["speaker"] for u in history if u.get("speaker") != "Game Master")
@@ -518,8 +589,18 @@ def check_round_advance(state: GameState, game_master, agents: Dict[str, any], u
         "clue_keywords": assessment.clue_keywords,
     }
 
-    if assessment.allow_advance:
+    # The last DISCUSSION round is max_rounds - 1; round max_rounds is accusation-only.
+    final_discussion_round = game_master.max_rounds - 1
+
+    # Advance through the discussion rounds (2 .. final_discussion_round).
+    if assessment.allow_advance and current_round < final_discussion_round:
         return _advance_to_round(current_round + 1, assessment.advance_reason, gate_payload)
+
+    # The final discussion round is finished (gate satisfied or hard cap) → go
+    # straight to the accusation phase. No further discussion round is run; the
+    # decisive clues were revealed and debated during this round.
+    if assessment.allow_advance and current_round >= final_discussion_round:
+        return _complete_investigation(assessment.advance_reason, gate_payload)
 
     return {
         "conversations_in_round": conversations_in_round,
@@ -557,11 +638,11 @@ def build_graph(agents: Dict[str, any], game_master, max_turns: int = 3, ui_stor
 
     g = StateGraph(GameState)
 
-    g.add_node("think_all", lambda s: think_all(s, agents, ui_store=ui_store))
+    g.add_node("think_all", lambda s: think_all(s, agents, ui_store=ui_store, max_rounds=game_master.max_rounds))
     g.add_node("game_master_decide", lambda s: game_master_decide(s, game_master, agents, ui_store=ui_store, repetition_tracker=repetition_tracker))
     g.add_node("speak", lambda s: speak(s, agents, ui_store=ui_store, murderer_judge=murderer_judge, murderer_name=murderer_name))
     g.add_node("update_history", lambda s: update_history(s, agents, ui_store=ui_store, repetition_tracker=repetition_tracker))
-    g.add_node("check_round_advance", lambda s: check_round_advance(s, game_master, agents, ui_store=ui_store, repetition_tracker=repetition_tracker))
+    g.add_node("check_round_advance", lambda s: check_round_advance(s, game_master, agents, ui_store=ui_store, repetition_tracker=repetition_tracker, murderer_name=murderer_name))
     g.add_node("advance_turn", lambda s: advance_turn(s, max_turns=max_turns))
 
     g.set_entry_point("think_all")

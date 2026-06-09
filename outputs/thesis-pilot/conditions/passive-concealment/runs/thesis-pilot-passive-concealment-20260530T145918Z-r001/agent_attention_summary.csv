@@ -1,0 +1,8 @@
+agent,is_murderer,questions_asked,questions_received,followups_asked,followups_received,justification_requests_asked,justification_requests_received,pressure_signals_asked,pressure_signals_received,mentions_made,mentions_received
+Harold Chun,False,10,7,8,5,0,0,0,0,10,9
+Bobby Herrerra,False,13,15,8,13,0,0,0,0,14,15
+Pauline Thompson,False,10,8,8,4,0,0,0,0,10,8
+Louis Cagliostro,False,7,1,5,0,0,0,0,0,7,1
+Tim Kane,True,0,13,0,10,0,0,0,0,1,13
+Margaret Chun,False,6,1,2,0,0,0,0,0,6,1
+Fiona McAllister,False,4,5,4,3,0,0,0,0,4,5

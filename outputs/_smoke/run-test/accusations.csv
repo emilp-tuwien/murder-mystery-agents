@@ -1,4 +1,4 @@
-run_id,accuser,accused,reasoning,correct,accuser_is_murderer,accused_is_murderer
-smoke-run,Alice,Bob,suspicious,True,False,True
-smoke-run,Bob,Carol,deflect,False,True,False
-smoke-run,Carol,Bob,gut feeling,True,False,True
+run_id,accuser,accused,reasoning,confidence,primary_basis,evidence_items,evidence_item_count,motive_case,means_case,opportunity_case,contradiction_case,comparative_case,uncertainty,belief_top_suspect,belief_uncertainty,belief_top_gap,belief_accused_rank,belief_accused_in_top_n,belief_top_n_candidates,belief_corrected_to_top_suspect,belief_snapshot,correct,accuser_is_murderer,accused_is_murderer
+smoke-run,Alice,Bob,suspicious,,mixed,,0,,,,,,,,,,,,,False,{},True,False,True
+smoke-run,Bob,Carol,deflect,,mixed,,0,,,,,,,,,,,,,False,{},False,True,False
+smoke-run,Carol,Bob,gut feeling,,mixed,,0,,,,,,,,,,,,,False,{},True,False,True

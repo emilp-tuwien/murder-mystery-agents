@@ -1,2 +1,2 @@
-turn,round,phase,selected_speaker,selection_reason,is_direct_address
-1,1,discussion,Alice,test,False
+turn,round,phase,stage,selected_speaker,selection_reason,is_direct_address
+1,1,discussion,,Alice,test,False

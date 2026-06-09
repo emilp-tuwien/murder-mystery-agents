@@ -7,6 +7,7 @@ import PyPDF2
 from scenarios import ScenarioConfig
 from utils.dialogue_analysis import detect_direct_address, detect_direct_address_llm
 from utils.evidence_gates import RoundGateAssessment, assess_round_gate, stage_name_for_round
+from utils.formatting import _boxed
 
 
 class SpeakerDecision(BaseModel):
@@ -203,17 +204,56 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
         return "accusation"
     
     def is_game_complete(self, current_round: int, conversations_in_round: int) -> bool:
-        """Check if the investigation rounds are complete and accusation should begin."""
-        return current_round >= self.max_rounds or (
-            current_round == self.max_rounds - 1 and conversations_in_round >= self.conversations_per_round
-        )
+        """Check whether the investigation is over and the accusation phase begins.
+
+        The FINAL discussion round is ``max_rounds - 1``: the last clues (#4 fire
+        escape and #5 timeline — the only two that actually incriminate the murderer)
+        are revealed when entering it and debated there. Round ``max_rounds`` is the
+        accusation phase itself and runs NO discussion turns, so the game is complete
+        once we reach it. (Completion is driven directly by ``check_round_advance`` via
+        ``_complete_investigation``; this method is kept for external callers/tests.)
+        """
+        return current_round >= self.max_rounds
 
     def get_clue_for_round(self, new_round: int) -> str:
-        """Return the clue revealed when entering a new round."""
-        clue_number = new_round - 1
+        """Return the clue revealed when entering a new round.
+
+        The authored role descriptions gate clues as: no clue in Rounds 1-2,
+        Clue #1 in Round 3, Clue #2 in Round 4, Clue #3 in Round 5, and the
+        remaining clues (#4 and #5) at the final accusation stage. So the clue
+        number trails the round by two; entering Round 3 reveals Clue #1.
+        Keeping this aligned prevents agents from "knowing" crime-scene details
+        (e.g. the keychain/blood smear in Clue #1) a round before their own
+        briefing mentions them.
+        """
+        clue_number = new_round - 2
         if clue_number < 1:
             return ""
         return self._load_clue(clue_number)
+
+    def _clue_count(self) -> int:
+        """Number of clue files available for this scenario."""
+        count = 0
+        while (self.clues_dir / f"clue{count + 1}.txt").exists():
+            count += 1
+        return count
+
+    def get_remaining_clues(self, current_round: int) -> List[str]:
+        """Return every not-yet-revealed clue, in order, for the final stage.
+
+        The per-round schedule (see ``get_clue_for_round``) reveals clues up to
+        number ``current_round - 2`` by the time the investigation completes at
+        ``current_round``. This returns the rest — clues
+        ``current_round - 1 .. clue_count`` — so the accusation phase delivers
+        Clue #4 and Clue #5 together, matching the Round 6 briefings.
+        """
+        first_unrevealed = max(1, current_round - 1)
+        clues = []
+        for clue_number in range(first_unrevealed, self._clue_count() + 1):
+            text = self._load_clue(clue_number)
+            if text:
+                clues.append(text)
+        return clues
 
     def decide_next_speaker(self, state: dict, thoughts: dict, repetition_tracker=None) -> SpeakerDecision:
         """
@@ -231,7 +271,57 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
         # Available speakers (exclude last speaker to avoid monopolization)
         last_speaker = state.get("last_speaker")
         available = [n for n in self.agent_names if n != last_speaker] if last_speaker else self.agent_names
-        
+
+        # TOPIC-SATURATION CIRCUIT BREAKER (runs BEFORE the direct-address mandate).
+        # A rotating interrogation loop — different askers pressing different people
+        # about the same subject, turn after turn — is invisible to the per-question
+        # nagging check (the asker/addressee pair keeps changing). Left alone, the
+        # unconditional direct-address mandate sustains it indefinitely. When the
+        # recent window is both topically clustered AND no longer producing facts,
+        # we DEMOTE the mandate and hand the floor to a quiet agent with an explicit
+        # instruction to open a new line of inquiry.
+        #
+        # EXCEPTION: a fresh direct question that OPENS A NEW LINE must still be
+        # honored. The breaker exists to kill questions that keep circling the dead
+        # topic — not to silence someone who just pivoted to a new subject. A
+        # rotating-loop question is semantically close to the saturated window
+        # (low novelty even when the wording/names differ), whereas a genuine new
+        # question is novel against it. So we only redirect when the last utterance
+        # is NOT a fresh, on-a-new-topic direct question.
+        if repetition_tracker is not None and available:
+            saturated, _conc, _nov = repetition_tracker.recent_topic_saturation()
+            if saturated and not self._last_is_fresh_direct_question(
+                last_utterance, available, repetition_tracker
+            ):
+                redirect = self._redirect_for_saturation(
+                    state, thoughts, available, last_speaker, repetition_tracker
+                )
+                if redirect is not None:
+                    return redirect
+
+        # Detect whether the last utterance is a nagging REPEAT — i.e. the speaker
+        # already asked a semantically equivalent question earlier (it is now "in the
+        # history"). A repeated question must not force the addressee to answer the
+        # same thing again, and the asker must not be allowed to keep the floor to
+        # re-ask it. This is the penalty for redundant questioning.
+        last_is_repeat_question = False
+        last_repeat_match = None
+        if (
+            last_utterance
+            and repetition_tracker is not None
+            and last_utterance.get("is_question")
+        ):
+            # Use the NEAR-VERBATIM threshold, not the looser novelty threshold:
+            # interrogation questions share so much structure ("did you take X
+            # before 9:00?", "were you in the apartment?") that the 0.82 novelty
+            # cutoff flags almost every question as a repeat. Only a near-duplicate
+            # of the asker's own earlier question should count as nagging.
+            is_repeat, _sim, last_repeat_match = repetition_tracker.last_utterance_repeats_earlier(
+                same_speaker_only=True,
+                threshold=repetition_tracker.high_sim_threshold,
+            )
+            last_is_repeat_question = is_repeat
+
         # FIRST: Check for direct address using explicit pattern matching, then
         # fall back to an LLM judgement for ambiguous question + name combinations
         # (e.g., "Margaret, did you notice anyone slip into the bathroom?").
@@ -245,13 +335,34 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
                     last_speaker=last_speaker,
                 )
             if directly_addressed:
-                question_text = last_utterance.get("text", "")[:300]
-                return SpeakerDecision(
-                    reasoning=f"{directly_addressed} was directly addressed by {last_speaker}",
-                    next_speaker=directly_addressed,
-                    response_constraint=f"{last_speaker} asked you: \"{question_text}\" — answer this specific question first, then you may add anything else.",
-                    is_direct_address=True
-                )
+                # A repeated question only suppresses the mandatory response in the
+                # genuine "nagging" case: the asker is re-asking something the
+                # addressee has ALREADY answered. If the addressee never answered the
+                # earlier equivalent question (e.g. a fresh, pointed question that
+                # merely resembles wording the asker used before), they must still
+                # respond — stripping the mandate here would silence a legitimate
+                # direct question and let the floor drift to a redundant re-asker.
+                suppress_for_nag = False
+                if last_is_repeat_question and last_repeat_match is not None:
+                    # Only genuine nagging: the addressee already gave a MANDATED
+                    # answer to this same asker after the earlier equivalent question
+                    # was raised. "Spoke at some point later" is far too broad in late
+                    # rounds (everyone has spoken many times) and would silence a
+                    # legitimate fresh question that merely shares interrogation phrasing.
+                    suppress_for_nag = any(
+                        u.get("speaker") == directly_addressed
+                        and u.get("response_to_speaker") == last_speaker
+                        and u.get("turn", -1) > last_repeat_match.turn
+                        for u in history
+                    )
+                if not suppress_for_nag:
+                    question_text = last_utterance.get("text", "")[:300]
+                    return SpeakerDecision(
+                        reasoning=f"{directly_addressed} was directly addressed by {last_speaker}",
+                        next_speaker=directly_addressed,
+                        response_constraint=f"{last_speaker} asked you: \"{question_text}\" — answer this specific question first, then you may add anything else.",
+                        is_direct_address=True
+                    )
         
         # SECOND: Self-selection by bid strength among available agents
         available_thoughts = {name: tr for name, tr in thoughts.items() if name in available}
@@ -266,6 +377,7 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
             )
 
         speaking_bids = {}
+        adjusted_scores: dict = {}
         for name, tr in available_thoughts.items():
             if not (tr.action == "speak" and tr.importance >= 7):
                 continue
@@ -290,19 +402,18 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
             if name in low_contribution_agents:
                 adjusted_importance = min(9, adjusted_importance + 1)
 
-            tr_copy = tr
-            setattr(tr_copy, "adjusted_importance", adjusted_importance)
-            speaking_bids[name] = tr_copy
+            speaking_bids[name] = tr
+            adjusted_scores[name] = adjusted_importance
 
         if speaking_bids:
             # Use adjusted_importance when available, fall back to original importance
             sorted_by_bid = sorted(
                 speaking_bids.items(),
-                key=lambda x: getattr(x[1], "adjusted_importance", x[1].importance),
+                key=lambda x: adjusted_scores.get(x[0], x[1].importance),
                 reverse=True,
             )
-            highest_score = getattr(sorted_by_bid[0][1], "adjusted_importance", sorted_by_bid[0][1].importance)
-            top_agents = [name for name, tr in sorted_by_bid if getattr(tr, "adjusted_importance", tr.importance) == highest_score]
+            highest_score = adjusted_scores.get(sorted_by_bid[0][0], sorted_by_bid[0][1].importance)
+            top_agents = [name for name, tr in sorted_by_bid if adjusted_scores.get(name, tr.importance) == highest_score]
 
             if len(top_agents) == 1:
                 winner = top_agents[0]
@@ -321,20 +432,11 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
                 for name in top_agents
             ])
         else:
-            # THIRD: continuation fallback if nobody bids strongly
-            # Only allow continuation if the last speaker still has a meaningful moderate bid.
-            if last_speaker and last_speaker in thoughts:
-                last_thought = thoughts[last_speaker]
-                last_reason = getattr(last_thought, "reason_type", "no_move")
-                if last_thought.importance >= 4 and last_reason not in {"no_move", "weak_followup"}:
-                    return SpeakerDecision(
-                        reasoning=f"No strong self-selection bids; {last_speaker} continues with a remaining moderate bid ({last_thought.importance}/9, reason={last_reason})",
-                        next_speaker=last_speaker,
-                        response_constraint=None,
-                        is_direct_address=False
-                    )
-
-            # Otherwise force a speaker change and let the GM choose who should take the floor next.
+            # THIRD: nobody bid strongly. The last speaker is NEVER allowed to keep
+            # the floor here — `available` already excludes them, and handing the turn
+            # back produces exactly the monopolization / verbatim-repeat loop we want
+            # to prevent (same person speaking twice in a row). Always force the turn
+            # to a different agent and let the GM tie-break choose who takes the floor.
             available_str = ", ".join(available)
             agent_thoughts_txt = "\n".join([
                 f"- {name}: bid={available_thoughts[name].importance}/9, reason={getattr(available_thoughts[name], 'reason_type', 'no_move')}, thinking: \"{available_thoughts[name].thought}\""
@@ -387,6 +489,11 @@ Return JSON only."""),
                     result.next_speaker = top_agents[0]
             
             result.reasoning = f"Tie-breaker: {result.reasoning}"
+            # The tie-break is a self-selection among bidders, never a mandated reply.
+            # Don't let the LLM mislabel it as a direct address (which would print the
+            # "must respond" tag and create a spurious pending obligation).
+            result.is_direct_address = False
+            result.response_constraint = None
             return result
         except Exception as e:
             print(f"Error in GameMaster decide: {e}")
@@ -399,15 +506,96 @@ Return JSON only."""),
                 is_direct_address=False
             )
 
+    def _last_is_fresh_direct_question(
+        self, last_utterance, available: list, repetition_tracker
+    ) -> bool:
+        """True if the last utterance is a direct question that opens a NEW line.
+
+        Used to shield a legitimate pointed question from the topic-saturation
+        redirect. "Fresh" means it directly addresses an available agent AND is
+        semantically novel relative to the recent (saturated) window — i.e. it
+        pivots the conversation rather than re-circling the dead topic. A
+        rotating-interrogation question stays close to the window and is therefore
+        NOT fresh, so the breaker still fires on it.
+        """
+        if not last_utterance or not last_utterance.get("is_question"):
+            return False
+        text = last_utterance.get("text", "")
+        if not text.strip():
+            return False
+        addressee = detect_direct_address(text, available)
+        if not addressee:
+            return False
+        # Compare this question against the turns BEFORE it (the saturated window).
+        # The tracker calls an utterance novel when its similarity to prior turns is
+        # below novelty_threshold, i.e. novelty above (1 - novelty_threshold); reuse
+        # that same cutoff so "opens a new line" matches the tracker's own notion of
+        # novelty. last_utterance_novelty excludes the question itself from the
+        # comparison (it is already stored), avoiding a spurious self-match.
+        novelty = repetition_tracker.last_utterance_novelty(window=6)
+        return novelty >= (1.0 - repetition_tracker.novelty_threshold)
+
+    def _redirect_for_saturation(
+        self, state: dict, thoughts: dict, available: list, last_speaker, repetition_tracker
+    ) -> Optional[SpeakerDecision]:
+        """Pick a quiet agent and steer the group off a saturated topic.
+
+        Selection: among the lowest-contribution available agents, prefer whoever's
+        current thought is already the furthest from the recent (saturated) window —
+        i.e. the person most ready to talk about something else. Falls back to the
+        quietest available agent. Returns None only if there is genuinely no one to
+        redirect to, in which case normal selection proceeds.
+        """
+        current_round = state.get("current_round", 1)
+        ranked = repetition_tracker.get_low_contribution_agents(
+            all_agents=self.agent_names, round_num=current_round, top_n=len(self.agent_names)
+        )
+        candidates = [n for n in ranked if n in available] or list(available)
+        if not candidates:
+            return None
+
+        # Among the quietest candidates, prefer the one whose pending thought is
+        # most novel relative to the recent window (most likely to change subject).
+        best, best_novelty = None, -1.0
+        for name in candidates:
+            tr = thoughts.get(name)
+            thought_text = getattr(tr, "thought", "") if tr is not None else ""
+            novelty = (
+                repetition_tracker.novelty_score(thought_text, against_last_n=6)
+                if thought_text.strip()
+                else 0.0
+            )
+            if novelty > best_novelty:
+                best, best_novelty = name, novelty
+        shifter = best or candidates[0]
+
+        stopwords = getattr(self.scenario, "gate_stopwords", None)
+        dead_topic = repetition_tracker.dominant_recent_term(window=6, stopwords=stopwords)
+        topic_clause = f'"{dead_topic}"' if dead_topic else "the current line of questioning"
+
+        constraint = (
+            f"The discussion has stalled — the last several turns circled {topic_clause} "
+            f"without revealing anything new. Do NOT ask about it again. Open a NEW line of "
+            f"inquiry: probe motive, the timeline, a contradiction in someone's earlier alibi, "
+            f"or a clue the group hasn't examined yet."
+        )
+        return SpeakerDecision(
+            reasoning=(
+                f"Topic saturation detected ({topic_clause}); demoting the direct-address "
+                f"mandate and giving {shifter} the floor to open a new line of inquiry"
+            ),
+            next_speaker=shifter,
+            response_constraint=constraint,
+            is_direct_address=False,
+        )
+
     def provide_initial_context(self) -> str:
         """Provide game context to all players at the start."""
         investigation_rounds = f"Rounds 2-{self.max_rounds - 1}" if self.max_rounds > 2 else "Round 2"
         accusation_round = self.max_rounds
-        title = self.scenario.title.upper()[:53]
+        title = self.scenario.title.upper()
         context_intro = f"""
-╔═══════════════════════════════════════════════════════════════╗
-║ {title:<61}║
-╚═══════════════════════════════════════════════════════════════╝
+{_boxed(title, style="double")}
 
 TRAGEDY HAS STRUCK!
 
@@ -452,43 +640,34 @@ Let each suspect introduce themselves to the group.
     
     def announce_round_change(self, new_round: int) -> str:
         """Generate announcement for round change, including clues."""
-        # Load the clue for the previous round (clue 1 after round 1, etc.)
-        clue_number = new_round - 1
+        # Clue number trails the round by two (Clue #1 first appears in Round 3);
+        # see get_clue_for_round for the full schedule.
+        clue_number = new_round - 2
         clue_text = self._load_clue(clue_number) if clue_number >= 1 else ""
         
         clue_section = ""
         if clue_text:
             clue_section = f"""
-┌─────────────────────────────────────────────────────────────────┐
-│                     NEW CLUE DISCOVERED!                        │
-└─────────────────────────────────────────────────────────────────┘
+{_boxed("NEW CLUE DISCOVERED!", style="single")}
 
 {clue_text}
 
 ══════════════════════════════════════════════════════════════════
 """
-        
-        inner_width = 63
 
         if new_round == 2:
-            title = f"ROUND {new_round}: THE INVESTIGATION BEGINS"
             return f"""
-╔═══════════════════════════════════════════════════════════════╗
-║{title:^{inner_width}}║
-╚═══════════════════════════════════════════════════════════════╝
+{_boxed(f"ROUND {new_round}: THE INVESTIGATION BEGINS", style="double")}
 
 The introductions are complete. Now the real investigation begins!
 {clue_section}
 Remember: {self.scenario.victim_name} was murdered.
-One of you is the killer. Question everyone. Look for lies and 
+One of you is the killer. Question everyone. Look for lies and
 inconsistencies. {self.scenario.investigation_goal}
 """
         elif new_round < self.max_rounds:
-            title = f"ROUND {new_round}"
             return f"""
-╔═══════════════════════════════════════════════════════════════╗
-║{title:^{inner_width}}║
-╚═══════════════════════════════════════════════════════════════╝
+{_boxed(f"ROUND {new_round}", style="double")}
 
 New evidence has emerged!
 {clue_section}
@@ -496,15 +675,15 @@ The truth about {self.scenario.victim_name}'s murder is getting closer...
 Continue questioning. The killer is among you!
 """
         else:
-            # Final clue injection into agent memory is handled separately by
-            # the is_game_complete path in discussion.py (or _advance_to_round).
-            # Do NOT embed the clue text here to avoid double-reveal.
+            # The decisive clues (#4, #5) were revealed and debated in the final
+            # DISCUSSION round (max_rounds - 1); this banner is shown by
+            # _complete_investigation immediately before the accusation step. Do NOT
+            # embed clue text here — there is no more discussion, and re-revealing
+            # would duplicate evidence already on the table.
             return f"""
-╔═══════════════════════════════════════════════════════════════╗
-║         FINAL ROUND - TIME TO ACCUSE                          ║
-╚═══════════════════════════════════════════════════════════════╝
+{_boxed("FINAL ROUND - TIME TO ACCUSE", style="double")}
 
-The investigation is complete. 
+The investigation is complete.
 
 It's time to decide: {self.scenario.accusation_prompt}
 Each of you must now make your final accusation!
