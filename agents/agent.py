@@ -1374,13 +1374,24 @@ Return valid structured JSON only. Cover all suspects: {suspects_str}"""),
             top_n_candidates = merged[:TOP_N_ACCUSATION_CANDIDATES]
 
             # Build a short context block for the prompt
-            lines = ["Your private suspicion scores (averaged across recent rounds):"]
+            lines = [
+                "=== YOUR PRIVATE SUSPICION ASSESSMENT ===",
+                "(Your own careful per-round reasoning over all the evidence. This is your",
+                "single most reliable read on who did it — weight it ABOVE group attention.)",
+                "Averaged suspicion scores across recent rounds:",
+            ]
             for name, score in private_ranked[:6]:
                 if name in other_agents:
                     lines.append(f"  {name}: {score:.1f}/10")
             latest = self.private_suspicion_history[-1]
             lines.append(f"Your most recent top suspect (Round {latest.round}): {latest.top_suspect}")
             private_suspicion_context = "\n".join(lines)
+        else:
+            private_suspicion_context = (
+                "=== YOUR PRIVATE SUSPICION ASSESSMENT ===\n"
+                "(No private per-round assessment was recorded; fall back to the evidence "
+                "and your belief state below.)"
+            )
         # ──────────────────────────────────────────────────────────────────────
 
         top_suspect = top_n_candidates[0] if top_n_candidates else (other_agents[0] if other_agents else "")
@@ -1395,11 +1406,17 @@ Your accusation must be grounded in specific evidence from the discussion, clues
 Do not give a vague accusation. Build the strongest honest case you can from the information you observed."""),
             HumanMessage(content=f"""{memory_context}
 
+{private_suspicion_context}
+
+=== GROUP SCRUTINY (ATTENTION ONLY — NOT EVIDENCE OF GUILT) ===
+The rankings below reflect who the group questioned, pressured, or talked about
+most. A guilty person often deflects attention onto an innocent one, so a high
+scrutiny score does NOT mean guilt. Use this only as weak corroboration, and
+NEVER let it override your private assessment or the concrete evidence.
+
 {suspect_ranking}
 
 {belief_summary}
-
-{private_suspicion_context}
 
 {interaction_summary}
 
@@ -1407,10 +1424,11 @@ Choose murderer from: {others_str}
 (Cannot accuse yourself)
 
 Belief-state constraint:
-- Your accusation MUST come from these top belief candidates unless the evidence is truly overwhelming otherwise: {', '.join(top_n_candidates) if top_n_candidates else others_str}
 - Your current top suspect is: {top_suspect}
-- Your private suspicion scores above reflect your own careful reasoning across all rounds — weight them heavily.
-- If you accuse someone other than your current top suspect, `comparative_case` must explicitly explain why the evidence for your chosen suspect is stronger than the evidence for {top_suspect}.
+- Your accusation MUST come from these top belief candidates unless the evidence is truly overwhelming otherwise: {', '.join(top_n_candidates) if top_n_candidates else others_str}
+- Your PRIVATE suspicion assessment above is your most reliable signal — it reflects your own careful reasoning across all rounds. Default to it.
+- The GROUP SCRUTINY rankings are attention, not evidence. Do NOT switch your accusation away from your private top suspect just because the group grilled someone else harder.
+- If you accuse someone other than your current top suspect ({top_suspect}), `comparative_case` must cite the SPECIFIC concrete evidence (a revealed clue, a broken alibi, a contradiction) that makes the case against your chosen suspect stronger — group attention does NOT count as such evidence.
 - If your uncertainty is high, acknowledge that in `uncertainty`, but still choose the strongest candidate from your belief state.
 
 Important decision rule:
