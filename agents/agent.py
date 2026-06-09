@@ -178,6 +178,17 @@ class ClueRecallResult(BaseModel):
             return [str(item).strip() for item in value if str(item).strip()]
         return []
 
+    @field_validator("most_important_clue", "clue_based_suspect", mode="before")
+    @classmethod
+    def coerce_clue_fields_to_str(cls, value):
+        """LLMs sometimes return a clue id (int) or null here; coerce to string so the
+        whole recall probe doesn't fail and silently drop an agent's recall data."""
+        if value is None:
+            return ""
+        if isinstance(value, (int, float)):
+            return str(value)
+        return value
+
 
 class AccusationResult(BaseModel):
     reasoning: str = Field(description="Short final reasoning for your accusation")
@@ -285,6 +296,14 @@ class Agent:
         self.accumulated_knowledge = ""  # Knowledge accumulated across rounds
         self.confession = ""  # Loaded after accusation phase
         self.murderer_strategy = ""
+        # Atomic first-hand fact list — injected high-salience so the agent states
+        # grounded testimony instead of distorting the prose brief. Optional per scenario.
+        self.known_facts = ""
+        try:
+            from utils.agent_helper import load_known_facts
+            self.known_facts = load_known_facts(roles_dir, name)
+        except Exception:
+            self.known_facts = ""
         self.questions_asked_to: set = set()  # Track who we've asked questions to (can only ask each agent once)
         self.facts_revealed: List[str] = []  # Track facts this agent has already revealed
         self.topics_discussed: set = set()  # Track topics to avoid repetition
@@ -619,6 +638,31 @@ class Agent:
                     pass
         return "Be selective. Speak only when your move clearly improves the investigation or your position."
 
+    def _known_facts_block(self) -> str:
+        """High-salience injection of the agent's atomic first-hand fact list.
+
+        Returns an empty string when the scenario has not authored ``known_facts``
+        for this role, so behaviour is unchanged for scenarios without it."""
+        if not self.known_facts:
+            return ""
+        if self.is_murderer:
+            return (
+                "\n\n=== YOUR GROUND TRUTH (use to stay consistent; you MAY lie per your strategy) ===\n"
+                f"{self.known_facts}\n"
+                "=== END GROUND TRUTH ===\n"
+            )
+        return (
+            "\n\n=== THE FACTS YOU PERSONALLY KNOW (your only first-hand testimony) ===\n"
+            f"{self.known_facts}\n"
+            "=== END FACTS ===\n"
+            "GROUNDING RULE: When you state something as a first-hand fact — what you saw, "
+            "who was where, at what time, what you have or know — it MUST come from the list "
+            "above. You may reason, infer, and speculate freely, but label inference as inference "
+            "and NEVER assert a first-hand observation that contradicts or goes beyond this list "
+            "(e.g. do not claim to have seen the murder, a body, a locked door, or someone "
+            "'inside' a room unless it is listed). Inventing eyewitness facts is not allowed.\n"
+        )
+
     def think(self, state: GameState) -> ThinkResult:
         self.update_memory(state)
         
@@ -822,7 +866,7 @@ Your job is NOT to speak every turn. Listen when another agent has a higher-valu
             system_static = f"""Character Information:
 You are {self.name}.
 {self.persona}
-
+{self._known_facts_block()}
 {self.scenario.victim_name} was MURDERED. Round {current_round}/6.
 {goals_block}
 
@@ -1066,7 +1110,7 @@ Choose the move type with the highest investigative value — and prefer stating
             system_static = f"""Character Information:
 You are {self.name}.
 {self.persona}
-
+{self._known_facts_block()}
 {self.scenario.victim_name} was MURDERED. Round {current_round}/6.
 
 You are speaking aloud IN CHARACTER inside the mystery world.
@@ -1345,7 +1389,7 @@ Return valid structured JSON only. Cover all suspects: {suspects_str}"""),
             SystemMessage(content=f"""Character Information:
 You are {self.name}.
 {self.persona}
-
+{self._known_facts_block()}
 Investigation OVER. Accuse ONE person.
 Your accusation must be grounded in specific evidence from the discussion, clues, contradictions, alibis, motives, means, opportunities, or timeline facts.
 Do not give a vague accusation. Build the strongest honest case you can from the information you observed."""),

@@ -136,6 +136,17 @@ def load_murderer_strategy(roles_dir: Path, character_name: str) -> str:
     return _load_role_file(roles_dir, character_name, "murderer_strategy.md")
 
 
+def load_known_facts(roles_dir: Path, character_name: str) -> str:
+    """Load the character's atomic first-hand fact list, if authored.
+
+    ``known_facts.txt`` is an explicit, first-person enumeration of exactly what
+    this character personally saw/knows. It is injected high-salience into the
+    speaking/thinking prompts so the model states grounded testimony instead of
+    paraphrasing (and distorting) the prose brief. Optional — returns "" if the
+    scenario has not authored one for this role."""
+    return _load_role_file(roles_dir, character_name, "known_facts.txt")
+
+
 def detect_murderer(roles_dir: Path, character_name: str) -> bool:
     """
     Detect if a character is the murderer by checking their round 1 description.

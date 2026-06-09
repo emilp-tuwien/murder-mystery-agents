@@ -216,20 +216,29 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
         return current_round >= self.max_rounds
 
     def get_clue_for_round(self, new_round: int) -> str:
-        """Return the clue revealed when entering a new round.
+        """Return the clue(s) revealed when entering a new round.
 
-        The authored role descriptions gate clues as: no clue in Rounds 1-2,
-        Clue #1 in Round 3, Clue #2 in Round 4, Clue #3 in Round 5, and the
-        remaining clues (#4 and #5) at the final accusation stage. So the clue
-        number trails the round by two; entering Round 3 reveals Clue #1.
-        Keeping this aligned prevents agents from "knowing" crime-scene details
-        (e.g. the keychain/blood smear in Clue #1) a round before their own
-        briefing mentions them.
+        Clues gate as: no clue in Rounds 1-2, Clue #1 in Round 3, Clue #2 in
+        Round 4. The FINAL discussion round (``max_rounds - 1``, normally Round 5)
+        reveals its scheduled clue PLUS every remaining clue — i.e. the decisive
+        #4 (fire escape) and #5 (timeline reconstruction). Previously those two
+        were held back to the accusation phase, which runs NO discussion turns,
+        so the only clues that actually incriminate the killer were never debated.
+        Revealing them in the last discussion round lets the group reason from
+        them. The role briefings for Round 5 are updated to match.
         """
-        clue_number = new_round - 2
-        if clue_number < 1:
+        if new_round < 3:
             return ""
-        return self._load_clue(clue_number)
+        final_discussion_round = max(self.max_rounds - 1, 3)
+        clue_count = self._clue_count()
+        first = new_round - 2  # the clue normally scheduled for this round
+        if new_round >= final_discussion_round:
+            # Reveal the scheduled clue and all remaining clues together.
+            texts = [self._load_clue(n) for n in range(first, clue_count + 1)]
+            return "\n\n".join(t for t in texts if t)
+        if first < 1:
+            return ""
+        return self._load_clue(first)
 
     def _clue_count(self) -> int:
         """Number of clue files available for this scenario."""
@@ -241,12 +250,15 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
     def get_remaining_clues(self, current_round: int) -> List[str]:
         """Return every not-yet-revealed clue, in order, for the final stage.
 
-        The per-round schedule (see ``get_clue_for_round``) reveals clues up to
-        number ``current_round - 2`` by the time the investigation completes at
-        ``current_round``. This returns the rest — clues
-        ``current_round - 1 .. clue_count`` — so the accusation phase delivers
-        Clue #4 and Clue #5 together, matching the Round 6 briefings.
+        With the final discussion round (``max_rounds - 1``) now revealing all
+        remaining clues (see ``get_clue_for_round``), nothing is held back for the
+        accusation phase: by the time ``current_round`` reaches the final discussion
+        round or beyond, every clue is already public. This returns the leftovers
+        only if the caller is somehow still ahead of the schedule.
         """
+        final_discussion_round = max(self.max_rounds - 1, 3)
+        if current_round >= final_discussion_round:
+            return []
         first_unrevealed = max(1, current_round - 1)
         clues = []
         for clue_number in range(first_unrevealed, self._clue_count() + 1):
@@ -462,7 +474,8 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
 
 These players have EQUAL urgency scores and are tied: {available_str}
 You must break the tie by choosing who would best advance the murder investigation.
-Prefer players who have not yet shared their private knowledge or who have been silent.
+Base your choice ONLY on the observable signals provided: each player's bid strength, their stated reason_type, whether they have been quiet, and the knowledge-coverage note. Prefer a player who has spoken least or whose bid promises a concrete, testable contribution.
+Do NOT speculate about, assert, or invent any specific fact a player supposedly knows but has not yet said — you cannot see their private briefs, and guessing their hidden knowledge fabricates evidence. Your reasoning must reference only what is shown below.
 Return valid JSON with keys: reasoning, next_speaker, response_constraint, is_direct_address."""),
             HumanMessage(content=f"""RECENT CONVERSATION:
 {history_txt}
@@ -640,11 +653,12 @@ Let each suspect introduce themselves to the group.
     
     def announce_round_change(self, new_round: int) -> str:
         """Generate announcement for round change, including clues."""
-        # Clue number trails the round by two (Clue #1 first appears in Round 3);
-        # see get_clue_for_round for the full schedule.
-        clue_number = new_round - 2
-        clue_text = self._load_clue(clue_number) if clue_number >= 1 else ""
-        
+        # Use the same scheduling source as the agents receive (get_clue_for_round)
+        # so the printed box matches what is actually revealed. At the final
+        # discussion round this returns the scheduled clue PLUS the decisive #4/#5.
+        # The accusation banner (new_round == max_rounds) embeds no clue text.
+        clue_text = self.get_clue_for_round(new_round) if new_round < self.max_rounds else ""
+
         clue_section = ""
         if clue_text:
             clue_section = f"""
