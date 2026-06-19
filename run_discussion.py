@@ -538,16 +538,16 @@ def run_game_from_config(config: RunConfig, event_sink=None) -> dict:
         print(verdict_text)
     print("=" * 60)
 
-    _banner("CONFESSION TIME - THE TRUTH REVEALED")
-    print("\nEach player now reveals their secrets...\n")
+    _banner("THE TRUTH REVEALED")
+    print("\nEach player's private knowledge...\n")
 
     for name, agent in agents.items():
-        _section(f"{name}'s Confession")
-        confession = agent.load_confession()
-        if confession:
-            print(confession)
+        _section(f"{name}'s Private Knowledge")
+        known = getattr(agent, "known_facts", "")
+        if known:
+            print(known)
         else:
-            print("(No confession available)")
+            print("(No private knowledge available)")
         print()
 
     _banner("FINAL VERDICT")

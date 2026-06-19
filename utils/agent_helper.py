@@ -149,17 +149,17 @@ def load_known_facts(roles_dir: Path, character_name: str) -> str:
 
 def detect_murderer(roles_dir: Path, character_name: str) -> bool:
     """
-    Detect if a character is the murderer by checking their round 1 description.
-    The murderer's description will contain indication that they committed the murder.
+    Detect if a character is the murderer from their authored role files.
+    The murderer's ``known_facts.txt`` is explicitly marked "(THE MURDERER)";
+    the round 1 briefing may also carry an explicit indicator.
     """
     round1_desc = load_round_description(roles_dir, character_name, 1)
-    confession = load_confession(roles_dir, character_name)
-    
-    # Check for explicit murderer indicator
-    combined_text = (round1_desc + " " + confession).lower()
-    
-    # Look for explicit "YOU ARE THE MURDERER" statement
-    if "you are the murderer" in combined_text:
+    known_facts = load_known_facts(roles_dir, character_name)
+
+    # Check for an explicit murderer indicator in the authored role files.
+    combined_text = (round1_desc + " " + known_facts).lower()
+
+    if "you are the murderer" in combined_text or "(the murderer)" in combined_text:
         return True
-    
+
     return False

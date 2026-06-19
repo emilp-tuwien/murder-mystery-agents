@@ -90,11 +90,13 @@ def load_judge_context(roles_dir: str, murderer_name: str, max_rounds: int = 6) 
     murderer_slug = murderer_name.lower().replace(" ", "-")
     murderer_dir = roles_path / murderer_slug
 
-    # Confession (ground truth)
-    confession_path = murderer_dir / "confession.txt"
+    # Ground truth — the murderer's first-hand truth lives in known_facts.txt
+    # (the "THE TRUTH" section). The scenario no longer ships confession.txt, so
+    # the judge verifies factual claims against the murderer's known_facts.
+    known_facts_path = murderer_dir / "known_facts.txt"
     ground_truth = (
-        confession_path.read_text(encoding="utf-8").strip()
-        if confession_path.exists() else ""
+        known_facts_path.read_text(encoding="utf-8").strip()
+        if known_facts_path.exists() else ""
     )
 
     # Murderer strategy / cover story
@@ -214,7 +216,7 @@ def _build_system_prompt(judge_context: Optional[JudgeContext]) -> str:
 
     if judge_context:
         # Ground truth
-        gt = judge_context.ground_truth or "(confession file not found)"
+        gt = judge_context.ground_truth or "(ground truth not found)"
         sections.append(
             f"━━━ GROUND TRUTH — what {name} actually did (use this to verify factual claims) ━━━\n{gt}"
         )
