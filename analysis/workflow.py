@@ -74,10 +74,31 @@ def _write_json(path: Path, payload: Dict[str, Any]):
         json.dump(payload, handle, indent=2, sort_keys=True)
 
 
+def planned_condition_names(experiment_dir: Path) -> set:
+    """Condition names declared in experiment_plan.json (empty set if no plan).
+
+    Used to skip stale/orphaned directories under ``conditions/`` (e.g. leftovers
+    from a renamed matrix) so they cannot contaminate aggregates, reports, or the
+    thesis dataset.
+    """
+    plan = _read_json(Path(experiment_dir) / "experiment_plan.json")
+    names = set()
+    for condition in plan.get("conditions", []) if plan else []:
+        name = condition.get("condition_name") or condition.get("name")
+        if name:
+            names.add(name)
+    return names
+
+
 def _condition_dirs(experiment_dir: Path) -> List[Path]:
     conditions_dir = experiment_dir / "conditions"
     if conditions_dir.exists():
-        return sorted(path for path in conditions_dir.iterdir() if path.is_dir())
+        planned = planned_condition_names(experiment_dir)
+        return sorted(
+            path
+            for path in conditions_dir.iterdir()
+            if path.is_dir() and (not planned or path.name in planned)
+        )
     return [experiment_dir]
 
 

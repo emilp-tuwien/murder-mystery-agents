@@ -63,7 +63,16 @@ def _write_csv(path: Path, rows: List[Dict[str, Any]]):
 def _condition_dirs(experiment_dir: Path) -> List[Path]:
     conditions_dir = experiment_dir / "conditions"
     if conditions_dir.exists():
-        return sorted(path for path in conditions_dir.iterdir() if path.is_dir())
+        from analysis.workflow import planned_condition_names
+
+        # Skip stale condition directories not declared in experiment_plan.json
+        # so they cannot leak into the thesis dataset.
+        planned = planned_condition_names(experiment_dir)
+        return sorted(
+            path
+            for path in conditions_dir.iterdir()
+            if path.is_dir() and (not planned or path.name in planned)
+        )
     return [experiment_dir]
 
 

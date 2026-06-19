@@ -294,10 +294,17 @@ def game_master_decide(state: GameState, game_master, agents: Dict[str, any], ui
     if decision.is_direct_address:
         print(f"     ⚡ (Direct address - must respond)")
 
+    bid_adjustments = dict(getattr(game_master, "last_bid_adjustments", {}) or {})
+    demoted = {n: adj for n, adj in bid_adjustments.items() if adj["adjusted"] != adj["raw"]}
+    if demoted:
+        parts = ", ".join(f"{n} {adj['raw']}→{adj['adjusted']}" for n, adj in demoted.items())
+        print(f"     └─ novelty-adjusted bids: {parts}")
+
     _emit(ui_store, "speaker_selected", {
         "speaker": decision.next_speaker,
         "reason": decision.reasoning,
         "is_direct_address": decision.is_direct_address,
+        "bid_adjustments": bid_adjustments,
     })
 
     pending = None

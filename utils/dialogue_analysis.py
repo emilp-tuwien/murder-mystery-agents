@@ -30,9 +30,22 @@ def _candidate_patterns(agent_name: str) -> List[str]:
 def detect_direct_address(text: str, available_agents: Iterable[str]) -> Optional[str]:
     """
     Lightweight direct-address detector used both during simulation and in post-hoc analysis.
+
+    Notes on precision (these directly feed RQ2 attention metrics and the GM's
+    mandatory-response rule, so false positives matter):
+    - There is deliberately NO bare "to <name>" pattern: phrases like
+      "I talked to Tim" or "next to Pauline" are mentions, not direct address.
+    - When several agents match (e.g. "I was with Bobby. Fiona, where were you?"),
+      the winner is NOT the first agent in list order. If the utterance contains a
+      question, the match closest to the last question mark wins (the vocative
+      naming the addressee sits next to the question); otherwise the latest match
+      in the utterance wins.
     """
     text_lower = normalize_name(text)
 
+    # Collect every (position, agent) pattern hit instead of returning the first
+    # agent in iteration order.
+    matches: List[tuple[int, str]] = []
     for agent_name in available_agents:
         for candidate in _candidate_patterns(agent_name):
             patterns = [
@@ -79,12 +92,34 @@ def detect_direct_address(text: str, available_agents: Iterable[str]) -> Optiona
                 f"{candidate}, please",
                 f"{candidate} tell us",
                 f"{candidate}, tell us",
-                f"to {candidate}",
             ]
-            if any(pattern in text_lower for pattern in patterns):
-                return agent_name
+            for pattern in patterns:
+                start = 0
+                while True:
+                    pos = text_lower.find(pattern, start)
+                    if pos == -1:
+                        break
+                    matches.append((pos, agent_name))
+                    start = pos + 1
 
-    return None
+    if not matches:
+        return None
+
+    matched_agents = {agent for _, agent in matches}
+    if len(matched_agents) == 1:
+        return next(iter(matched_agents))
+
+    qmark = text_lower.rfind("?")
+    if qmark != -1:
+        # Prefer the match that precedes and sits closest to the question;
+        # fall back to smallest absolute distance if nothing precedes it.
+        before = [(qmark - pos, agent) for pos, agent in matches if pos < qmark]
+        if before:
+            return min(before)[1]
+        return min((abs(pos - qmark), agent) for pos, agent in matches)[1]
+
+    # No question: the addressee is usually the person named last.
+    return max(matches)[1]
 
 
 def detect_direct_address_llm(

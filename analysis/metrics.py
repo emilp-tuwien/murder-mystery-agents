@@ -704,8 +704,16 @@ def aggregate_experiment_conditions(experiment_dir: str | Path) -> Dict[str, Any
             json.dump(summary, handle, indent=2, sort_keys=True)
         return summary
 
+    from analysis.workflow import planned_condition_names
+
+    # Only aggregate conditions declared in experiment_plan.json (when a plan
+    # exists) so stale directories from renamed condition matrices are excluded.
+    planned = planned_condition_names(experiment_path)
+
     condition_rows: List[Dict[str, Any]] = []
     for condition_path in sorted(path for path in conditions_dir.iterdir() if path.is_dir()):
+        if planned and condition_path.name not in planned:
+            continue
         aggregate_path = condition_path / "aggregate_summary.json"
         if not aggregate_path.exists():
             aggregate_experiment(condition_path)
