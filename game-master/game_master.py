@@ -75,6 +75,9 @@ class GameMaster:
         self.min_pressure_signals_per_round = min_pressure_signals_per_round
         self.min_clue_references_per_round = min_clue_references_per_round
         self.min_synthesis_signals_final_round = min_synthesis_signals_final_round
+        # Raw→novelty-adjusted bid mapping from the most recent speaker selection;
+        # surfaced in the speaker_selected event so selections are auditable.
+        self.last_bid_adjustments: dict = {}
     
     def _load_persona(self) -> str:
         """Load game master description from PDF"""
@@ -206,38 +209,37 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
     def is_game_complete(self, current_round: int, conversations_in_round: int) -> bool:
         """Check whether the investigation is over and the accusation phase begins.
 
-        The FINAL discussion round is ``max_rounds - 1``: the last clues (#4 fire
-        escape and #5 timeline — the only two that actually incriminate the murderer)
-        are revealed when entering it and debated there. Round ``max_rounds`` is the
-        accusation phase itself and runs NO discussion turns, so the game is complete
-        once we reach it. (Completion is driven directly by ``check_round_advance`` via
-        ``_complete_investigation``; this method is kept for external callers/tests.)
+        The FINAL discussion round is ``max_rounds - 1`` (normally Round 5), where
+        the last clue (#4, the fire escape) is revealed and debated. Round
+        ``max_rounds`` is the accusation phase itself and runs NO discussion turns,
+        so the game is complete once we reach it. (Completion is driven directly by
+        ``check_round_advance`` via ``_complete_investigation``; this method is kept
+        for external callers/tests.)
         """
         return current_round >= self.max_rounds
 
     def get_clue_for_round(self, new_round: int) -> str:
         """Return the clue(s) revealed when entering a new round.
 
-        Clues gate as: no clue in Rounds 1-2, Clue #1 in Round 3, Clue #2 in
-        Round 4. The FINAL discussion round (``max_rounds - 1``, normally Round 5)
-        reveals its scheduled clue PLUS every remaining clue — i.e. the decisive
-        #4 (fire escape) and #5 (timeline reconstruction). Previously those two
-        were held back to the accusation phase, which runs NO discussion turns,
-        so the only clues that actually incriminate the killer were never debated.
-        Revealing them in the last discussion round lets the group reason from
-        them. The role briefings for Round 5 are updated to match.
+        Clues gate one per round starting in Round 2: Clue #1 in Round 2, Clue #2
+        in Round 3, and so on. Round 1 is the introduction (no clue). The FINAL
+        discussion round (``max_rounds - 1``, normally Round 5) reveals its
+        scheduled clue plus any remaining clues, so nothing is held back for the
+        accusation phase (``max_rounds``), which runs NO discussion turns. With the
+        canonical four-clue schedule this reveals Clues #1-#4 across Rounds 2-5,
+        each debated before accusations begin in Round 6.
         """
-        if new_round < 3:
+        if new_round < 2:
             return ""
-        final_discussion_round = max(self.max_rounds - 1, 3)
         clue_count = self._clue_count()
-        first = new_round - 2  # the clue normally scheduled for this round
+        first = new_round - 1  # the clue scheduled for this round
+        if first > clue_count:
+            return ""
+        final_discussion_round = max(self.max_rounds - 1, 2)
         if new_round >= final_discussion_round:
-            # Reveal the scheduled clue and all remaining clues together.
+            # Reveal the scheduled clue and any remaining clues together.
             texts = [self._load_clue(n) for n in range(first, clue_count + 1)]
             return "\n\n".join(t for t in texts if t)
-        if first < 1:
-            return ""
         return self._load_clue(first)
 
     def _clue_count(self) -> int:
@@ -279,7 +281,10 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
         last_utterance = history[-1] if history else None
         current_round = state.get("current_round", 1)
         phase = state.get("phase", "introduction")
-        
+        # Reset per-selection: early-return paths (saturation redirect, direct-address
+        # mandate) must not leave a previous turn's adjustments dangling.
+        self.last_bid_adjustments = {}
+
         # Available speakers (exclude last speaker to avoid monopolization)
         last_speaker = state.get("last_speaker")
         available = [n for n in self.agent_names if n != last_speaker] if last_speaker else self.agent_names
@@ -397,7 +402,13 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
 
             # Novelty adjustment: semantic similarity against recent utterances
             # (replaces the old token-overlap heuristic)
-            if repetition_tracker is not None and thought_text.strip():
+            if getattr(tr, "reason_type", "") == "direct_response":
+                # A mandated answer to a direct question is NEVER novelty-damped:
+                # the response necessarily echoes the question's topic, so damping
+                # it can demote the one agent who must answer into a tie (or below)
+                # and hand the floor elsewhere while the question goes unanswered.
+                novelty = 1.0
+            elif repetition_tracker is not None and thought_text.strip():
                 novelty = max(0.35, repetition_tracker.novelty_score(thought_text, against_last_n=8))
             else:
                 # Fallback: token-overlap against last 6 utterances
@@ -417,6 +428,20 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
             speaking_bids[name] = tr
             adjusted_scores[name] = adjusted_importance
 
+        # Record the raw→adjusted mapping so the console and event log can explain
+        # selections that diverge from the displayed raw bids (a raw 9 demoted to a
+        # tie with a raw 7 looked like the GM misbehaving when this was invisible).
+        self.last_bid_adjustments = {
+            name: {"raw": tr.importance, "adjusted": adjusted_scores[name]}
+            for name, tr in speaking_bids.items()
+        }
+        adjustment_note = ", ".join(
+            f"{name} {tr.importance}→{adjusted_scores[name]}"
+            for name, tr in speaking_bids.items()
+            if adjusted_scores[name] != tr.importance
+        )
+        adjustment_suffix = f" [novelty-adjusted bids: {adjustment_note}]" if adjustment_note else ""
+
         if speaking_bids:
             # Use adjusted_importance when available, fall back to original importance
             sorted_by_bid = sorted(
@@ -430,7 +455,11 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
             if len(top_agents) == 1:
                 winner = top_agents[0]
                 reason_type = getattr(speaking_bids[winner], "reason_type", "bid")
-                reasoning = f"{winner} has the strongest self-selection bid ({highest_score}/9, reason={reason_type})"
+                reasoning = (
+                    f"{winner} has the strongest self-selection bid "
+                    f"({highest_score}/9 adjusted, raw {speaking_bids[winner].importance}/9, reason={reason_type})"
+                    f"{adjustment_suffix}"
+                )
                 return SpeakerDecision(
                     reasoning=reasoning,
                     next_speaker=winner,
@@ -440,7 +469,7 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
 
             available_str = ", ".join(top_agents)
             agent_thoughts_txt = "\n".join([
-                f"- {name}: bid={speaking_bids[name].importance}/9, reason={getattr(speaking_bids[name], 'reason_type', 'bid')}, thinking: \"{speaking_bids[name].thought}\""
+                f"- {name}: adjusted_bid={adjusted_scores[name]}/9 (raw {speaking_bids[name].importance}/9), reason={getattr(speaking_bids[name], 'reason_type', 'bid')}, thinking: \"{speaking_bids[name].thought}\""
                 for name in top_agents
             ])
         else:
@@ -451,7 +480,7 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
             # to a different agent and let the GM tie-break choose who takes the floor.
             available_str = ", ".join(available)
             agent_thoughts_txt = "\n".join([
-                f"- {name}: bid={available_thoughts[name].importance}/9, reason={getattr(available_thoughts[name], 'reason_type', 'no_move')}, thinking: \"{available_thoughts[name].thought}\""
+                f"- {name}: raw_bid={available_thoughts[name].importance}/9, reason={getattr(available_thoughts[name], 'reason_type', 'no_move')}, thinking: \"{available_thoughts[name].thought}\""
                 for name in available
             ]) if available_thoughts else "(no strong self-selection bids available)"
             top_agents = available
@@ -472,9 +501,12 @@ Create bullet points of key facts revealed (max 15 bullets):"""),
         msgs = [
             SystemMessage(content=f"""{self.persona}
 
-These players have EQUAL urgency scores and are tied: {available_str}
+These players are tied on NOVELTY-ADJUSTED bid strength: {available_str}
+(Raw bids are adjusted downward when a player's intended contribution repeats ground the
+discussion already covered, so a tied player may show a higher raw bid than another —
+that surplus was repetition, not new urgency. Treat the adjusted bids as equal.)
 You must break the tie by choosing who would best advance the murder investigation.
-Base your choice ONLY on the observable signals provided: each player's bid strength, their stated reason_type, whether they have been quiet, and the knowledge-coverage note. Prefer a player who has spoken least or whose bid promises a concrete, testable contribution.
+Base your choice ONLY on the observable signals provided: each player's bid, their stated reason_type, whether they have been quiet, and the knowledge-coverage note. Prefer a player who has spoken least or whose bid promises a concrete, testable contribution.
 Do NOT speculate about, assert, or invent any specific fact a player supposedly knows but has not yet said — you cannot see their private briefs, and guessing their hidden knowledge fabricates evidence. Your reasoning must reference only what is shown below.
 Return valid JSON with keys: reasoning, next_speaker, response_constraint, is_direct_address."""),
             HumanMessage(content=f"""RECENT CONVERSATION:
@@ -501,7 +533,7 @@ Return JSON only."""),
                     # Default to first tied agent
                     result.next_speaker = top_agents[0]
             
-            result.reasoning = f"Tie-breaker: {result.reasoning}"
+            result.reasoning = f"Tie-breaker{adjustment_suffix}: {result.reasoning}"
             # The tie-break is a self-selection among bidders, never a mandated reply.
             # Don't let the LLM mislabel it as a direct address (which would print the
             # "must respond" tag and create a spurious pending obligation).
